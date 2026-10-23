@@ -1,0 +1,39 @@
+
+package controller;
+
+import repository.ExamRepository;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Map;
+
+@RestController
+@CrossOrigin(origins = "http://localhost:5173")
+@RequestMapping("/api/admin")
+public class AdminDashboardController {
+
+    private final ExamRepository examRepository;
+
+    public AdminDashboardController(ExamRepository examRepository) {
+        this.examRepository = examRepository;
+    }
+
+    @GetMapping("/dashboard")
+    public Map<String, Object> getDashboard() {
+
+        long totalExams = examRepository.count();
+        long activeExams = examRepository.countByStatus("PUBLISHED");
+
+        return Map.of(
+                "application", "Secure Exam Platform",
+                "status", "UP",
+                "totalExams", totalExams,
+                "totalCandidates", 0,
+                "activeExams", activeExams,
+                "message", "Admin dashboard API is working"
+        );
+    }
+}
+

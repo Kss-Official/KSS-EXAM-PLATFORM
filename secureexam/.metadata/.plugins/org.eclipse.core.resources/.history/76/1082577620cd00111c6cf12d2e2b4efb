@@ -1,0 +1,5 @@
+package com.exam.secureexam.entity;
+
+public class Exam {
+
+}
