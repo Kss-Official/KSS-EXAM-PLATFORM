@@ -98,7 +98,7 @@ export default function ExamReadinessSummary({
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <ShieldCheck size={18} color="#365fe5" />
+          <ShieldCheck size={18} color="#017846" />
           <strong style={{ fontSize: "14px", color: "#0f172a" }}>Exam Blueprint & Readiness Summary</strong>
         </div>
 

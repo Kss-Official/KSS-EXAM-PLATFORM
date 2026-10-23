@@ -56,7 +56,7 @@ export default function BackendStatusBanner({
 
   if (loading) {
     return (
-      <div className="backend-banner" style={{ background: "#f8fafc", borderLeft: "4px solid #365fe5" }}>
+      <div className="backend-banner" style={{ background: "#f8fafc", borderLeft: "4px solid #017846" }}>
         <div className="banner-header">
           <div className="banner-title">
             <Server size={18} className="animate-spin" />

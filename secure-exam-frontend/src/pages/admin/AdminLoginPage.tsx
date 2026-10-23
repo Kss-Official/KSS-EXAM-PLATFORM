@@ -129,7 +129,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           gap: "12px"
         }}
       >
-        <div style={{ width: "32px", height: "32px", border: "3px solid #365fe5", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <div style={{ width: "32px", height: "32px", border: "3px solid #017846", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         <span style={{ fontSize: "13px" }}>ExamSecure: Verifying administrator session...</span>
       </div>
     );
@@ -192,12 +192,12 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
               width: "56px",
               height: "56px",
               borderRadius: "16px",
-              background: "linear-gradient(135deg, #365fe5, #2549c7)",
+              background: "linear-gradient(135deg, #017846, #014D32)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               margin: "0 auto 14px",
-              boxShadow: "0 10px 25px rgba(54, 95, 229, 0.4)",
+              boxShadow: "0 10px 25px rgba(1, 120, 70, 0.4)",
               border: "1px solid rgba(255, 255, 255, 0.15)"
             }}
           >
@@ -225,7 +225,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         >
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-              <UserCheck size={16} color="#365fe5" />
+              <UserCheck size={16} color="#017846" />
               <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
                 Super Administrator Sign In
               </h2>
@@ -387,11 +387,11 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
                 fontSize: "13px",
                 fontWeight: 700,
                 color: "#ffffff",
-                background: "linear-gradient(135deg, #365fe5, #2549c7)",
+                background: "linear-gradient(135deg, #017846, #01663C)",
                 border: "none",
                 borderRadius: "8px",
                 cursor: loading ? "not-allowed" : "pointer",
-                boxShadow: "0 4px 12px rgba(54, 95, 229, 0.3)",
+                boxShadow: "0 4px 12px rgba(1, 120, 70, 0.3)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

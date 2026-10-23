@@ -153,7 +153,7 @@ export default function DepartmentsPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "12px" }}>
         <div>
           <h2 style={{ margin: 0, fontSize: "20px", fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Building2 size={22} color="#365fe5" />
+            <Building2 size={22} color="#017846" />
             Academic Departments Management
           </h2>
           <p style={{ margin: "4px 0 0", fontSize: "13px", color: "#64748b" }}>
@@ -232,8 +232,8 @@ export default function DepartmentsPage() {
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                     <span style={{ 
                       padding: "3px 8px", 
-                      background: "#eff6ff", 
-                      color: "#2563eb", 
+                      background: "#EAF6EF", 
+                      color: "#017846", 
                       fontWeight: 700, 
                       fontSize: "12px", 
                       borderRadius: "6px",

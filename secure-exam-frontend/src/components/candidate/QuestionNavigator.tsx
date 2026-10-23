@@ -1,4 +1,5 @@
-import { X, Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, Send, ChevronDown, ChevronRight } from "lucide-react";
 import LiveProctorFeed from "./LiveProctorFeed";
 
 interface QuestionNavigatorProps {
@@ -13,7 +14,7 @@ interface QuestionNavigatorProps {
 }
 
 export default function QuestionNavigator({
-  total,
+  total = 60,
   currentIndex,
   answers,
   flags,
@@ -22,89 +23,168 @@ export default function QuestionNavigator({
   onSelectQuestion,
   onRequestSubmit
 }: QuestionNavigatorProps) {
-  const answeredCount = Object.keys(answers).length;
-  const flaggedCount = flags.length;
-  const unansweredCount = Math.max(0, total - answeredCount);
+  // 4 Sections: A (1-15), B (16-30), C (31-45), D (46-60)
+  const sections = [
+    { id: "A", name: "Section A", start: 1, end: 15, title: "Quantitative Aptitude" },
+    { id: "B", name: "Section B", start: 16, end: 30, title: "Logical Reasoning" },
+    { id: "C", name: "Section C", start: 31, end: 45, title: "Technical Core" },
+    { id: "D", name: "Section D", start: 46, end: 60, title: "Verbal Ability" }
+  ];
+
+  // Determine which section the current question belongs to
+  const getSectionIdForIndex = (qIdx: number) => {
+    const qNum = qIdx + 1;
+    if (qNum <= 15) return "A";
+    if (qNum <= 30) return "B";
+    if (qNum <= 45) return "C";
+    return "D";
+  };
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    A: true,
+    B: false,
+    C: false,
+    D: false
+  });
+
+  // Auto-expand section when user navigates into it
+  useEffect(() => {
+    const secId = getSectionIdForIndex(currentIndex);
+    setOpenSections(prev => ({
+      ...prev,
+      [secId]: true
+    }));
+  }, [currentIndex]);
+
+  const toggleSection = (secId: string) => {
+    setOpenSections(prev => ({
+      ...prev,
+      [secId]: !prev[secId]
+    }));
+  };
+
+  // Count answered in each section
+  const getAnsweredCountForSection = (start: number, end: number) => {
+    let count = 0;
+    for (let q = start; q <= end; q++) {
+      if (answers[q] !== undefined) {
+        count++;
+      }
+    }
+    return count;
+  };
 
   return (
     <aside
-      className={`palette card ${isOpen ? "open" : ""}`}
+      className={`qnav-palette-card ${isOpen ? "open" : ""}`}
       aria-label="Question Navigator Palette"
     >
-      {/* Active Proctoring Surveillance Tile */}
+      {/* Top: Live Proctor Feed */}
       <LiveProctorFeed />
 
-      <div className="palhead">
-        <div>
-          <b>Question navigator</b>
-          <small>Jump to any question</small>
+      {/* Navigator Main Card */}
+      <div className="qnav-body-card">
+        <div className="qnav-header-row">
+          <div>
+            <h3 className="qnav-title">Question navigator</h3>
+            <p className="qnav-subtitle">Jump to any question</p>
+          </div>
+          <button
+            type="button"
+            className="qnav-mobile-close"
+            onClick={onClose}
+            aria-label="Close question navigator"
+          >
+            <X size={18} />
+          </button>
         </div>
+
+        {/* Legend */}
+        <div className="qnav-legend-row">
+          <span className="qnav-legend-item">
+            <span className="qnav-dot green" /> Answered
+          </span>
+          <span className="qnav-legend-item">
+            <span className="qnav-dot amber" /> Flagged
+          </span>
+          <span className="qnav-legend-item">
+            <span className="qnav-dot hollow" /> Unanswered
+          </span>
+        </div>
+
+        {/* 4 Accordion Sections */}
+        <div className="qnav-sections-accordion">
+          {sections.map(sec => {
+            const isOpen = openSections[sec.id];
+            const answeredInSec = getAnsweredCountForSection(sec.start, sec.end);
+            const totalInSec = sec.end - sec.start + 1;
+
+            return (
+              <div key={sec.id} className="qnav-section-item">
+                <button
+                  type="button"
+                  className="qnav-section-header"
+                  onClick={() => toggleSection(sec.id)}
+                >
+                  <div className="qnav-sec-left">
+                    {isOpen ? (
+                      <ChevronDown size={15} color="#475569" />
+                    ) : (
+                      <ChevronRight size={15} color="#475569" />
+                    )}
+                    <strong>{sec.name}</strong>
+                    <span className="qnav-sec-range">({sec.start} - {sec.end})</span>
+                  </div>
+                  <span className="qnav-sec-count">
+                    {answeredInSec}/{totalInSec} answered
+                  </span>
+                </button>
+
+                {isOpen && (
+                  <div className="qnav-numbers-grid">
+                    {Array.from({ length: totalInSec }, (_, i) => {
+                      const qNum = sec.start + i;
+                      const qIndex = qNum - 1;
+                      const isCurrent = qIndex === currentIndex;
+                      const isAnswered = answers[qNum] !== undefined;
+                      const isFlagged = flags.includes(qNum);
+
+                      let btnClass = "qnav-btn";
+                      if (isCurrent && !isAnswered) btnClass += " current";
+                      else if (isAnswered) btnClass += isCurrent ? " answered current-answered" : " answered";
+                      else if (isFlagged) btnClass += " flagged";
+                      else btnClass += " unanswered";
+
+                      return (
+                        <button
+                          key={qNum}
+                          type="button"
+                          className={btnClass}
+                          onClick={() => {
+                            onSelectQuestion(qIndex);
+                            onClose();
+                          }}
+                          aria-label={`Question ${qNum}`}
+                        >
+                          {qNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Submit Assessment Button */}
         <button
           type="button"
-          className="close"
-          onClick={onClose}
-          aria-label="Close question navigator"
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      <div className="legend">
-        <span><i className="answeredkey" /> Answered</span>
-        <span><i className="flagkey" /> Flagged</span>
-        <span><i /> Unanswered</span>
-      </div>
-
-      <div className="grid">
-        {Array.from({ length: total }, (_, i) => {
-          const qNum = i + 1;
-          const isCurrent = i === currentIndex;
-          const isAnswered = answers[qNum] !== undefined;
-          const isFlagged = flags.includes(qNum);
-
-          let classNames = "";
-          if (isCurrent) classNames += " current";
-          if (isAnswered) classNames += " answered";
-          if (isFlagged) classNames += " flagged";
-
-          return (
-            <button
-              key={qNum}
-              type="button"
-              onClick={() => {
-                onSelectQuestion(i);
-                onClose();
-              }}
-              className={classNames.trim()}
-              aria-label={`Question ${qNum}${isAnswered ? ", answered" : ""}${isFlagged ? ", flagged" : ""}${isCurrent ? ", currently selected" : ""}`}
-            >
-              {qNum}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="pal-footer">
-        <div className="summary">
-          <div>
-            <span>Answered</span>
-            <b>{answeredCount}</b>
-          </div>
-          <div>
-            <span>Flagged</span>
-            <b>{flaggedCount}</b>
-          </div>
-          <div>
-            <span>Unanswered</span>
-            <b>{unansweredCount}</b>
-          </div>
-        </div>
-        <button
-          type="button"
-          className="primary full"
+          className="qnav-submit-btn"
           onClick={onRequestSubmit}
         >
-          <Send size={14} /> Submit assessment
+          <Send size={15} />
+          <span>Submit assessment</span>
         </button>
       </div>
     </aside>

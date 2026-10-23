@@ -129,7 +129,7 @@ export default function AnswerKeyImporter({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <FileKey size={16} color="#365fe5" />
+            <FileKey size={16} color="#017846" />
             <strong style={{ fontSize: "13px", color: "#0f172a" }}>
               Answer Key / Official Scoring Document — {setKey.replace("_", " ")}
             </strong>
@@ -206,7 +206,7 @@ export default function AnswerKeyImporter({
           }}
         />
 
-        <UploadCloud size={24} color="#365fe5" style={{ margin: "0 auto 6px" }} />
+        <UploadCloud size={24} color="#017846" style={{ margin: "0 auto 6px" }} />
         <strong style={{ display: "block", fontSize: "12px", color: "#0f172a" }}>
           Upload Official Answer Key Document (.pdf, .docx, .txt)
         </strong>

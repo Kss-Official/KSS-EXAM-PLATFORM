@@ -55,13 +55,12 @@ export default function ExamTimer({ deadline, isSubmitted, onExpire }: ExamTimer
 
   return (
     <div
-      className={`timer-badge ${isUrgent ? "urgent" : isLowTime ? "warning" : ""}`}
+      className="exam-timer-pill"
       title="Exam Time Remaining"
       aria-label={`Time remaining: ${minutes} minutes and ${seconds} seconds`}
     >
-      {isUrgent ? <AlertTriangle size={15} /> : <Clock3 size={15} />}
-      <span className="timer-digits">{formattedTime}</span>
-      <span className="demo-tag">DEMO</span>
+      <Clock3 size={15} color="#017846" />
+      <span className="exam-timer-digits">{String(minutes).padStart(2, "0")} : {String(seconds).padStart(2, "0")}</span>
     </div>
   );
 }

@@ -20,7 +20,7 @@ export default function QuestionSetTabs({
     <div className="question-set-tabs-wrapper" style={{ marginBottom: "16px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <Layers size={16} color="#365fe5" />
+          <Layers size={16} color="#017846" />
           <strong style={{ fontSize: "13px", color: "#0f172a" }}>Four Authorized Exam Sets (A / B / C / D)</strong>
         </div>
         <small style={{ color: "#64748b" }}>
@@ -40,15 +40,15 @@ export default function QuestionSetTabs({
               type="button"
               onClick={() => onSelectSet(setKey)}
               style={{
-                background: isSelected ? "#365fe5" : "#ffffff",
+                background: isSelected ? "#017846" : "#ffffff",
                 color: isSelected ? "#ffffff" : "#0f172a",
-                border: `1.5px solid ${isSelected ? "#365fe5" : "#cbd5e1"}`,
+                border: `1.5px solid ${isSelected ? "#017846" : "#cbd5e1"}`,
                 borderRadius: "8px",
                 padding: "10px 12px",
                 textAlign: "left",
                 cursor: "pointer",
                 transition: "all 0.15s ease",
-                boxShadow: isSelected ? "0 4px 12px rgba(54, 95, 229, 0.25)" : "none"
+                boxShadow: isSelected ? "0 4px 12px rgba(1, 120, 70, 0.25)" : "none"
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Mic, ShieldCheck, AlertCircle } from "lucide-react";
+import { Mic, ShieldCheck, AlertCircle, Maximize2 } from "lucide-react";
 
 export default function LiveProctorFeed() {
   const [isActive, setIsActive] = useState(false);
@@ -89,10 +89,10 @@ export default function LiveProctorFeed() {
 
         <div className="proctor-overlay-top">
           <span className="proctor-rec-pill">
-            <span className="proctor-rec-dot" /> {isActive ? "REC · PROCTORED" : "INIT · PROCTORED"}
+            <span className="proctor-rec-dot" /> REC - PROCTORED
           </span>
-          <span className="proctor-shield-icon">
-            <ShieldCheck size={12} />
+          <span className="proctor-expand-icon">
+            <Maximize2 size={13} color="#22c55e" />
           </span>
         </div>
 

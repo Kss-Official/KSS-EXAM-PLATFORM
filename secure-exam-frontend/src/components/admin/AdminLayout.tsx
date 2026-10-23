@@ -66,7 +66,9 @@ export default function AdminLayout({
   };
 
   const getPageTitle = () => {
-    if (path.startsWith("/admin/exams/new")) return "Create Examination";
+    if (path === "/admin/exams/new/coding" || path.startsWith("/admin/exams/new/coding")) return "Create Coding Examination (Round 2)";
+    if (path === "/admin/exams/new/mcq" || path.startsWith("/admin/exams/new/mcq")) return "Create MCQ Examination (Round 1)";
+    if (path.startsWith("/admin/exams/new")) return "Create Examination — Select Round";
     if (path.startsWith("/admin/exams")) return "Examinations Management";
     if (path.startsWith("/admin/departments")) return "Academic Departments";
     if (path.startsWith("/admin/questions")) return "Question Bank (MCQs)";
@@ -240,25 +242,6 @@ export default function AdminLayout({
           </div>
 
           <div className="admin-header-right">
-            {/* Backend Health Badge */}
-            {loading ? (
-              <span className="api-status-pill loading">
-                <span className="health-dot auth" /> Connecting API...
-              </span>
-            ) : dashboardData && !error ? (
-              <span className="api-status-pill up">
-                <span className="health-dot online" /> Spring Boot API Live
-              </span>
-            ) : statusCode === 401 ? (
-              <span className="api-status-pill auth">
-                <span className="health-dot auth" /> 401 Auth Required
-              </span>
-            ) : (
-              <span className="api-status-pill down">
-                <span className="health-dot offline" /> API Disconnected
-              </span>
-            )}
-
             {/* Notifications Button */}
             <div style={{ position: "relative" }}>
               <button 
@@ -312,9 +295,9 @@ export default function AdminLayout({
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 style={{
                   cursor: "pointer",
-                  border: userMenuOpen ? "1.5px solid #365fe5" : "1px solid #e2e8f0",
+                  border: userMenuOpen ? "1.5px solid #017846" : "1px solid #e2e8f0",
                   background: userMenuOpen ? "#f8fafc" : "#ffffff",
-                  boxShadow: userMenuOpen ? "0 0 0 3px rgba(54, 95, 229, 0.12)" : "none",
+                  boxShadow: userMenuOpen ? "0 0 0 3px rgba(1, 120, 70, 0.12)" : "none",
                   paddingRight: "8px",
                   transition: "all 0.15s ease",
                   display: "flex",
@@ -367,10 +350,10 @@ export default function AdminLayout({
                         fontSize: "10px",
                         fontWeight: 600,
                         padding: "2px 6px",
-                        background: "#eff6ff",
-                        color: "#1d4ed8",
+                        background: "#EAF6EF",
+                        color: "#017846",
                         borderRadius: "4px",
-                        border: "1px solid #bfdbfe"
+                        border: "1px solid #D9E6DF"
                       }}
                     >
                       {adminRoleDisplay}
@@ -404,7 +387,7 @@ export default function AdminLayout({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
-                      <User size={15} color="#365fe5" />
+                      <User size={15} color="#017846" />
                       <span>Profile</span>
                     </button>
 
@@ -433,7 +416,7 @@ export default function AdminLayout({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
-                      <Settings size={15} color="#365fe5" />
+                      <Settings size={15} color="#017846" />
                       <span>Settings</span>
                     </button>
 
@@ -521,7 +504,7 @@ export default function AdminLayout({
               {/* Profile Details Grid */}
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <User size={16} color="#365fe5" style={{ flexShrink: 0 }} />
+                  <User size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Full Name</div>
                     <strong style={{ color: "#0f172a" }}>{adminFullName}</strong>
@@ -529,7 +512,7 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Mail size={16} color="#365fe5" style={{ flexShrink: 0 }} />
+                  <Mail size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Email Address</div>
                     <strong style={{ color: "#0f172a", wordBreak: "break-all" }}>{adminEmail}</strong>
@@ -537,7 +520,7 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Briefcase size={16} color="#365fe5" style={{ flexShrink: 0 }} />
+                  <Briefcase size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Department & Role</div>
                     <strong style={{ color: "#0f172a" }}>Examination Controller · Head Administrator</strong>

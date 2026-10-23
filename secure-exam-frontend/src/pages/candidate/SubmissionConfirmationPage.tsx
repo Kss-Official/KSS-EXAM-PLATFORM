@@ -105,7 +105,7 @@ export default function SubmissionConfirmationPage({
               <Briefcase size={12} style={{ display: "inline", marginRight: "4px" }} />
               Department Track
             </small>
-            <b style={{ color: "#365fe5" }}>{receipt.department}</b>
+            <b style={{ color: "#017846" }}>{receipt.department}</b>
           </div>
           <div>
             <small>

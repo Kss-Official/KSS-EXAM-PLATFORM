@@ -118,7 +118,7 @@ export default function ExamsPage() {
       <div className="admin-page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <BookOpen size={18} color="#2563eb" />
+            <BookOpen size={18} color="#017846" />
             <strong style={{ fontSize: "15px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Active Examinations Registry
             </strong>
@@ -141,7 +141,7 @@ export default function ExamsPage() {
             type="button"
             className="admin-btn primary" 
             onClick={() => navigate("/admin/exams/new")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #2563eb, #1d4ed8)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37, 99, 235, 0.25)" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #017846, #01663C)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(1, 120, 70, 0.25)" }}
           >
             <PlusCircle size={15} /> Create Examination
           </button>

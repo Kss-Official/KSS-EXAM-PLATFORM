@@ -3,7 +3,6 @@ import {
   ShieldCheck, 
   GraduationCap, 
   Clock3, 
-  ChevronRight, 
   LockKeyhole, 
   Info, 
   AlertCircle,
@@ -16,6 +15,7 @@ import DepartmentSelector from "../../components/candidate/DepartmentSelector";
 import { loadCandidateSession, clearCandidateSession } from "../../services/candidateSessionStorage";
 import DemoRestartDialog from "../../components/candidate/DemoRestartDialog";
 import { verifyCandidateEligibility, ApiError } from "../../services/api";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 interface CandidateEntryPageProps {
   onContinue: (profile: CandidateProfile) => void;
@@ -143,19 +143,15 @@ export default function CandidateEntryPage({
     <main className="welcome">
       {/* 
         Candidate Portal Header:
-        Strictly candidate-only. Note that administrative links and "Switch to Admin Dashboard" 
-        buttons have been removed from this candidate-facing view.
-        (Real administrator access must eventually be secured server-side via Spring Security).
+        Displaying official Kalpanaa Software Solutions logo asset and Secure Candidate Session indicator.
       */}
       <nav className="nav">
         <div className="brand">
-          <div className="logo">
-            <ShieldCheck size={22} />
-          </div>
-          <div>
-            <b>ExamSecure</b>
-            <small>CANDIDATE EXAMINATION PORTAL</small>
-          </div>
+          <img 
+            src={kalpanaaLogo} 
+            alt="Kalpanaa Software Solutions" 
+            className="candidate-portal-logo" 
+          />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span className="secure">
@@ -165,49 +161,58 @@ export default function CandidateEntryPage({
       </nav>
 
       <section className="hero">
+        {/* Left section: Assessment introduction */}
         <div className="intro">
           <div className="eyebrow">
             <i /> CAMPUS PLACEMENT & RECRUITMENT ASSESSMENT
           </div>
           <h1>
             Show what<br />
-            <em>you know.</em>
+            <em style={{ color: "#017846" }}>you know.</em>
           </h1>
           <p className="lead">
-            Welcome to your technical assessment portal. Enter your assigned candidate information,
-            select your department track, and verify hardware compatibility before beginning your examination.
+            Welcome to your technical assessment portal. Enter your assigned candidate information, select your departmental track, and verify hardware compatibility before beginning your examination.
           </p>
 
-          <div className="feature">
-            <span><ShieldCheck size={18} /></span>
-            <div>
-              <b>Secure assessment environment</b>
-              <small>Use the exam browser and workstation designated by your evaluation committee.</small>
+          <div className="intro-features">
+            <div className="feature">
+              <span><ShieldCheck size={18} /></span>
+              <div>
+                <b>Secure assessment environment</b>
+                <small>Proctored, secure browser with smart monitoring.</small>
+              </div>
+            </div>
+            <div className="feature">
+              <span><Clock3 size={18} /></span>
+              <div>
+                <b>60-minute timed evaluation</b>
+                <small>Your session begins once you complete system checks.</small>
+              </div>
+            </div>
+            <div className="feature">
+              <span><GraduationCap size={18} /></span>
+              <div>
+                <b>Multiple-choice questions</b>
+                <small>Auto-save, easy navigation, and real-time progress.</small>
+              </div>
             </div>
           </div>
-          <div className="feature">
-            <span><Clock3 size={18} /></span>
-            <div>
-              <b>60-minute timed evaluation</b>
-              <small>Your exam countdown begins once you pass system checks and enter the exam.</small>
-            </div>
-          </div>
-          <div className="feature">
-            <span><GraduationCap size={18} /></span>
-            <div>
-              <b>100 multiple-choice questions</b>
-              <small>Answers are auto-saved locally. Select one answer per question.</small>
-            </div>
+
+          <hr className="intro-divider" />
+          <div className="intro-footer">
+            SKILLS | OPPORTUNITIES | BRIGHTER FUTURES
           </div>
         </div>
 
+        {/* Right section: Candidate access card */}
         <div className="login card">
-          <div className="cardicon">
-            <GraduationCap size={24} />
-          </div>
           <div className="eyebrow">CANDIDATE ACCESS</div>
-          <h2>Assessment Entry</h2>
-          <p className="muted">Enter the unique credentials provided by your organization.</p>
+          <h2>
+            Assessment <span className="entry-brand" style={{ color: "#017846" }}>Entry</span>
+          </h2>
+          <p className="muted">
+            Enter the unique credentials provided by your organization to begin your assessment.
+          </p>
 
           {/* Active attempt detection banner */}
           {existingSession && existingSession.profile && !existingSession.isSubmitted && (
@@ -349,7 +354,7 @@ export default function CandidateEntryPage({
                     setErrors((prev) => ({ ...prev, candidateId: "Candidate ID is required." }));
                   }
                 }}
-                placeholder="e.g. CAND-2026-001"
+                placeholder="E.G. CAND-2026-001"
                 aria-required="true"
                 aria-invalid={!!errors.candidateId}
                 aria-describedby={errors.candidateId ? "id-error" : undefined}
@@ -383,35 +388,34 @@ export default function CandidateEntryPage({
               </div>
             )}
 
-            <div className="notice">
+            <div className="green-info-panel">
               <Info size={16} />
               <span>
-                Please ensure your Candidate ID matches your institutional allocation document.
-                Your profile will be verified against real backend examination eligibility before launch.
+                Please ensure your Candidate ID matches your institutional allocation document. Your profile will be verified against our backend examination eligibility before launch.
               </span>
             </div>
 
-            <button className="primary" type="submit" disabled={isVerifying}>
+            <button className="btn-primary-entry" type="submit" disabled={isVerifying}>
               {isVerifying ? (
                 <>
                   <Loader2 size={17} className="animate-spin" /> Verifying Eligibility...
                 </>
               ) : (
                 <>
-                  Continue to System Compatibility Check <ChevronRight size={17} />
+                  Continue to System Compatibility Check &rarr;
                 </>
               )}
             </button>
           </form>
 
-          <div className="footnote">
-            <LockKeyhole size={13} /> SECURE CLIENT WORKFLOW · FRONTEND VALIDATION
+          <div className="card-bottom-footnote">
+            <LockKeyhole size={12} /> SECURE CLIENT WORKFLOW | FRONTEND VALIDATION
           </div>
         </div>
       </section>
 
       <footer className="welcomefoot">
-        © 2026 ExamSecure · Secure Candidate Examination Portal
+        © 2026 Kalpanaa Software Solutions · Secure Candidate Examination Portal
         <span>
           <ShieldCheck size={14} /> Safe Exam Browser Verified Flow
         </span>

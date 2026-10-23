@@ -5,7 +5,11 @@ import {
   Search, 
   FileCheck2,
   RotateCcw,
-  Globe
+  Globe,
+  Download,
+  FileText,
+  FileSpreadsheet,
+  CheckCircle2
 } from "lucide-react";
 import { getAllResults, publishResults, getAllExams, type ExamResultDto, type ExamDto } from "../../services/api";
 
@@ -78,12 +82,208 @@ export default function ResultsPage() {
 
   const selectedExamObj = exams.find(e => e.id === selectedExamId);
 
+  // Selected candidates list: targets qualified candidates first, or filtered candidates
+  const selectedCandidates = (() => {
+    if (statusFilter !== "ALL") {
+      return filtered;
+    }
+    const qualified = filtered.filter(r => r.qualificationStatus === "QUALIFIED");
+    if (qualified.length > 0) return qualified;
+    return filtered;
+  })();
+
+  const downloadPdfReport = () => {
+    if (selectedCandidates.length === 0) return;
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      alert("Pop-up was blocked. Please allow pop-ups to open and download the PDF report.");
+      return;
+    }
+    const examTitle = selectedExamObj ? selectedExamObj.title : "All Examinations";
+    const dateStr = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Selected Candidates List - ${examTitle}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 36px; color: #0f172a; margin: 0; background: #ffffff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #017846; padding-bottom: 16px; margin-bottom: 24px; }
+          .title { font-size: 20px; font-weight: 800; color: #017846; margin: 0 0 6px 0; }
+          .subtitle { font-size: 13px; color: #64748b; margin: 0; }
+          .badge { background: #eaf6ef; color: #017846; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 13px; border: 1px solid #bbf7d0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 12.5px; }
+          th { background: #f8fafc; color: #334155; text-align: left; padding: 10px 12px; border: 1px solid #cbd5e1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+          td { padding: 9px 12px; border: 1px solid #e2e8f0; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .status-tag { background: #dcfce7; color: #166534; font-weight: 700; padding: 3px 8px; border-radius: 4px; font-size: 11px; display: inline-block; }
+          .footer { margin-top: 36px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+          @media print {
+            body { padding: 15px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">ExamSecure — Selected Candidates Report</h1>
+            <p class="subtitle">Examination: <strong>${examTitle}</strong> &bull; Generated on: ${dateStr}</p>
+          </div>
+          <div class="badge">
+            Total Selected: ${selectedCandidates.length}
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 36px;">#</th>
+              <th>Candidate Name</th>
+              <th>Roll / Reg Number</th>
+              <th>Department</th>
+              <th>Examination & Set</th>
+              <th>Score / Max</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${selectedCandidates.map((c, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${c.candidateName}</strong></td>
+                <td style="font-family: monospace; font-size: 11.5px;">${c.registrationNumber}</td>
+                <td>${c.departmentName}</td>
+                <td>${c.examTitle} (Set ${c.setCode})</td>
+                <td><strong>${c.score ?? "-"}</strong> / ${c.totalMarks}</td>
+                <td><span class="status-tag">${c.qualificationStatus || "QUALIFIED"}</span></td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+        <div class="footer">
+          ExamSecure Assessment System &bull; Official Selected Candidate Merit List
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const downloadWordDoc = () => {
+    if (selectedCandidates.length === 0) return;
+    const examTitle = selectedExamObj ? selectedExamObj.title : "All Examinations";
+    const dateStr = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+
+    const docContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>Selected Candidates List</title>
+        <style>
+          body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
+          h2 { color: #017846; margin-bottom: 4px; }
+          p { color: #64748b; font-size: 10pt; margin-top: 0; }
+          table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+          th, td { border: 1px solid #cbd5e1; padding: 7px 10px; font-size: 10pt; text-align: left; }
+          th { background-color: #f1f5f9; font-weight: bold; color: #334155; }
+          tr:nth-child(even) { background-color: #f8fafc; }
+        </style>
+      </head>
+      <body>
+        <h2>ExamSecure &mdash; Selected Candidates List</h2>
+        <p><strong>Examination:</strong> ${examTitle} | <strong>Date:</strong> ${dateStr} | <strong>Selected Count:</strong> ${selectedCandidates.length}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Candidate Name</th>
+              <th>Roll / Reg No</th>
+              <th>Department</th>
+              <th>Examination & Set</th>
+              <th>Score / Max</th>
+              <th>Qualification Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${selectedCandidates.map((c, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${c.candidateName}</strong></td>
+                <td>${c.registrationNumber}</td>
+                <td>${c.departmentName}</td>
+                <td>${c.examTitle} (Set ${c.setCode})</td>
+                <td>${c.score ?? "-"} / ${c.totalMarks}</td>
+                <td>${c.qualificationStatus || "QUALIFIED"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+    const blob = new Blob(['\ufeff' + docContent], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Selected_Candidates_${new Date().toISOString().slice(0, 10)}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadCsvReport = () => {
+    if (selectedCandidates.length === 0) return;
+    const headers = ["#", "Candidate Name", "Roll / Registration Number", "Department", "Examination", "Set", "Score", "Total Marks", "Qualification Status", "Submission Time"];
+    const rows = selectedCandidates.map((c, idx) => [
+      idx + 1,
+      `"${(c.candidateName || "").replace(/"/g, '""')}"`,
+      `"${(c.registrationNumber || "").replace(/"/g, '""')}"`,
+      `"${(c.departmentName || "").replace(/"/g, '""')}"`,
+      `"${(c.examTitle || "").replace(/"/g, '""')}"`,
+      `"${c.setCode || ""}"`,
+      c.score ?? "",
+      c.totalMarks ?? "",
+      `"${c.qualificationStatus || "QUALIFIED"}"`,
+      `"${c.submittedAt ? new Date(c.submittedAt).toLocaleString() : ""}"`
+    ]);
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Selected_Candidates_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="admin-page-container">
       <div className="admin-page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Award size={18} color="#2563eb" />
+            <Award size={18} color="#017846" />
             <strong style={{ fontSize: "15px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Assessment Results & Scoring Analytics
             </strong>
@@ -203,6 +403,118 @@ export default function ResultsPage() {
         </div>
       </div>
 
+      {/* Download / Export Selected Candidate List Bar */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: "12px",
+        marginBottom: "16px",
+        padding: "12px 18px",
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: "12px",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{
+            width: "32px",
+            height: "32px",
+            borderRadius: "8px",
+            background: "#eaf6ef",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#017846"
+          }}>
+            <CheckCircle2 size={18} />
+          </div>
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+              Selected Candidate List ({selectedCandidates.length})
+            </div>
+            <div style={{ fontSize: "11.5px", color: "#64748b" }}>
+              {statusFilter === "QUALIFIED" 
+                ? "Showing verified qualified candidates" 
+                : "Export qualified / selected candidate list for official records"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={downloadPdfReport}
+            disabled={selectedCandidates.length === 0}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "8px 16px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: selectedCandidates.length === 0 ? "#94a3b8" : "#017846",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: selectedCandidates.length === 0 ? "not-allowed" : "pointer",
+              boxShadow: selectedCandidates.length === 0 ? "none" : "0 2px 6px rgba(1, 120, 70, 0.25)",
+              transition: "all 0.15s ease"
+            }}
+            title="Download printable / PDF report of selected candidates"
+          >
+            <Download size={15} /> Download PDF
+          </button>
+
+          <button
+            type="button"
+            onClick={downloadWordDoc}
+            disabled={selectedCandidates.length === 0}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "8px 15px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: "#ffffff",
+              color: selectedCandidates.length === 0 ? "#94a3b8" : "#334155",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              cursor: selectedCandidates.length === 0 ? "not-allowed" : "pointer",
+              transition: "all 0.15s ease"
+            }}
+            title="Download Word Document (.doc) of selected candidates"
+          >
+            <FileText size={15} /> Download Docs
+          </button>
+
+          <button
+            type="button"
+            onClick={downloadCsvReport}
+            disabled={selectedCandidates.length === 0}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "7px",
+              padding: "8px 15px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: "#ffffff",
+              color: selectedCandidates.length === 0 ? "#94a3b8" : "#334155",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              cursor: selectedCandidates.length === 0 ? "not-allowed" : "pointer",
+              transition: "all 0.15s ease"
+            }}
+            title="Download CSV spreadsheet of selected candidates"
+          >
+            <FileSpreadsheet size={15} /> Download CSV
+          </button>
+        </div>
+      </div>
+
       {/* Results Table */}
       <div className="admin-table-card">
         <div className="table-responsive">
@@ -214,7 +526,6 @@ export default function ResultsPage() {
                 <th>Examination & Set</th>
                 <th>Answered / Unanswered</th>
                 <th>Score / Total Marks</th>
-                <th>Percentage</th>
                 <th>Qualification Status</th>
                 <th>Submission Time</th>
               </tr>
@@ -222,13 +533,13 @@ export default function ResultsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
                     Loading real attempt results from PostgreSQL...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <BarChart3 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>No examination attempts submitted yet</p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
@@ -250,7 +561,7 @@ export default function ResultsPage() {
                     </td>
                     <td>
                       <div style={{ fontSize: "12.5px", fontWeight: 700 }}>{r.examTitle}</div>
-                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#2563eb" }}>Set {r.setCode}</span>
+                      <span style={{ fontSize: "11px", fontWeight: 700, color: "#017846" }}>Set {r.setCode}</span>
                     </td>
                     <td>
                       <span style={{ color: "#16a34a", fontWeight: 700 }}>{r.answeredCount}</span> /{" "}
@@ -258,9 +569,6 @@ export default function ResultsPage() {
                     </td>
                     <td>
                       <b style={{ fontSize: "13.5px", color: "#0f172a" }}>{r.score ?? "-"}</b> / {r.totalMarks}
-                    </td>
-                    <td>
-                      <b>{r.percentage ? `${r.percentage}%` : "-"}</b>
                     </td>
                     <td>
                       <span className={`status-pill ${r.qualificationStatus?.toLowerCase() || "pending"}`}>

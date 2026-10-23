@@ -115,11 +115,11 @@ export default function ManualQuestionEditor({
       {isFormOpen && (
         <form onSubmit={handleSave} style={{ 
           background: "#ffffff", 
-          border: "1.5px solid #365fe5", 
+          border: "1.5px solid #017846", 
           borderRadius: "10px", 
           padding: "16px", 
           marginBottom: "16px",
-          boxShadow: "0 4px 14px rgba(54, 95, 229, 0.08)"
+          boxShadow: "0 4px 14px rgba(1, 120, 70, 0.08)"
         }}>
           <h4 style={{ margin: "0 0 12px", fontSize: "14px", color: "#0f172a" }}>
             Add Question to {setKey.replace("_", " ")}
@@ -274,7 +274,7 @@ export default function ManualQuestionEditor({
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
-                    <span style={{ fontSize: "10px", fontWeight: 700, background: "#eff6ff", color: "#365fe5", padding: "1px 6px", borderRadius: "4px" }}>
+                    <span style={{ fontSize: "10px", fontWeight: 700, background: "#EAF6EF", color: "#017846", padding: "1px 6px", borderRadius: "4px" }}>
                       Q{idx + 1}
                     </span>
                     <span style={{ fontSize: "10px", color: "#64748b" }}>{q.subject || "General"}</span>

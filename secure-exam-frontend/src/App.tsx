@@ -8,6 +8,8 @@ import AdminRouteGuard from "./components/admin/AdminRouteGuard";
 import OverviewPage from "./pages/admin/OverviewPage";
 import ExamsPage from "./pages/admin/ExamsPage";
 import CreateExamPage from "./pages/admin/CreateExamPage";
+import CreateCodingExamPage from "./pages/admin/CreateCodingExamPage";
+import ExamRoundSelectionPage from "./pages/admin/ExamRoundSelectionPage";
 import QuestionBankPage from "./pages/admin/QuestionBankPage";
 import CandidatesPage from "./pages/admin/CandidatesPage";
 import ResultsPage from "./pages/admin/ResultsPage";
@@ -67,8 +69,18 @@ function AppContent() {
 
   // Route 3: Admin Dashboard Console & Sub-pages (Protected by RBAC Route Guard)
   const renderAdminPage = () => {
-    if (path.startsWith("/admin/exams/new")) {
+    // Multi-Round Examination Creation Routes:
+    // 1. Coding Round Configuration
+    if (path === "/admin/exams/new/coding" || path.startsWith("/admin/exams/new/coding")) {
+      return <CreateCodingExamPage />;
+    }
+    // 2. MCQ Round Configuration (Existing Workflow preserved)
+    if (path === "/admin/exams/new/mcq" || path.startsWith("/admin/exams/new/mcq")) {
       return <CreateExamPage />;
+    }
+    // 3. Round Selection Entry (When admin clicks Create Exam)
+    if (path === "/admin/exams/new" || path.startsWith("/admin/exams/new")) {
+      return <ExamRoundSelectionPage />;
     }
     if (path.startsWith("/admin/exams")) {
       return <ExamsPage />;
