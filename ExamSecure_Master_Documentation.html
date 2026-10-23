@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamSecure — Master Technical Specification & Architecture Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #0f172a;
+      --card-bg: #1e293b;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent: #10b981;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.7;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 50px 60px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 24px;
+      margin-bottom: 36px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .btn-print {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 10px 22px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    .btn-print:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    h1, h2, h3, h4, h5 {
+      color: #ffffff;
+      font-weight: 700;
+      margin-top: 1.8em;
+      margin-bottom: 0.6em;
+      letter-spacing: -0.02em;
+    }
+    h1 {
+      font-size: 2.25rem;
+      border-bottom: 2px solid rgba(59, 130, 246, 0.4);
+      padding-bottom: 12px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 1.6rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+      color: #93c5fd;
+    }
+    h3 {
+      font-size: 1.25rem;
+      color: #e2e8f0;
+    }
+    p, li {
+      color: #cbd5e1;
+      font-size: 1.02rem;
+      margin-bottom: 1em;
+    }
+    ul, ol {
+      padding-left: 28px;
+      margin-bottom: 1.5em;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    a {
+      color: #60a5fa;
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(96, 165, 250, 0.5);
+    }
+    a:hover {
+      color: #93c5fd;
+      border-bottom-style: solid;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0;
+      background: #0f172a;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.94rem;
+    }
+    th, td {
+      padding: 12px 18px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    th {
+      background: rgba(59, 130, 246, 0.1);
+      color: #93c5fd;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    code {
+      font-family: "JetBrains Mono", monospace;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 0.88em;
+      color: #38bdf8;
+    }
+    pre {
+      background: #0b1120;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    blockquote {
+      border-left: 4px solid #3b82f6;
+      background: rgba(59, 130, 246, 0.08);
+      padding: 14px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+      color: #cbd5e1;
+    }
+    .mermaid {
+      background: #0b1120;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+      text-align: center;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      margin: 36px 0;
+    }
+    @media print {
+      body { background: #ffffff !important; color: #000000 !important; padding: 0; }
+      .container { max-width: 100%; border: none; box-shadow: none; padding: 20px; background: #ffffff !important; color: #000000 !important; }
+      .btn-print, .header-bar { display: none !important; }
+      h1, h2, h3, h4 { color: #000000 !important; border-color: #e2e8f0 !important; }
+      p, li { color: #333333 !important; }
+      table { background: #ffffff !important; border-color: #cccccc !important; }
+      th { background: #f1f5f9 !important; color: #000000 !important; }
+      td { border-color: #e2e8f0 !important; color: #333333 !important; }
+      pre, code { background: #f8fafc !important; color: #000000 !important; border-color: #cccccc !important; }
+      .mermaid { background: #ffffff !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-bar">
+      <div class="badge"><div class="badge-dot"></div>ExamSecure Engineering</div>
+      <button class="btn-print" onclick="window.print()">Print to PDF / Save</button>
+    </div>
+    <div id="content"></div>
+  </div>
+  <script>
+    const rawMarkdown = "# ExamSecure — Enterprise Online Examination & Proctoring Platform\n## Master Technical Specification & Architecture Documentation\n\n---\n\n### Table of Contents\n1. [Executive Overview & Objectives](#1-executive-overview--objectives)\n2. [System Architecture & Technology Stack](#2-system-architecture--technology-stack)\n3. [End-to-End Business Workflows](#3-end-to-end-business-workflows)\n   - [3.1 Admin Authentication & RBAC](#31-admin-authentication--rbac)\n   - [3.2 Department-Wise Examination Lifecycle](#32-department-wise-examination-lifecycle)\n   - [3.3 4-Set Question Bank Architecture (Sets A, B, C, D)](#33-4-set-question-bank-architecture-sets-a-b-c-d)\n   - [3.4 Confidential In-Memory Question Paper Extraction](#34-confidential-in-memory-question-paper-extraction)\n   - [3.5 High-Throughput Database Batch Persistence](#35-high-throughput-database-batch-persistence)\n   - [3.6 Candidate Slot Allocation & Entry Workflow](#36-candidate-slot-allocation--entry-workflow)\n   - [3.7 Live Anti-Cheating & Candidate Assessment Engine](#37-live-anti-cheating--candidate-assessment-engine)\n   - [3.8 Precision Scoring & Instant Result Computation](#38-precision-scoring--instant-result-computation)\n4. [Database Design & Entity-Relationship Schema](#4-database-design--entity-relationship-schema)\n   - [4.1 Mermaid Entity Relationship Diagram (ERD)](#41-mermaid-entity-relationship-diagram-erd)\n   - [4.2 Comprehensive Data Dictionary & Constraints](#42-comprehensive-data-dictionary--constraints)\n5. [Complete REST API Specification](#5-complete-rest-api-specification)\n   - [5.1 Authentication Endpoints](#51-authentication-endpoints)\n   - [5.2 Admin Examination Endpoints](#52-admin-examination-endpoints)\n   - [5.3 Department Management Endpoints](#53-department-management-endpoints)\n   - [5.4 Question Bank & Document Processing Endpoints](#54-question-bank--document-processing-endpoints)\n   - [5.5 Candidate Portal Endpoints](#55-candidate-portal-endpoints)\n   - [5.6 Results & Telemetry Endpoints](#56-results--telemetry-endpoints)\n6. [Security, Proctoring & Compliance Architecture](#6-security-proctoring--compliance-architecture)\n7. [Frontend Architecture & Component Hierarchy](#7-frontend-architecture--component-hierarchy)\n8. [Setup, Deployment & Operational Runbook](#8-setup-deployment--operational-runbook)\n\n---\n\n### 1. Executive Overview & Objectives\n\n**ExamSecure** is an enterprise-grade, high-security online examination and automated proctoring platform engineered for educational institutions, corporate recruitment, and competitive assessment authorities. \n\nThe system solves critical vulnerabilities common in traditional online examination software:\n- **Zero-Disk In-Memory Parsing**: Eliminates storage leaks of unreleased examination papers by extracting MCQs in volatile RAM via Apache PDFBox.\n- **Department-Isolated 4-Set Question Banks**: Each exam supports multiple academic departments, each possessing four distinct balanced question sets (Set A, Set B, Set C, Set D) with independent answer keys and difficulty balancing.\n- **Candidate-Level Double Shuffling**: Every candidate is allocated a department-specific set, with deterministic per-attempt randomization of both question sequences and option labels (A, B, C, D), eliminating side-by-side shoulder surfing.\n- **Instant High-Throughput Batch Persistence**: Eliminates connection timeouts and latency bottlenecks across distributed cloud databases via JPA/Hibernate batch persistence (`saveAll`).\n- **Comprehensive Proctoring & Tamper-Evident Auditing**: Fullscreen lockdown, blur/tab-switch tracking, copy/paste prevention, cryptographic SHA-256 document hashing, and immutable action logging.\n\n---\n\n### 2. System Architecture & Technology Stack\n\nExamSecure utilizes a decoupled client-server architecture:\n- **Client Tier**: Single Page Application (SPA) built with React 18, TypeScript, Vite, and modern CSS design tokens with glassmorphic aesthetics.\n- **Application Tier**: High-concurrency RESTful micro-service built on Java 23 / Java 21, Spring Boot 4.1.1, Spring Security with stateless JWT, and Hibernate ORM.\n- **Data Tier**: Cloud-managed PostgreSQL 17 (Supabase) accessed via HikariCP connection pooling with SSL encryption and Flyway schema migrations.\n\n```mermaid\ngraph TD\n    subgraph Client Tier\n        AdminUI[\"React Admin Console\\n(Vite + TypeScript)\"]\n        CandidateUI[\"Candidate Assessment Portal\\n(Proctored Client)\"]\n    end\n\n    subgraph Security & API Gateway\n        JWTAuth[\"JWT Authentication\\n& Rate Limiter\"]\n        CORS[\"CORS & Web Security Filter\"]\n    end\n\n    subgraph Spring Boot Backend Tier\n        AuthController[\"AuthController\"]\n        ExamCtrl[\"AdminExamController\"]\n        DeptCtrl[\"AdminDepartmentController\"]\n        QCtrl[\"AdminQuestionController\"]\n        CandidateCtrl[\"CandidatePortalController\"]\n        \n        ExamSvc[\"ExamService\"]\n        QSvc[\"QuestionService\"]\n        PDFSvc[\"InMemoryPdfService (PDFBox)\"]\n        CandidateSvc[\"CandidateExamService\"]\n        DocSvc[\"DocumentStorageService\"]\n    end\n\n    subgraph Persistence Tier\n        Hikari[\"HikariCP Connection Pool (SSL)\"]\n        Flyway[\"Flyway Migration Engine\"]\n        Postgres[(\"Supabase PostgreSQL 17\\n(Schema public)\")]\n        DiskStorage[\"Private Document Storage\\n(Encrypted SHA-256)\"]\n    end\n\n    AdminUI -->|REST / HTTPS| CORS\n    CandidateUI -->|REST / HTTPS| CORS\n    CORS --> JWTAuth\n    JWTAuth --> AuthController\n    JWTAuth --> ExamCtrl\n    JWTAuth --> DeptCtrl\n    JWTAuth --> QCtrl\n    JWTAuth --> CandidateCtrl\n\n    ExamCtrl --> ExamSvc\n    DeptCtrl --> ExamSvc\n    QCtrl --> QSvc\n    QCtrl --> PDFSvc\n    QCtrl --> DocSvc\n    CandidateCtrl --> CandidateSvc\n\n    ExamSvc --> Hikari\n    QSvc --> Hikari\n    CandidateSvc --> Hikari\n    DocSvc --> DiskStorage\n    Flyway --> Postgres\n    Hikari --> Postgres\n```\n\n#### Technology Stack Summary\n| Layer | Technologies / Libraries |\n| :--- | :--- |\n| **Frontend Runtime** | React 18.3, TypeScript 5.5, Vite 8.3, Lucide React Icons |\n| **Styling & Design System** | Modern Vanilla CSS, Inter / Outfit Web Fonts, CSS Glassmorphism tokens |\n| **Backend Framework** | Java 21 / 23, Spring Boot 4.1.1, Spring Data JPA, Spring Security |\n| **PDF Extraction Engine** | Apache PDFBox 3.0.4 (In-Memory `Loader.loadPDF`, zero disk persistence) |\n| **Security & Cryptography** | JJWT (JSON Web Token), BCrypt (Cost Factor 10), MessageDigest SHA-256 |\n| **Database & Migrations** | PostgreSQL 17.11 (Supabase), Flyway Core 10.x, HikariCP |\n| **Build & Deployment** | Maven Wrapper (`mvnw`), Node.js / NPM, Docker-ready |\n\n---\n\n### 3. End-to-End Business Workflows\n\n#### 3.1 Admin Authentication & RBAC\n1. **Bootstrap Initialization**: On application start, `AdminBootstrapRunner` idempotently verifies the existence of the Super Administrator account (`d.koushik@kalpanaaasoftwaresolutions.in`) with encoded BCrypt credentials.\n2. **Login Rate Limiter**: `LoginRateLimiter` enforces brute-force protection. After 5 consecutive failed attempts from an IP or email, the identity is locked for 15 minutes.\n3. **Stateless JWT Issuance**: Upon successful credential verification, a cryptographically signed HMAC-SHA256 JWT is issued containing role claims (`ROLE_SUPER_ADMIN`) with a 24-hour expiration window.\n4. **Authorization Guard**: All `/api/admin/**` endpoints are protected by `@PreAuthorize(\"hasRole('SUPER_ADMIN')\")`.\n\n#### 3.2 Department-Wise Examination Lifecycle\n```mermaid\nstateDiagram-v2\n    [*] --> DRAFT: Admin creates Exam Blueprint\n    DRAFT --> DRAFT: Configure Departments & 4-Set MCQs\n    DRAFT --> PUBLISHED: Admin launches / publishes Exam\n    PUBLISHED --> IN_PROGRESS: Candidates enter active window\n    IN_PROGRESS --> COMPLETED: Scheduled end time / manual close\n    COMPLETED --> RESULTS_PUBLISHED: Admin publishes scored results\n    RESULTS_PUBLISHED --> [*]\n```\n\n1. **Step 1 — Identity & Timing**: Title, description, timing mode (`DURATION_FROM_START` vs `FIXED_TIME_WINDOW`), total duration (minutes), and optional scheduled start/end timestamps.\n2. **Step 2 — Marking Scheme & Threshold**: Total marks, marks per question, negative marks per wrong answer, qualification threshold mode (`PERCENTAGE` vs `RAW_SCORE`), and passing threshold score.\n3. **Step 3 & 4 — Department-Wise 4-Set Configuration & Verification**:\n   - Allocate target departments (e.g., Computer Science, Mechanical, Electronics).\n   - For each department, automatically initialize 4 question sets: **Set A, Set B, Set C, Set D**.\n   - Admin uploads or pastes question papers directly into each set.\n   - Live validation verifies total question parity and options across all sets.\n4. **Publish Examination**: Examination transitions to `PUBLISHED`, making it visible to registered candidates in the designated departments.\n\n#### 3.3 4-Set Question Bank Architecture (Sets A, B, C, D)\nIn large examination halls, candidates seated adjacent to each other receive different question sets:\n- Each department has 4 independent `QuestionSet` entities linked by `(exam_id, department_id, set_code)`.\n- Set codes are strictly `A`, `B`, `C`, and `D`.\n- Each set holds the exact required number of MCQs (e.g., 100 questions with options A–D).\n- The Question Bank console enables full CRUD:\n  - **Edit**: Inline editing of question text, options A–D, correct answer key, marks, and negative marks.\n  - **Delete**: Remove individual questions or flush an entire set with safety confirmation.\n  - **Add (+)**: Manually append new questions to any set.\n\n#### 3.4 Confidential In-Memory Question Paper Extraction\nTo ensure test confidentiality, examination papers are never saved to temporary disk files during preview or parsing:\n1. Admin uploads Question Paper PDF and optional Answer Key PDF via multipart request.\n2. `InMemoryPdfService` validates MIME types, enforces a 25 MB limit, and inspects magic bytes (`%PDF-`).\n3. Apache PDFBox `Loader.loadPDF(file.getBytes())` loads the document entirely in volatile RAM.\n4. Regex tokenization extracts questions, options (A–D), and answer keys using customizable or default delimiters:\n   - Question Pattern: `(?i)(?:^|\\n)\\s*(?:Q(?:uestion)?\\s*\\d*|\\d+)\\s*[:.)-]\\s*(.*?)(?=(?:\\n\\s*[A-Da-d]\\s*[:.)-]|\\n\\s*Ans|\\Z))`\n   - Option Pattern: `(?m)^\\s*([A-Da-d])\\s*[:.)-]\\s*(.+)$`\n   - Answer Key Pattern: `(?i)(?:Ans(?:wer)?|Correct)\\s*[:.)-]\\s*([A-Da-d])`\n5. The extracted question payload is returned in JSON for immediate admin review before persistence.\n\n#### 3.5 High-Throughput Database Batch Persistence\nSaving an exam with multiple departments (e.g., 4 sets × 100 questions × 4 options = 2,000 entities) across an SSL-secured remote database (Supabase) previously required minutes due to sequential network round-trips.\n\nExamSecure optimizes this with JPA batch persistence:\n```java\n// Batch execution pattern in QuestionService.java\nList<Question> questionsToSave = new ArrayList<>();\nList<QuestionOption> optionsToSave = new ArrayList<>();\n\nfor (QuestionDto dto : dtos) {\n    Question q = new Question(qs, dto.getQuestionText(), marks, negMarks, order++);\n    for (QuestionOptionDto optDto : dto.getOptions()) {\n        QuestionOption opt = new QuestionOption(q, optDto.getOptionText(), optDto.isCorrect(), optOrder++);\n        q.getOptions().add(opt);\n        optionsToSave.add(opt);\n    }\n    questionsToSave.add(q);\n}\n\n// Single-trip bulk insert execution\nquestionRepository.saveAll(questionsToSave);\nquestionOptionRepository.saveAll(optionsToSave);\n```\n**Result**: Reduces database persistence time from ~3 minutes down to under 1.5 seconds.\n\n#### 3.6 Candidate Slot Allocation & Entry Workflow\n1. Candidate logs in using registration credentials and selects their allocated department.\n2. The candidate portal queries `/api/candidate/exams/active?departmentId={deptId}` to list accessible exams.\n3. Pre-flight checks verify:\n   - Webcam and microphone permissions.\n   - Network latency (< 250ms recommended).\n   - Display resolution and browser compatibility (Chrome / Edge / Firefox).\n4. System assigns an available `ExamSlot` and creates an `ExamAttempt` in `IN_PROGRESS` status.\n\n#### 3.7 Live Anti-Cheating & Candidate Assessment Engine\n```mermaid\nsequenceDiagram\n    autonumber\n    actor Candidate as Candidate Browser\n    participant Guard as Anti-Cheat Monitor\n    participant Svc as CandidateExamService\n    participant DB as PostgreSQL\n\n    Candidate->>Svc: POST /api/candidate/exams/{id}/start\n    Svc->>DB: Fetch Department QuestionSet (A, B, C, or D)\n    Svc->>DB: Generate Per-Candidate Randomized Question & Option Sequence\n    Svc-->>Candidate: Return Shuffled Questions (Without Correct Answer Keys)\n    Candidate->>Guard: Request Fullscreen Mode\n    Guard->>Guard: Bind visibilitychange, blur, contextmenu, keydown\n\n    loop During Assessment\n        Candidate->>Svc: POST /api/candidate/attempts/{id}/save-answer\n        Svc->>DB: Upsert AttemptAnswer in real time\n        alt Candidate exits Fullscreen or Switches Tab\n            Guard->>Candidate: Trigger Warning Modal (Max 3 Allowed)\n            Guard->>Svc: Log Security Violation in AuditLog\n        end\n    end\n\n    Candidate->>Svc: POST /api/candidate/attempts/{id}/submit\n    Svc->>DB: Score Attempt & Generate Digital Receipt ID\n    Svc-->>Candidate: Submission Confirmation & Receipt\n```\n\n- **Randomized Presentation**:\n  - `AttemptRandomizedQuestion`: Assigns a unique, random 1..N order of questions per candidate attempt.\n  - `AttemptRandomizedOption`: Shuffles options A–D so that \"Option A\" on Candidate 1's screen corresponds to \"Option C\" on Candidate 2's screen.\n- **Client-Side Lockdown**:\n  - Fullscreen API enforcement (`requestFullscreen`).\n  - Detection of window blur (`window.onblur`) and visibility changes (`document.visibilitychange`).\n  - Right-click inspection and developer tools disabled (`contextmenu`, `F12`, `Ctrl+Shift+I`).\n  - Copy/paste clipboard operations disabled.\n\n#### 3.8 Precision Scoring & Instant Result Computation\nUpon submission (or automatic timer expiration):\n1. Each recorded `AttemptAnswer` is compared against the question's true correct option.\n2. **Marking Evaluation**:\n   - Correct Answer: `marksAwarded = question.getMarks()` (e.g., +1.00 or +2.00).\n   - Incorrect Answer: `marksAwarded = -1 * question.getNegativeMarks()` (e.g., -0.25).\n   - Unattempted: `marksAwarded = 0.00`.\n3. Total score is aggregated using `BigDecimal` arithmetic with `RoundingMode.HALF_UP` to prevent floating-point inaccuracies.\n4. Percentage is computed: $\\text{Percentage} = (\\frac{\\text{Total Scored}}{\\text{Total Possible Marks}}) \\times 100$.\n5. **Qualification Check**: Evaluated against `exam.qualificationThreshold`. Status is updated to `QUALIFIED` or `NOT_QUALIFIED`.\n6. A unique 64-character cryptographic receipt ID is generated for verifiable proof of submission.\n\n---\n\n### 4. Database Design & Entity-Relationship Schema\n\n#### 4.1 Mermaid Entity Relationship Diagram (ERD)\n\n```mermaid\nerDiagram\n    APP_USERS ||--o{ AUDIT_LOGS : performs\n    DEPARTMENTS ||--o{ EXAM_DEPARTMENTS : includes\n    EXAMS ||--o{ EXAM_DEPARTMENTS : allocates\n    EXAMS ||--o{ QUESTION_SETS : owns\n    DEPARTMENTS ||--o{ QUESTION_SETS : configures\n    DEPARTMENTS ||--o{ CANDIDATES : contains\n    EXAMS ||--o{ EXAM_SLOTS : schedules\n    EXAMS ||--o{ STORED_DOCUMENTS : references\n    QUESTION_SETS ||--o{ QUESTIONS : contains\n    QUESTIONS ||--o{ QUESTION_OPTIONS : provides\n    \n    CANDIDATES ||--o{ CANDIDATE_SLOTS : assigned\n    EXAM_SLOTS ||--o{ CANDIDATE_SLOTS : hosts\n    \n    EXAMS ||--o{ EXAM_ATTEMPTS : tracks\n    CANDIDATES ||--o{ EXAM_ATTEMPTS : undertakes\n    QUESTION_SETS ||--o{ EXAM_ATTEMPTS : receives\n    \n    EXAM_ATTEMPTS ||--o{ ATTEMPT_ANSWERS : records\n    QUESTIONS ||--o{ ATTEMPT_ANSWERS : evaluates\n    QUESTION_OPTIONS ||--o{ ATTEMPT_ANSWERS : selects\n    \n    EXAM_ATTEMPTS ||--o{ ATTEMPT_RANDOMIZED_QUESTIONS : orders\n    EXAM_ATTEMPTS ||--o{ ATTEMPT_RANDOMIZED_OPTIONS : shuffles\n\n    APP_USERS {\n        bigserial id PK\n        varchar email UK\n        varchar password_hash\n        varchar full_name\n        varchar role\n        boolean active\n    }\n\n    DEPARTMENTS {\n        bigserial id PK\n        varchar name\n        varchar code UK\n        text description\n        boolean active\n    }\n\n    EXAMS {\n        bigserial id PK\n        varchar title\n        text description\n        int duration_minutes\n        int total_questions\n        numeric total_marks\n        numeric marks_per_question\n        numeric negative_marks\n        varchar status\n        varchar qualification_mode\n        numeric qualification_threshold\n        varchar timing_mode\n    }\n\n    QUESTION_SETS {\n        bigserial id PK\n        bigint exam_id FK\n        bigint department_id FK\n        varchar set_code\n        int total_questions\n        boolean active\n    }\n\n    QUESTIONS {\n        bigserial id PK\n        bigint question_set_id FK\n        text question_text\n        numeric marks\n        numeric negative_marks\n        int display_order\n    }\n\n    QUESTION_OPTIONS {\n        bigserial id PK\n        bigint question_id FK\n        text option_text\n        boolean is_correct\n        int display_order\n    }\n\n    CANDIDATES {\n        bigserial id PK\n        varchar registration_number UK\n        varchar full_name\n        varchar email UK\n        bigint department_id FK\n        varchar status\n    }\n\n    EXAM_ATTEMPTS {\n        bigserial id PK\n        bigint exam_id FK\n        bigint candidate_id FK\n        bigint question_set_id FK\n        varchar status\n        numeric total_marks\n        numeric percentage\n        varchar qualification_status\n        varchar receipt_id\n    }\n\n    ATTEMPT_ANSWERS {\n        bigserial id PK\n        bigint attempt_id FK\n        bigint question_id FK\n        bigint selected_option_id FK\n        boolean is_correct\n        numeric marks_awarded\n        int time_taken_seconds\n    }\n```\n\n#### 4.2 Comprehensive Data Dictionary & Constraints\n\n##### 1. `departments`\nStores academic and organizational departments.\n- `id` (BIGSERIAL, Primary Key)\n- `name` (VARCHAR(100), NOT NULL): Department name (e.g., Computer Science & Engineering).\n- `code` (VARCHAR(50), NOT NULL, UNIQUE): Unique identifier (e.g., `CSE-2027`).\n- `description` (TEXT): Overview of department.\n- `active` (BOOLEAN, DEFAULT TRUE): Soft-delete flag.\n- **Index**: `idx_departments_active ON departments(active)`\n\n##### 2. `exam_departments`\nJoin table establishing Many-to-Many mapping between examinations and eligible departments.\n- `exam_id` (BIGINT, FK -> `exams.id` ON DELETE CASCADE)\n- `department_id` (BIGINT, FK -> `departments.id` ON DELETE CASCADE)\n- **Primary Key**: `(exam_id, department_id)`\n\n##### 3. `exams`\nCore examination registry and blueprint configuration.\n- `id` (BIGSERIAL, Primary Key)\n- `title` (VARCHAR(255), NOT NULL): Examination title.\n- `description` (TEXT): Instructions and syllabus.\n- `duration_minutes` (INT, NOT NULL): Allowed time (5 to 360 mins).\n- `total_questions` (INT, NOT NULL): Target question count.\n- `total_marks` (NUMERIC(8,2), DEFAULT 100.00): Maximum score.\n- `marks_per_question` (NUMERIC(6,2), DEFAULT 1.00): Positive mark value.\n- `negative_marks` (NUMERIC(6,2), DEFAULT 0.00): Penalty per incorrect answer.\n- `qualification_mode` (VARCHAR(20), DEFAULT 'PERCENTAGE'): `PERCENTAGE` or `RAW_SCORE`.\n- `qualification_threshold` (NUMERIC(6,2), DEFAULT 60.00): Passing cutoff.\n- `timing_mode` (VARCHAR(30), DEFAULT 'DURATION_FROM_START'): `DURATION_FROM_START` or `FIXED_TIME_WINDOW`.\n- `status` (VARCHAR(20), DEFAULT 'DRAFT'): `DRAFT`, `PUBLISHED`, `ARCHIVED`.\n- `scheduled_start_time` / `scheduled_end_time` (TIMESTAMP WITH TIME ZONE)\n- `results_published` (BOOLEAN, DEFAULT FALSE)\n\n##### 4. `question_sets`\nIndependent department-specific question sets (Sets A, B, C, D).\n- `id` (BIGSERIAL, Primary Key)\n- `exam_id` (BIGINT, FK -> `exams.id` ON DELETE CASCADE)\n- `department_id` (BIGINT, FK -> `departments.id` ON DELETE CASCADE)\n- `set_code` (VARCHAR(10), NOT NULL): Values `A`, `B`, `C`, `D`.\n- `total_questions` (INT, DEFAULT 0)\n- `active` (BOOLEAN, DEFAULT TRUE)\n- **Unique Constraint**: `uq_exam_dept_set UNIQUE (exam_id, department_id, set_code)`\n\n##### 5. `questions` & `question_options`\n- `questions`: `id`, `question_set_id` (FK), `question_text` (TEXT), `marks`, `negative_marks`, `display_order`.\n- `question_options`: `id`, `question_id` (FK ON DELETE CASCADE), `option_text` (TEXT), `is_correct` (BOOLEAN), `display_order`.\n\n##### 6. `attempt_randomized_questions` & `attempt_randomized_options`\nStores per-candidate deterministic shuffling sequences.\n- Prevents reshuffling on page reload or reconnection.\n- Enforces strict unique constraints: `UNIQUE (attempt_id, question_id)` and `UNIQUE (attempt_id, display_order)`.\n\n##### 7. `stored_documents`\nConfidential documents metadata (Question Papers & Answer Keys).\n- `storage_path`, `mime_type`, `file_size`, `sha256_checksum`, `validation_status`.\n\n##### 8. `audit_logs`\nImmutable compliance trail tracking all administrative and candidate actions.\n- `action`, `entity_type`, `entity_id`, `performed_by`, `details`, `created_at`.\n\n---\n\n### 5. Complete REST API Specification\n\n#### 5.1 Authentication Endpoints\n| Method | Endpoint | Access | Description |\n| :--- | :--- | :--- | :--- |\n| `POST` | `/api/auth/login` | Public | Authenticates admin or candidate; returns JWT token and user profile. |\n| `POST` | `/api/auth/logout` | Authenticated | Invalidates client session. |\n| `GET` | `/api/auth/me` | Authenticated | Retrieves current authenticated principal details. |\n\n#### 5.2 Admin Examination Endpoints (`@PreAuthorize(\"hasRole('SUPER_ADMIN')\")`)\n| Method | Endpoint | Description |\n| :--- | :--- | :--- |\n| `GET` | `/api/admin/exams` | Lists all examinations ordered by creation date descending. |\n| `GET` | `/api/admin/exams/{id}` | Retrieves full examination blueprint with allocated departments. |\n| `POST` | `/api/admin/exams` | Creates a new examination blueprint in `DRAFT` status. |\n| `PUT` | `/api/admin/exams/{id}` | Updates exam details, scoring parameters, and allocated departments. |\n| `DELETE` | `/api/admin/exams/{id}` | Cascading deletion of exam, department sets, questions, and attempts. |\n| `POST` | `/api/admin/exams/{id}/publish` | Transitions status from `DRAFT` to `PUBLISHED`. |\n| `POST` | `/api/admin/exams/{id}/archive` | Transitions status to `ARCHIVED`. |\n\n#### 5.3 Department Management Endpoints\n| Method | Endpoint | Description |\n| :--- | :--- | :--- |\n| `GET` | `/api/admin/departments` | Lists all active academic departments. |\n| `POST` | `/api/admin/departments` | Creates a new department with unique code. |\n| `PUT` | `/api/admin/departments/{id}` | Modifies department name, code, or description. |\n| `DELETE` | `/api/admin/departments/{id}` | Soft-deletes or removes an inactive department. |\n\n#### 5.4 Question Bank & Document Processing Endpoints\n| Method | Endpoint | Description |\n| :--- | :--- | :--- |\n| `GET` | `/api/admin/exams/{id}/departments` | Returns departments configured for the exam with their set counts. |\n| `GET` | `/api/admin/exams/{id}/question-sets` | Returns Sets A, B, C, D for a specific department (`?departmentId={id}`). |\n| `GET` | `/api/admin/exams/{id}/questions` | Returns all questions and options for a set (`?questionSetId={id}`). |\n| `POST` | `/api/admin/exams/{id}/questions/bulk` | High-throughput batch save/replace for all MCQs in a set. |\n| `POST` | `/api/admin/exams/{id}/questions/import-text` | Parses and imports raw formatted MCQ text into a set. |\n| `POST` | `/api/admin/exams/{id}/questions/parse-pdf` | In-memory extraction of Question Paper & Answer Sheet PDFs. |\n| `DELETE` | `/api/admin/exams/{id}/questions/{qId}` | Deletes a single MCQ. |\n| `DELETE` | `/api/admin/exams/{id}/question-sets/{setId}/questions` | Flushes all questions within a designated question set. |\n\n#### 5.5 Candidate Portal Endpoints\n| Method | Endpoint | Description |\n| :--- | :--- | :--- |\n| `GET` | `/api/candidate/departments` | Returns active departments for candidate self-selection. |\n| `GET` | `/api/candidate/exams/active` | Lists currently active/published exams for candidate's department. |\n| `POST` | `/api/candidate/exams/{id}/start` | Initiates attempt, assigns set, generates randomized sequence. |\n| `GET` | `/api/candidate/attempts/{id}/questions` | Retrieves randomized question list without correct answer flags. |\n| `POST` | `/api/candidate/attempts/{id}/save-answer` | Records candidate response for a question in real time. |\n| `POST` | `/api/candidate/attempts/{id}/submit` | Finalizes attempt, executes scoring engine, issues submission receipt. |\n\n#### 5.6 Results & Telemetry Endpoints\n| Method | Endpoint | Description |\n| :--- | :--- | :--- |\n| `GET` | `/api/admin/results/exams/{id}` | Aggregated score statistics, pass/fail ratios, and attempt leaderboard. |\n| `GET` | `/api/admin/results/attempts/{id}` | Detailed question-by-question breakdown of a candidate's attempt. |\n| `GET` | `/api/admin/dashboard/metrics` | High-level KPI summary (Active exams, candidates, today's attempts). |\n\n---\n\n### 6. Security, Proctoring & Compliance Architecture\n\n```mermaid\ngraph LR\n    subgraph Client-Side Lockdown\n        F1[\"Fullscreen Enforcement\"]\n        F2[\"Tab Blur & Visibility Tracking\"]\n        F3[\"Clipboard & ContextMenu Block\"]\n        F4[\"DevTools Disablement\"]\n    end\n\n    subgraph Network & API Security\n        S1[\"HMAC-SHA256 JWT Auth\"]\n        S2[\"Login Rate Limiter (Brute Force)\"]\n        S3[\"CORS Policy Lockdown\"]\n        S4[\"SSL Connection to DB\"]\n    end\n\n    subgraph Confidentiality & Integrity\n        C1[\"Zero-Disk In-Memory PDFBox\"]\n        C2[\"SHA-256 Document Hashing\"]\n        C3[\"Per-Candidate Double Shuffling\"]\n        C4[\"Tamper-Proof Audit Logging\"]\n    end\n```\n\n1. **Anti-Tampering Question Delivery**: Candidate API responses strip out all `isCorrect` indicators, answer keys, and teacher annotations. Candidates can inspect DOM or network tabs without exposing correct answers.\n2. **Deterministic Anti-Surfing Randomization**: The double-shuffle algorithm ensures that question #14 for Student X is question #47 for Student Y, and the correct option (e.g., \"Polymorphism\") appears under option `B` for Student X and option `D` for Student Y.\n3. **Cryptographic Integrity (SHA-256)**: When question documents are stored, a SHA-256 digest is generated and verified before and after any retrieval operation.\n4. **Zero Persistent Remnants for Unreleased Tests**: In-memory parsing ensures no PDF documents reside on disk unencrypted prior to exam launch.\n\n---\n\n### 7. Frontend Architecture & Component Hierarchy\n\nThe frontend is constructed with modular React components following separation of concerns:\n\n```\nsecure-exam-frontend/\n├── src/\n│   ├── assets/               # Branding, logos, vector icons\n│   ├── components/           # Reusable UI components\n│   │   ├── Navigation.tsx    # Admin sidebar with live status badges\n│   │   ├── Header.tsx        # Super Admin profile, notifications, backend status\n│   │   ├── Modal.tsx         # Confirmation dialogs\n│   │   └── Card.tsx          # Glassmorphic containers\n│   ├── pages/\n│   │   ├── admin/\n│   │   │   ├── AdminLoginPage.tsx      # Brute-force protected admin entry\n│   │   │   ├── OverviewPage.tsx        # System KPIs and recent exam activity\n│   │   │   ├── ExamsPage.tsx           # Examination registry with filter & actions\n│   │   │   ├── CreateExamPage.tsx      # Multi-step examination creation wizard\n│   │   │   ├── QuestionBankPage.tsx    # Department & 4-Set MCQ management console\n│   │   │   ├── DepartmentsPage.tsx     # Academic department configuration\n│   │   │   ├── CandidatesPage.tsx      # Candidate directory and status\n│   │   │   ├── ResultsPage.tsx         # Score breakdowns and candidate receipts\n│   │   │   └── SettingsPage.tsx        # Global security and threshold settings\n│   │   └── candidate/\n│   │       ├── CandidateEntryPage.tsx           # Candidate registration & exam selection\n│   │       ├── SystemCheckPage.tsx              # Camera, mic, and latency verification\n│   │       ├── CandidateExamPage.tsx            # Fullscreen proctored assessment runner\n│   │       └── SubmissionConfirmationPage.tsx   # Verified digital submission receipt\n│   ├── services/\n│   │   ├── api.ts            # Axios HTTP client with JWT interceptors\n│   │   ├── scoringEngine.ts  # Client-side validation utilities\n│   │   └── proctorEngine.ts  # Fullscreen & anti-cheating event listeners\n│   ├── App.tsx               # Client router and route guards\n│   ├── index.css             # Design tokens, variables, responsive typography\n│   └── main.tsx              # Application bootstrapper\n```\n\n---\n\n### 8. Setup, Deployment & Operational Runbook\n\n#### 8.1 Prerequisites\n- **Java Development Kit (JDK)**: Version 21 or 23\n- **Node.js**: Version 20.x or higher (NPM 10+)\n- **PostgreSQL Database**: Supabase cloud instance or local PostgreSQL 16+\n- **Git**: For source version control\n\n#### 8.2 Backend Configuration (`application.properties`)\n```properties\nserver.port=8080\n\n# Database Configuration (Supabase PostgreSQL with SSL)\nspring.datasource.url=jdbc:postgresql://<SUPABASE_HOST>:5432/postgres?sslmode=require\nspring.datasource.username=postgres\nspring.datasource.password=<SECURE_DB_PASSWORD>\nspring.datasource.driver-class-name=org.postgresql.Driver\n\n# JPA / Hibernate Batching Configuration (Critical for High-Speed Saves)\nspring.jpa.properties.hibernate.jdbc.batch_size=50\nspring.jpa.properties.hibernate.order_inserts=true\nspring.jpa.properties.hibernate.order_updates=true\nspring.jpa.properties.hibernate.batch_versioned_data=true\n\n# Flyway Database Migration\nspring.flyway.enabled=true\nspring.flyway.baseline-on-migrate=true\n\n# Admin Account Bootstrap Provisioning\napp.security.bootstrap.enabled=true\napp.security.bootstrap.email=d.koushik@kalpanaaasoftwaresolutions.in\napp.security.bootstrap.password=Admin@ExamSecure2026!\napp.security.bootstrap.full-name=D. Koushik\n\n# Rate Limiter Settings\napp.security.rate-limit.max-attempts=5\napp.security.rate-limit.lockout-minutes=15\n\n# Document Upload Thresholds\nspring.servlet.multipart.max-file-size=25MB\nspring.servlet.multipart.max-request-size=25MB\nspring.servlet.multipart.file-size-threshold=25MB\n```\n\n#### 8.3 Launching the Application\n\n##### Backend Launch:\n```bash\ncd d:/Downloads/secureexam/secureexam\n# Compile and run via Maven Wrapper\n./mvnw.cmd spring-boot:run\n```\n*Tomcat initializes on `http://localhost:8080`.*\n\n##### Frontend Launch:\n```bash\ncd d:/Downloads/secureexam/secure-exam-frontend\nnpm install\nnpm run dev\n```\n*Vite development server launches on `http://localhost:5173`.*\n\n#### 8.4 Production Build Verification\nTo verify TypeScript cleanliness and generate production assets:\n```bash\n# Frontend Build\ncd d:/Downloads/secureexam/secure-exam-frontend\nnpm run build\n# Outputs optimized assets to dist/\n\n# Backend Build\ncd d:/Downloads/secureexam/secureexam\n./mvnw.cmd clean package -DskipTests\n# Generates production executable JAR in target/secureexam-0.0.1-SNAPSHOT.jar\n```\n\n---\n*Document Version: 1.0.0*  \n*Author: ExamSecure Engineering Team*  \n*Classification: Confidential — System Architecture & Technical Specification*\n";
+    marked.setOptions({ gfm: true, breaks: true });
+    const contentDiv = document.getElementById("content");
+    contentDiv.innerHTML = marked.parse(rawMarkdown);
+    document.querySelectorAll("pre code.language-mermaid").forEach((block) => {
+      const pre = block.parentElement;
+      const mermaidDiv = document.createElement("div");
+      mermaidDiv.className = "mermaid";
+      mermaidDiv.textContent = block.textContent;
+      pre.parentElement.replaceChild(mermaidDiv, pre);
+    });
+    mermaid.initialize({ startOnLoad: true, theme: "dark" });
+  </script>
+</body>
+</html>
