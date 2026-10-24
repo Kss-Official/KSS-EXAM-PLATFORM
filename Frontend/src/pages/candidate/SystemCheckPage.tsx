@@ -15,10 +15,10 @@ import {
   ShieldCheck,
   AlertTriangle,
   ArrowLeft,
-  CheckCircle2,
   Video,
   Menu,
-  Mail
+  Mail,
+  LockKeyhole
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
