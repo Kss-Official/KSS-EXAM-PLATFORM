@@ -36,10 +36,10 @@
 **ExamSecure** is an enterprise-grade, high-security online examination and automated proctoring platform engineered for educational institutions, corporate recruitment, and competitive assessment authorities. 
 
 The system solves critical vulnerabilities common in traditional online examination software:
-- **Zero-Disk In-Memory Parsing**: Eliminates storage leaks of unreleased examination papers by extracting MCQs in volatile RAM via Apache PDFBox.
+- **Zero-Disk In-Memory Parsing**: Eliminates storage leaks of unreleased examination papers by extracting MCQs in volatile RAM via PyPDF (`pypdf`).
 - **Department-Isolated 4-Set Question Banks**: Each exam supports multiple academic departments, each possessing four distinct balanced question sets (Set A, Set B, Set C, Set D) with independent answer keys and difficulty balancing.
 - **Candidate-Level Double Shuffling**: Every candidate is allocated a department-specific set, with deterministic per-attempt randomization of both question sequences and option labels (A, B, C, D), eliminating side-by-side shoulder surfing.
-- **Instant High-Throughput Batch Persistence**: Eliminates connection timeouts and latency bottlenecks across distributed cloud databases via JPA/Hibernate batch persistence (`saveAll`).
+- **Instant High-Throughput Batch Persistence**: Eliminates connection timeouts and latency bottlenecks across distributed cloud databases via SQLAlchemy bulk inserts and joined eager loads.
 - **Comprehensive Proctoring & Tamper-Evident Auditing**: Fullscreen lockdown, blur/tab-switch tracking, copy/paste prevention, cryptographic SHA-256 document hashing, and immutable action logging.
 
 ---
@@ -48,8 +48,8 @@ The system solves critical vulnerabilities common in traditional online examinat
 
 ExamSecure utilizes a decoupled client-server architecture:
 - **Client Tier**: Single Page Application (SPA) built with React 18, TypeScript, Vite, and modern CSS design tokens with glassmorphic aesthetics.
-- **Application Tier**: High-concurrency RESTful micro-service built on Java 23 / Java 21, Spring Boot 4.1.1, Spring Security with stateless JWT, and Hibernate ORM.
-- **Data Tier**: Cloud-managed PostgreSQL 17 (Supabase) accessed via HikariCP connection pooling with SSL encryption and Flyway schema migrations.
+- **Application Tier**: High-concurrency RESTful micro-service built on **Python 3.11+**, **FastAPI 0.115+**, **SQLAlchemy 2.0+ ORM**, **Pydantic v2**, and **Uvicorn ASGI**.
+- **Data Tier**: Cloud-managed PostgreSQL 17 (Supabase) accessed via SQLAlchemy connection pooling with SSL encryption.
 
 ```mermaid
 graph TD

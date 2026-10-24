@@ -1,0 +1,73 @@
+# =============================================================================
+# ExamSecure Root Git Ignore Rules
+# =============================================================================
+
+# Credentials & Environment Files
+.env
+.env.*
+!.env.example
+*.env
+*.env.*
+!*.env.example
+cookies.txt
+*.pem
+*.key
+*.cert
+*.p12
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node.js & Frontend
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Java / Maven build artifacts
+target/
+*.class
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+replay_pid*
+.metadata/
+.mvn/.wagon-provider-cache/
+
+# Private Storage & Uploaded Documents
+private-storage/
+documents/
+*.pdf
+*.log
+
+# IDE & OS
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+.neon
