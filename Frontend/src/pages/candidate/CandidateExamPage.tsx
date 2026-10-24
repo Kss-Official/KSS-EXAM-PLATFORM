@@ -744,13 +744,10 @@ export default function CandidateExamPage({
       let assignedExamId = session?.profile?.assignedExamId;
 
       // Auto-recover candidate profile if dbCandidateId is missing
-      if (!dbCandId && session?.profile?.candidateId) {
+      if (!dbCandId && session?.profile?.email) {
         try {
-          const code = session.profile.candidateId.trim().toUpperCase();
           const verifyRes = await verifyCandidateEligibility({
-            registrationNumber: code,
-            accessCode: code,
-            uniqueId: code,
+            email: session.profile.email.trim().toLowerCase(),
             fullName: session.profile.name,
             name: session.profile.name,
             departmentId: session.profile.departmentId,

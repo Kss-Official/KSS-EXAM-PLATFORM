@@ -197,8 +197,8 @@ def test_admin_mcq_exam_lifecycle(admin_token):
     assert del_resp.status_code == 200
     assert del_resp.json()["success"] is True
 
-def test_admin_candidate_and_round_ids(admin_token):
-    """Verifies candidate creation, 3-use Round 1 & Round 2 unique ID generation."""
+def test_admin_candidate_management(admin_token):
+    """Verifies candidate creation, retrieval, and set assignment without access codes."""
     headers = {"Authorization": f"Bearer {admin_token}"}
 
     import time
@@ -213,32 +213,15 @@ def test_admin_candidate_and_round_ids(admin_token):
     create_resp = client.post("/api/admin/candidates", headers=headers, json=cand_payload)
     assert create_resp.status_code == 200
     cand = create_resp.json()
-    cand_id = cand["id"]
     assert cand["registrationNumber"] == reg_num
+    assert cand["fullName"] == "Admin Workflow Test Candidate"
+    assert cand["email"] == f"{reg_num.lower()}@example.com"
 
-    # 2. Generate Round 1 Unique Access ID (strictly 3 uses)
-    r1_resp = client.post(f"/api/admin/candidates/{cand_id}/generate-access-code?round=ROUND_1", headers=headers)
-    assert r1_resp.status_code == 200
-    r1_data = r1_resp.json()
-    assert r1_data["code"].startswith("MCQ-")
-    assert r1_data["maxUses"] == 3
-    assert r1_data["usageCount"] == 0
-
-    # 3. Generate Round 2 Unique Access ID (independent 3 uses)
-    r2_resp = client.post(f"/api/admin/candidates/{cand_id}/generate-access-code?round=ROUND_2", headers=headers)
-    assert r2_resp.status_code == 200
-    r2_data = r2_resp.json()
-    assert r2_data["code"].startswith("CODE-")
-    assert r2_data["maxUses"] == 3
-    assert r2_data["usageCount"] == 0
-    assert r2_data["code"] != r1_data["code"]
-
-    # 4. Batch round IDs query
-    r1_map_resp = client.get("/api/admin/candidates/round-ids?round=ROUND_1", headers=headers)
-    assert r1_map_resp.status_code == 200
-    r1_map = r1_map_resp.json()
-    assert reg_num in r1_map
-    assert r1_map[reg_num] == r1_data["code"]
+    # 2. Query candidates list
+    list_resp = client.get("/api/admin/candidates", headers=headers)
+    assert list_resp.status_code == 200
+    all_cands = list_resp.json()
+    assert any(c["registrationNumber"] == reg_num for c in all_cands)
 
 def test_admin_results_and_publishing_toggle(admin_token):
     """Verifies results querying and result publication status toggling."""

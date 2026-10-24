@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   FileText,
   User, 
@@ -16,9 +16,9 @@ import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle2,
-  LockKeyhole,
   Video,
-  Menu
+  Menu,
+  Mail
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
@@ -267,11 +267,11 @@ export default function SystemCheckPage({
 
             <div className="compat-candidate-col">
               <span className="compat-col-icon">
-                <CreditCard size={15} />
+                <Mail size={15} />
               </span>
               <div>
-                <small>Candidate ID</small>
-                <strong>{profile.candidateId || "CAND-012-09"}</strong>
+                <small>Email Address</small>
+                <strong>{profile.email || "candidate@campus.edu"}</strong>
               </div>
             </div>
           </div>

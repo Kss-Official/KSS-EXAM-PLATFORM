@@ -33,84 +33,33 @@ class CandidateExamService:
     @classmethod
     def verify_candidate(cls, db: Session, req: CandidateVerifyRequest) -> CandidateVerifyResponse:
         resp = CandidateVerifyResponse(eligible=False, message="")
-        input_code = (req.access_code or req.unique_id or req.registration_number or "").strip()
         input_name = (req.full_name or req.name or "").strip()
+        input_email = (req.email or "").strip().lower()
         input_dept_id = req.department_id
         input_dept_name = (req.department_name or req.department or "").strip()
 
         # 1. Require all three mandatory identification fields
-        if not input_code:
-            resp.message = "Unique Candidate ID is required. Please enter the Unique ID provided for your assessment."
-            return resp
-
         if not input_name:
             resp.message = "Full Name is required. Please enter your registered full name."
+            return resp
+
+        if not input_email:
+            resp.message = "Email Address is required. Please enter your registered email address."
             return resp
 
         if input_dept_id is None and not input_dept_name:
             resp.message = "Department selection is required. Please select your assigned department."
             return resp
 
-        # 2. Strict Database Validation: Unique Candidate ID must exist in DB
-        access_code_obj = db.query(CandidateAccessCode).filter(
-            func.upper(CandidateAccessCode.code) == input_code.upper()
-        ).first()
-
-        # If not matching code directly, check candidate registration number in database
-        if not access_code_obj:
-            clean_reg = re.sub(r'^(MCQ|CODE)[-_]', '', input_code.upper())
-            base_reg = re.sub(r'[-_]\d+$', '', clean_reg) or clean_reg
-            reg_candidate = re.split(r'[-_](?:ROUND|R\d|\d+$)', clean_reg, flags=re.IGNORECASE)[0]
-            cand_by_reg = db.query(Candidate).filter(
-                func.upper(Candidate.registration_number).in_([input_code.upper(), clean_reg, base_reg, reg_candidate])
-            ).first()
-            if cand_by_reg:
-                target_round = req.round or ("ROUND_2" if input_code.upper().startswith("CODE-") else "ROUND_1")
-                access_code_obj = db.query(CandidateAccessCode).filter(
-                    CandidateAccessCode.candidate_id == cand_by_reg.id,
-                    CandidateAccessCode.round == target_round,
-                    CandidateAccessCode.is_active == True
-                ).order_by(CandidateAccessCode.created_at.desc()).first()
-                if not access_code_obj:
-                    # Auto-provision canonical access code for this candidate and round
-                    from app.admin.services.candidate_service import CandidateService
-                    CandidateService.generate_access_code(db, cand_by_reg.id, performed_by="SYSTEM", round_name=target_round, force_new=False)
-                    access_code_obj = db.query(CandidateAccessCode).filter(
-                        CandidateAccessCode.candidate_id == cand_by_reg.id,
-                        CandidateAccessCode.round == target_round,
-                        CandidateAccessCode.is_active == True
-                    ).order_by(CandidateAccessCode.created_at.desc()).first()
-
-        if not access_code_obj:
-            resp.message = f"Invalid Unique Candidate ID '{input_code}'. No matching candidate record exists in the database."
-            return resp
-
-        # Check 3-use limit and code active status
-        if access_code_obj.usage_count >= access_code_obj.max_uses or not access_code_obj.is_active:
-            resp.eligible = False
-            if access_code_obj.usage_count >= access_code_obj.max_uses:
-                resp.message = (
-                    f"This Unique Access ID ({access_code_obj.code}) has reached its maximum limit "
-                    f"({access_code_obj.usage_count}/{access_code_obj.max_uses} uses) and is permanently expired. "
-                    "Please contact your exam administrator for assistance."
-                )
-            else:
-                resp.message = (
-                    f"This Unique Access ID ({access_code_obj.code}) has been superseded by a newly issued ID or deactivated. "
-                    "Please enter your newly issued Unique ID or contact your administrator."
-                )
-            resp.access_code = access_code_obj.code
-            resp.access_code_uses = access_code_obj.usage_count
-            resp.access_code_max_uses = access_code_obj.max_uses
-            return resp
-
-        # Retrieve Candidate record associated with this Unique ID
+        # 2. Strict Database Validation: Look up Candidate by registered Email
         candidate = db.query(Candidate).options(
             joinedload(Candidate.department)
-        ).filter(Candidate.id == access_code_obj.candidate_id).first()
+        ).filter(
+            func.lower(Candidate.email) == input_email
+        ).first()
 
         if not candidate:
-            resp.message = "No candidate record found associated with this Unique ID in the database."
+            resp.message = f"Access Denied: No candidate record found for email '{input_email}'. Please verify your registered email address or contact your administrator."
             return resp
 
         if candidate.status and candidate.status.upper() != "ACTIVE":
@@ -124,7 +73,7 @@ class CandidateExamService:
         if normalize_name(input_name) != normalize_name(candidate.full_name):
             resp.message = (
                 f"Full Name mismatch: The entered name '{input_name}' does not match the name "
-                f"registered for Candidate ID '{access_code_obj.code}'. Please enter your exact registered full name."
+                f"registered for email '{input_email}'. Please enter your exact registered full name."
             )
             return resp
 
@@ -174,7 +123,7 @@ class CandidateExamService:
         if not matched_dept:
             resp.message = (
                 f"Department mismatch: The selected department does not match the department assigned "
-                f"to this candidate in our records ('{candidate.department.name}'). Please select your assigned department."
+                f"to candidate '{candidate.full_name}' in our records ('{candidate.department.name}'). Please select your assigned department."
             )
             return resp
 
@@ -183,45 +132,8 @@ class CandidateExamService:
         resp.registration_number = candidate.registration_number
         resp.full_name = candidate.full_name
         resp.candidate_name = candidate.full_name
+        resp.email = candidate.email
         resp.department_name = candidate.department.name
-
-        # Round 2 Coding Assessment verification routing
-        is_round_2 = access_code_obj is not None and access_code_obj.round == "ROUND_2"
-        if is_round_2:
-            from app.models.coding import CodingExam
-            coding_exam = db.query(CodingExam).filter(
-                CodingExam.status == "PUBLISHED"
-            ).order_by(CodingExam.created_at.desc()).first()
-
-            if not coding_exam:
-                resp.message = "No published Round 2 Coding Assessment is currently available. Please contact administrator."
-                return resp
-
-            resp.eligible = True
-            resp.round = "ROUND_2"
-            resp.exam_id = coding_exam.id
-            resp.assigned_exam_id = coding_exam.id
-            resp.exam_title = coding_exam.title
-            resp.duration_minutes = coding_exam.duration_minutes
-            resp.total_questions = len(coding_exam.questions) if coding_exam.questions else 0
-            resp.timing_mode = coding_exam.timing_mode
-            resp.department_name = candidate.department.name if candidate.department else "Developer"
-            resp.slot_name = "Slot 1 (Coding Assessment)"
-            resp.message = "Candidate verified successfully for Round 2 Coding Assessment. Ready to enter terminal."
-
-            if access_code_obj:
-                access_code_obj.usage_count += 1
-                access_code_obj.last_used_at = datetime.now(timezone.utc)
-                if access_code_obj.usage_count >= access_code_obj.max_uses:
-                    access_code_obj.is_active = False
-                db.add(access_code_obj)
-                db.commit()
-                db.refresh(access_code_obj)
-                resp.access_code = access_code_obj.code
-                resp.access_code_uses = access_code_obj.usage_count
-                resp.access_code_max_uses = access_code_obj.max_uses
-
-            return resp
 
         # Eager load attempt relationships
         existing_attempt = db.query(ExamAttempt).options(
@@ -352,28 +264,10 @@ class CandidateExamService:
             ).first()
 
             if prior_attempt:
-                if prior_attempt.status in ("SUBMITTED", "EXPIRED"):
-                    # Check if candidate has active unique ID with remaining uses
-                    if access_code_obj and access_code_obj.is_active and access_code_obj.usage_count < access_code_obj.max_uses:
-                        db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == prior_attempt.id).delete()
-                        db.query(AttemptRandomizedOption).filter(AttemptRandomizedOption.attempt_id == prior_attempt.id).delete()
-                        db.query(AttemptRandomizedQuestion).filter(AttemptRandomizedQuestion.attempt_id == prior_attempt.id).delete()
-                        prior_attempt.status = "ASSIGNED"
-                        prior_attempt.slot_id = slot.id if slot else None
-                        prior_attempt.question_set_id = question_set.id
-                        prior_attempt.started_at = None
-                        prior_attempt.expires_at = None
-                        prior_attempt.submitted_at = None
-                        prior_attempt.score = None
-                        prior_attempt.total_marks = None
-                        prior_attempt.percentage = None
-                        prior_attempt.qualification_status = "PENDING"
-                        prior_attempt.receipt_id = None
-                        db.commit()
-                    else:
-                        resp.eligible = False
-                        resp.message = "You have already completed this examination."
-                        return resp
+                if prior_attempt.status in ("SUBMITTED", "EXPIRED", "COMPLETED"):
+                    resp.eligible = False
+                    resp.message = "You have already completed and submitted your examination."
+                    return resp
             else:
                 new_attempt = ExamAttempt(
                     candidate_id=candidate.id,
@@ -387,7 +281,7 @@ class CandidateExamService:
                 db.commit()
 
         resp.eligible = True
-        resp.message = "Candidate verified successfully. Ready to start examination."
+        resp.message = "Candidate credentials verified successfully. Ready to start examination."
         resp.exam_id = exam.id
         resp.assigned_exam_id = exam.id
         resp.exam_title = exam.title
@@ -400,19 +294,6 @@ class CandidateExamService:
         resp.question_set_code = question_set.set_code
         resp.department_name = candidate.department.name if candidate.department else "General Assessment"
         resp.slot_name = f"Slot {slot.slot_number}" if slot else "Slot 1 (Main)"
-
-        # Atomically increment usage count and mark inactive when limit reached
-        if access_code_obj:
-            access_code_obj.usage_count += 1
-            access_code_obj.last_used_at = datetime.now(timezone.utc)
-            if access_code_obj.usage_count >= access_code_obj.max_uses:
-                access_code_obj.is_active = False
-            db.add(access_code_obj)
-            db.commit()
-            db.refresh(access_code_obj)
-            resp.access_code = access_code_obj.code
-            resp.access_code_uses = access_code_obj.usage_count
-            resp.access_code_max_uses = access_code_obj.max_uses
 
         return resp
 
@@ -490,21 +371,6 @@ class CandidateExamService:
             )
 
         if attempt.status == "ASSIGNED":
-            # Strict backend enforcement of 3-use limit on CandidateAccessCode
-            access_code = db.query(CandidateAccessCode).filter(
-                CandidateAccessCode.candidate_id == candidate_id
-            ).order_by(CandidateAccessCode.created_at.desc()).first()
-
-            if access_code:
-                if access_code.usage_count > access_code.max_uses or (not access_code.is_active and attempt.started_at is not None):
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail=(
-                            f"This Unique Access ID ({access_code.code}) has reached its maximum limit "
-                            f"({access_code.usage_count}/{access_code.max_uses} uses) and is permanently expired."
-                        )
-                    )
-
             # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
             db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
 

@@ -1,17 +1,16 @@
-﻿/**
+/**
  * Candidate Examination Types
  * Strictly defined for the Candidate Examination Portal workflow.
  */
 
 export type Department = string;
 
-export type AssessmentRound = "ROUND_1" | "ROUND_2";
-
 export interface CandidateProfile {
   name: string;
+  email: string;
   department: Department;
   departmentId?: number;
-  candidateId: string;
+  candidateId?: string;
   dbCandidateId?: number;
   assignedExamId?: number;
   examTitle?: string;
@@ -21,9 +20,6 @@ export interface CandidateProfile {
   skills?: string[];
   degreeBranch?: string;
   graduationYear?: string;
-  assessmentRound?: AssessmentRound;
-  roundUniqueId?: string;
-  codingExamId?: string | number;
 }
 
 export interface ExamQuestion {
@@ -73,6 +69,7 @@ export interface SubmissionReceipt {
   sessionId: string;
   examId: string | number;
   candidateName: string;
+  candidateEmail?: string;
   candidateId: string;
   department: Department;
   answeredCount: number;
@@ -87,10 +84,6 @@ export interface SubmissionReceipt {
   percentage?: number;
   qualificationStatus?: string;
   isPublished?: boolean;
-  assessmentRound?: AssessmentRound;
-  roundUniqueId?: string;
-  codingAttemptedCount?: number;
-  codingSubmittedCount?: number;
 }
 
 export interface ReadinessCheckState {

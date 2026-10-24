@@ -45,15 +45,13 @@ class CandidateBatchGenerateSelectedRequest(CamelModel):
     round: str = "ROUND_1"
 
 class CandidateVerifyRequest(CamelModel):
-    registration_number: Optional[str] = None
-    unique_id: Optional[str] = None
-    access_code: Optional[str] = None
     full_name: Optional[str] = None
     name: Optional[str] = None
-    department_id: Optional[int] = None
-    department_name: Optional[str] = None
+    email: Optional[str] = None
     department: Optional[str] = None
-    round: Optional[str] = None
+    department_name: Optional[str] = None
+    department_id: Optional[int] = None
+    registration_number: Optional[str] = None
 
 class CandidateVerifyResponse(CamelModel):
     eligible: bool
@@ -62,6 +60,7 @@ class CandidateVerifyResponse(CamelModel):
     registration_number: Optional[str] = None
     full_name: Optional[str] = None
     candidate_name: Optional[str] = None
+    email: Optional[str] = None
     department_name: Optional[str] = None
     exam_id: Optional[int] = None
     assigned_exam_id: Optional[int] = None
@@ -74,10 +73,6 @@ class CandidateVerifyResponse(CamelModel):
     scheduled_end_time: Optional[datetime] = None
     set_code: Optional[str] = None
     question_set_code: Optional[str] = None
-    access_code: Optional[str] = None
-    access_code_uses: Optional[int] = None
-    access_code_max_uses: Optional[int] = None
-    round: Optional[str] = "ROUND_1"
 
 class CandidateOptionDto(CamelModel):
     option_id: int

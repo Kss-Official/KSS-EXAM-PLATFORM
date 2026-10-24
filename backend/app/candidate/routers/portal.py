@@ -6,8 +6,7 @@ from app.core import get_db
 from app.models import Department, Exam
 from app.schemas import (
     DepartmentDto, CandidateVerifyRequest, CandidateVerifyResponse,
-    CandidateStartAttemptResponse, AnswerSaveRequest, SubmissionResponse,
-    CodeRunRequest, CodeRunResponse, CodeSubmitRequest, CodeSubmitResponse
+    CandidateStartAttemptResponse, AnswerSaveRequest, SubmissionResponse
 )
 from app.candidate.services import CandidateExamService
 
@@ -62,18 +61,7 @@ def verify_candidate(
     req: CandidateVerifyRequest,
     db: Session = Depends(get_db)
 ):
-    result = CandidateExamService.verify_candidate(db, req)
-    # Raise 403 when access code has reached its usage limit (expired)
-    if not result.eligible and result.access_code and result.access_code_uses is not None:
-        if result.access_code_uses >= (result.access_code_max_uses or 3):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=result.message or (
-                    f"This Unique Access ID ({result.access_code}) has reached its maximum limit "
-                    f"({result.access_code_uses}/{result.access_code_max_uses} uses) and is permanently expired."
-                )
-            )
-    return result
+    return CandidateExamService.verify_candidate(db, req)
 
 @router.post("/start", response_model=CandidateStartAttemptResponse)
 def start_or_resume_attempt(
@@ -123,46 +111,3 @@ def submit_attempt(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="attemptId is required")
     return CandidateExamService.submit_attempt(db, int(aid), answers_payload=answers_payload)
 
-# =========================================================================
-# ROUND 2: CODING ASSESSMENT CANDIDATE TERMINAL ENDPOINTS
-# =========================================================================
-
-@router.post("/coding/run", response_model=CodeRunResponse)
-def run_coding_sample(
-    req: CodeRunRequest
-):
-    """
-    Executes candidate code against sample or custom input in a sandbox.
-    Captures stdout, stderr, compile errors, and runtime limits.
-    """
-    from app.candidate.services.code_runner_service import CodeRunnerService
-    return CodeRunnerService.run_candidate_code(req)
-
-@router.post("/coding/submit", response_model=CodeSubmitResponse)
-def submit_coding_solution(
-    req: CodeSubmitRequest,
-    db: Session = Depends(get_db)
-):
-    """
-    Submits candidate code for final automated grading across all test cases
-    (both public sample and hidden evaluation test cases).
-    """
-    from app.candidate.services.code_runner_service import CodeRunnerService
-    return CodeRunnerService.evaluate_and_submit_code(db, req)
-
-@router.get("/coding/exam/{exam_id}")
-def get_candidate_coding_exam(
-    exam_id: int,
-    db: Session = Depends(get_db)
-):
-    """
-    Retrieves questions for a published coding assessment for candidate viewing.
-    Masks hidden evaluation test cases from the client payload.
-    """
-    from app.models.coding import CodingExam
-    from app.admin.services.coding_exam_service import CodingExamService
-    dto = CodingExamService.get_coding_exam_by_id(db, exam_id)
-    # Mask hidden test cases
-    for q in dto.questions:
-        q.testCases = [tc for tc in q.testCases if not tc.isHidden]
-    return dto

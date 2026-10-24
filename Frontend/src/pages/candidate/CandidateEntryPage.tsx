@@ -15,7 +15,6 @@ import DepartmentSelector from "../../components/candidate/DepartmentSelector";
 import { loadCandidateSession, clearCandidateSession } from "../../services/candidateSessionStorage";
 import DemoRestartDialog from "../../components/candidate/DemoRestartDialog";
 import { verifyCandidateEligibility, ApiError } from "../../services/api";
-import { isCandidateSelectedForRound2, getRound2CandidateDetails } from "../../services/candidateRoundIdService";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 interface CandidateEntryPageProps {
@@ -30,20 +29,20 @@ export default function CandidateEntryPage({
   const [name, setName] = useState("");
   const [department, setDepartment] = useState<Department | "">("");
   const [departmentId, setDepartmentId] = useState<number | undefined>(undefined);
-  const [candidateId, setCandidateId] = useState("");
+  const [email, setEmail] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const [touched, setTouched] = useState({
     name: false,
     department: false,
-    candidateId: false
+    email: false
   });
 
   const [errors, setErrors] = useState({
     name: "",
     department: "",
-    candidateId: ""
+    email: ""
   });
 
   const [existingSession, setExistingSession] = useState<ReturnType<typeof loadCandidateSession>>(null);
@@ -57,7 +56,7 @@ export default function CandidateEntryPage({
       setName(session.profile.name || "");
       setDepartment(session.profile.department || "");
       setDepartmentId(session.profile.departmentId);
-      setCandidateId(session.profile.candidateId || "");
+      setEmail(session.profile.email || "");
     }
   }, []);
 
@@ -65,12 +64,12 @@ export default function CandidateEntryPage({
     const errs = {
       name: "",
       department: "",
-      candidateId: ""
+      email: ""
     };
 
     const trimmedName = name.trim();
     if (!trimmedName) {
-      errs.name = "Full name is required. Please enter your full name.";
+      errs.name = "Full name is required. Please enter your registered full name.";
     } else if (trimmedName.length < 2) {
       errs.name = "Full name must be at least 2 characters long.";
     }
@@ -79,20 +78,21 @@ export default function CandidateEntryPage({
       errs.department = "Please select your assigned department.";
     }
 
-    const trimmedId = candidateId.trim();
-    if (!trimmedId) {
-      errs.candidateId = "Candidate ID is required. Please enter the ID supplied by your organization.";
-    } else if (trimmedId.length < 3) {
-      errs.candidateId = "Candidate ID must be at least 3 characters long.";
+    const trimmedEmail = email.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trimmedEmail) {
+      errs.email = "Email address is required. Please enter your registered email.";
+    } else if (!emailRegex.test(trimmedEmail)) {
+      errs.email = "Please enter a valid email address (e.g. name@campus.edu).";
     }
 
     setErrors(errs);
-    return !errs.name && !errs.department && !errs.candidateId;
+    return !errs.name && !errs.department && !errs.email;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setTouched({ name: true, department: true, candidateId: true });
+    setTouched({ name: true, department: true, email: true });
     setServerError(null);
 
     if (!validate()) {
@@ -101,60 +101,36 @@ export default function CandidateEntryPage({
 
     setIsVerifying(true);
     try {
-      // Check if candidate credentials are for Round 2 Coding Assessment
-      const isRound2Selected = isCandidateSelectedForRound2(candidateId);
-      if (isRound2Selected || candidateId.trim().toUpperCase().startsWith("CODE-")) {
-        if (!isRound2Selected) {
-          setServerError(`Access Denied: Candidate identifier "${candidateId.trim().toUpperCase()}" is not selected for Round 2 Coding Assessment. Round 2 access is strictly restricted to candidates selected by the administrator after Round 1.`);
-          setIsVerifying(false);
-          return;
-        }
-
-        const round2Details = getRound2CandidateDetails(candidateId);
-        onContinue({
-          name: round2Details?.candidateName || name.trim(),
-          department: (round2Details?.departmentName || department || "Developer") as Department,
-          departmentId: departmentId,
-          candidateId: round2Details?.registrationNumber || candidateId.trim().toUpperCase(),
-          roundUniqueId: round2Details?.round2UniqueId || candidateId.trim().toUpperCase(),
-          assessmentRound: "ROUND_2",
-          examTitle: "Round 2 ΓÇö Technical Coding Assessment",
-          codingExamId: "CODE-101"
-        });
-        setIsVerifying(false);
-        return;
-      }
-
       const verifyRes = await verifyCandidateEligibility({
-        registrationNumber: candidateId.trim().toUpperCase(),
-        departmentId: departmentId,
         fullName: name.trim(),
         name: name.trim(),
+        email: email.trim().toLowerCase(),
+        department: department,
         departmentName: department,
-        department: department
+        departmentId: departmentId
       });
 
       if (!verifyRes.eligible) {
-        setServerError(verifyRes.message || "Candidate record is not eligible or examination has not started.");
+        setServerError(verifyRes.message || "Candidate credentials could not be verified in our records.");
         setIsVerifying(false);
         return;
       }
 
       onContinue({
         name: verifyRes.candidateName || name.trim(),
+        email: verifyRes.email || email.trim().toLowerCase(),
         department: verifyRes.departmentName || (department as Department),
         departmentId: departmentId,
-        candidateId: verifyRes.registrationNumber || candidateId.trim().toUpperCase(),
+        candidateId: verifyRes.registrationNumber || "CAND-001",
         dbCandidateId: verifyRes.candidateId,
         assignedExamId: verifyRes.assignedExamId,
         examTitle: verifyRes.examTitle,
         slotName: verifyRes.slotName,
-        questionSetCode: verifyRes.questionSetCode,
-        assessmentRound: "ROUND_1"
+        questionSetCode: verifyRes.questionSetCode
       });
     } catch (err: unknown) {
       const error = err as ApiError;
-      setServerError(error.message || "Verification failed. Please ensure the candidate is registered in this department.");
+      setServerError(error.message || "Verification failed. Please ensure your name, department, and email address match your registered records.");
     } finally {
       setIsVerifying(false);
     }
@@ -165,7 +141,8 @@ export default function CandidateEntryPage({
     setExistingSession(null);
     setName("");
     setDepartment("");
-    setCandidateId("");
+    setDepartmentId(undefined);
+    setEmail("");
     setShowRestartModal(false);
   };
 
@@ -173,7 +150,7 @@ export default function CandidateEntryPage({
     <main className="welcome">
       {/* 
         Candidate Portal Header:
-        Displaying official Kalpanaa Software Solutions logo asset and Secure Candidate Session indicator.
+        Official Kalpanaa Software Solutions logo and Secure Candidate Session indicator.
       */}
       <nav className="nav">
         <div className="brand">
@@ -201,7 +178,7 @@ export default function CandidateEntryPage({
             <em style={{ color: "#017846" }}>you know.</em>
           </h1>
           <p className="lead">
-            Welcome to your technical assessment portal. Enter your assigned candidate information, select your departmental track, and verify hardware compatibility before beginning your examination.
+            Welcome to your technical assessment portal. Enter your registered full name, department, and email address to authenticate and begin your examination.
           </p>
 
           <div className="intro-features">
@@ -241,7 +218,7 @@ export default function CandidateEntryPage({
             Assessment <span className="entry-brand" style={{ color: "#017846" }}>Entry</span>
           </h2>
           <p className="muted">
-            Enter the unique credentials provided by your organization to begin your assessment.
+            Enter your registered candidate details below to begin your assessment.
           </p>
 
           {/* Active attempt detection banner */}
@@ -253,7 +230,7 @@ export default function CandidateEntryPage({
               </div>
               <p>
                 An ongoing session was detected for <strong>{existingSession.profile?.name || "Candidate"}</strong> (
-                {existingSession.profile?.candidateId || "CAND-001"}) in <strong>{existingSession.profile?.department || "General"}</strong>.
+                {existingSession.profile?.email || "Registered Candidate"}) in <strong>{existingSession.profile?.department || "General"}</strong>.
               </p>
               <div className="active-session-actions">
                 <button
@@ -282,7 +259,7 @@ export default function CandidateEntryPage({
                 <strong>Assessment Already Submitted</strong>
               </div>
               <p>
-                A finalized attempt exists for <strong>{existingSession.profile?.name || "Candidate"}</strong> (Receipt: {existingSession.receiptId || "DEMO-RECEIPT"}).
+                A finalized attempt exists for <strong>{existingSession.profile?.name || "Candidate"}</strong> (Receipt: {existingSession.receiptId || "RECEIPT"}).
               </p>
               <div className="active-session-actions">
                 <button
@@ -297,14 +274,14 @@ export default function CandidateEntryPage({
                   className="secondary small-btn"
                   onClick={() => setShowRestartModal(true)}
                 >
-                  <RotateCcw size={13} /> Reset Demo Attempt
+                  <RotateCcw size={13} /> Reset Attempt
                 </button>
               </div>
             </div>
           )}
 
           <form onSubmit={handleSubmit} noValidate>
-            {/* Full Name */}
+            {/* Field 1: Full Name */}
             <div className="form-group">
               <label htmlFor="candidate-name">
                 Full name <span className="req">*</span>
@@ -315,6 +292,7 @@ export default function CandidateEntryPage({
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value);
+                  setServerError(null);
                   if (touched.name) {
                     setErrors((prev) => ({
                       ...prev,
@@ -328,7 +306,7 @@ export default function CandidateEntryPage({
                     setErrors((prev) => ({ ...prev, name: "Full name is required." }));
                   }
                 }}
-                placeholder="Enter your full name (e.g. John Doe)"
+                placeholder="Enter your registered full name (e.g. Aarav Sharma)"
                 aria-required="true"
                 aria-invalid={!!errors.name}
                 aria-describedby={errors.name ? "name-error" : undefined}
@@ -341,7 +319,7 @@ export default function CandidateEntryPage({
               )}
             </div>
 
-            {/* Department */}
+            {/* Field 2: Department */}
             <div className="form-group">
               <label htmlFor="department-select">
                 Department <span className="req">*</span>
@@ -359,40 +337,40 @@ export default function CandidateEntryPage({
               />
             </div>
 
-            {/* Candidate ID */}
+            {/* Field 3: Email Address */}
             <div className="form-group">
-              <label htmlFor="candidate-id">
-                Unique Candidate ID <span className="req">*</span>
+              <label htmlFor="candidate-email">
+                Email Address <span className="req">*</span>
               </label>
               <input
-                id="candidate-id"
-                type="text"
-                value={candidateId}
+                id="candidate-email"
+                type="email"
+                value={email}
                 onChange={(e) => {
-                  setCandidateId(e.target.value);
+                  setEmail(e.target.value);
                   setServerError(null);
-                  if (touched.candidateId) {
+                  if (touched.email) {
                     setErrors((prev) => ({
                       ...prev,
-                      candidateId: e.target.value.trim() ? "" : "Candidate ID is required."
+                      email: e.target.value.trim() ? "" : "Email address is required."
                     }));
                   }
                 }}
                 onBlur={() => {
-                  setTouched((prev) => ({ ...prev, candidateId: true }));
-                  if (!candidateId.trim()) {
-                    setErrors((prev) => ({ ...prev, candidateId: "Candidate ID is required." }));
+                  setTouched((prev) => ({ ...prev, email: true }));
+                  if (!email.trim()) {
+                    setErrors((prev) => ({ ...prev, email: "Email address is required." }));
                   }
                 }}
-                placeholder="E.G. CAND-2026-001"
+                placeholder="Enter your registered email address (e.g. aarav.sharma@campus.edu)"
                 aria-required="true"
-                aria-invalid={!!errors.candidateId}
-                aria-describedby={errors.candidateId ? "id-error" : undefined}
-                className={errors.candidateId ? "input-error" : ""}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? "email-error" : undefined}
+                className={errors.email ? "input-error" : ""}
               />
-              {errors.candidateId && (
-                <span id="id-error" className="inline-validation-error" role="alert">
-                  {errors.candidateId}
+              {errors.email && (
+                <span id="email-error" className="inline-validation-error" role="alert">
+                  {errors.email}
                 </span>
               )}
             </div>
@@ -421,7 +399,7 @@ export default function CandidateEntryPage({
             <div className="green-info-panel">
               <Info size={16} />
               <span>
-                Please ensure your Candidate ID matches your institutional allocation document. Your profile will be verified against our backend examination eligibility before launch.
+                Please ensure your Full Name, Department, and Email Address match your registered institutional records. Your details will be verified against our database before beginning your assessment.
               </span>
             </div>
 
@@ -439,13 +417,13 @@ export default function CandidateEntryPage({
           </form>
 
           <div className="card-bottom-footnote">
-            <LockKeyhole size={12} /> SECURE CLIENT WORKFLOW | FRONTEND VALIDATION
+            <LockKeyhole size={12} /> SECURE CLIENT WORKFLOW | DATABASE VALIDATED
           </div>
         </div>
       </section>
 
       <footer className="welcomefoot">
-        ┬⌐ 2026 Kalpanaa Software Solutions ┬╖ Secure Candidate Examination Portal
+        &copy; 2026 Kalpanaa Software Solutions &middot; Secure Candidate Examination Portal
         <span>
           <ShieldCheck size={14} /> Safe Exam Browser Verified Flow
         </span>

@@ -17,10 +17,6 @@ from app.core import EmailService
 class CandidateService:
     @staticmethod
     def _to_dto(c: Candidate) -> CandidateDto:
-        codes = c.access_codes or []
-        r1_code = next((ac for ac in codes if ac.round == "ROUND_1" and ac.is_active), None) or next((ac for ac in codes if ac.round == "ROUND_1"), None)
-        r2_code = next((ac for ac in codes if ac.round == "ROUND_2" and ac.is_active), None) or next((ac for ac in codes if ac.round == "ROUND_2"), None)
-        latest_code = next((ac for ac in codes if ac.is_active), None) or (codes[0] if codes else None)
         return CandidateDto(
             id=c.id,
             registration_number=c.registration_number,
@@ -30,13 +26,6 @@ class CandidateService:
             department_name=c.department.name if c.department else None,
             status=c.status or "ACTIVE",
             created_at=c.created_at,
-            current_access_code=latest_code.code if latest_code else None,
-            round_1_access_code=r1_code.code if r1_code else None,
-            round_2_access_code=r2_code.code if r2_code else None,
-            access_code_uses=latest_code.usage_count if latest_code else 0,
-            access_code_max_uses=latest_code.max_uses if latest_code else 3,
-            access_code_active=latest_code.is_active if latest_code else True,
-            access_code_sent_at=latest_code.sent_at if latest_code else None,
             assigned_set=c.assigned_set
         )
 
@@ -81,13 +70,6 @@ class CandidateService:
         )
         db.add(c)
         db.flush()
-
-        # Auto-provision canonical Round 1 (MCQ-<REG>) and Round 2 (CODE-<REG>) Unique Access IDs
-        try:
-            cls.generate_access_code(db, c.id, performed_by=performed_by, round_name="ROUND_1")
-            cls.generate_access_code(db, c.id, performed_by=performed_by, round_name="ROUND_2")
-        except Exception:
-            pass
 
         db.add(AuditLog(
             action="CREATE_CANDIDATE",
@@ -172,12 +154,6 @@ class CandidateService:
             db.add_all(new_candidates)
             db.commit()
             for cand in new_candidates:
-                db.refresh(cand)
-                try:
-                    cls.generate_access_code(db, cand.id, performed_by=performed_by, round_name="ROUND_1")
-                    cls.generate_access_code(db, cand.id, performed_by=performed_by, round_name="ROUND_2")
-                except Exception:
-                    pass
                 db.refresh(cand)
                 created_list.append(cls._to_dto(cand))
 

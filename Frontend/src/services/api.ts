@@ -161,14 +161,13 @@ export interface CandidateDto {
 }
 
 export interface CandidateVerifyRequest {
-  registrationNumber: string;
-  departmentId?: number;
-  fullName?: string;
-  accessCode?: string;
-  uniqueId?: string;
+  fullName: string;
+  email: string;
+  department: string;
   name?: string;
   departmentName?: string;
-  department?: string;
+  departmentId?: number;
+  registrationNumber?: string;
 }
 
 export interface CandidateVerifyResponse {
@@ -178,6 +177,7 @@ export interface CandidateVerifyResponse {
   registrationNumber?: string;
   fullName?: string;
   candidateName?: string;
+  email?: string;
   departmentName?: string;
   examId?: number;
   assignedExamId?: number;

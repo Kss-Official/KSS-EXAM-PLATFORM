@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { 
   ShieldCheck, 
   LayoutDashboard, 
@@ -66,9 +66,7 @@ export default function AdminLayout({
   };
 
   const getPageTitle = () => {
-    if (path === "/admin/exams/new/coding" || path.startsWith("/admin/exams/new/coding")) return "Create Coding Examination (Round 2)";
-    if (path === "/admin/exams/new/mcq" || path.startsWith("/admin/exams/new/mcq")) return "Create MCQ Examination (Round 1)";
-    if (path.startsWith("/admin/exams/new")) return "Create Examination ΓÇö Select Round";
+    if (path.startsWith("/admin/exams/new")) return "Create Examination";
     if (path.startsWith("/admin/exams")) return "Examinations Management";
     if (path.startsWith("/admin/departments")) return "Academic Departments";
     if (path.startsWith("/admin/questions")) return "Question Bank (MCQs)";

@@ -58,42 +58,6 @@ def assign_candidate(
         "setCode": attempt.question_set.set_code if attempt.question_set else "-"
     }
 
-@router.get("/round-ids")
-def get_round_ids(
-    round: str = "ROUND_1",
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db)
-):
-    """Retrieves persisted Unique Access IDs mapped by candidate registration number for a specific round."""
-    return CandidateService.get_round_ids_map(db, round_name=round)
-
-@router.post("/round-ids/batch-generate")
-def batch_generate_round_ids(
-    payload: Dict[str, Any] = Body(default={"round": "ROUND_1"}),
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db)
-):
-    """Generates unique IDs with strictly 3-use limits for all eligible candidates in the selected round."""
-    round_name = payload.get("round", "ROUND_1")
-    force_new = payload.get("force_new", payload.get("forceNew", True))
-    return CandidateService.batch_generate_round_ids(
-        db, round_name=round_name, performed_by=current_user.email, force_new=force_new
-    )
-
-@router.post("/round-ids/generate-selected")
-def generate_selected_round_ids(
-    payload: Dict[str, Any] = Body(...),
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db)
-):
-    """Generates/resets unique IDs with strictly 3-use limits for selected candidate IDs."""
-    candidate_ids = payload.get("candidateIds") or payload.get("candidate_ids") or []
-    round_name = payload.get("round", "ROUND_1")
-    force_new = payload.get("force_new", payload.get("forceNew", True))
-    return CandidateService.generate_selected_round_ids(
-        db, candidate_ids=candidate_ids, performed_by=current_user.email, round_name=round_name, force_new=force_new
-    )
-
 @router.post("/batch-assign-set")
 def batch_assign_candidate_set(
     payload: Dict[str, Any] = Body(...),
@@ -120,68 +84,4 @@ def assign_candidate_set(
         db, candidate_id=candidate_id, set_code=set_code, performed_by=current_user.email
     )
 
-@router.post("/batch-send-access-codes")
-def batch_send_access_codes(
-    payload: Dict[str, Any] = Body(...),
-    current_user: AppUser = Depends(require_super_admin)
-):
-    """
-    Initiates asynchronous, rate-throttled batch email dispatch of Unique Access IDs.
-    Protects against SMTP rate limits and locks.
-    """
-    from app.admin.services.batch_email_service import BatchEmailService
-    round_name = payload.get("round", "ROUND_1")
-    candidate_ids = payload.get("candidateIds")
-    exam_title = payload.get("examTitle", "Technical Campus Examination")
-    provider = payload.get("provider", "auto")
-    delay_seconds = float(payload.get("delaySeconds", 1.2))
-
-    return BatchEmailService.start_batch_dispatch(
-        round_name=round_name,
-        candidate_ids=candidate_ids,
-        exam_title=exam_title,
-        provider=provider,
-        delay_seconds=delay_seconds,
-        performed_by=current_user.email
-    )
-
-@router.get("/batch-send-status/{job_id}")
-def get_batch_send_status(
-    job_id: str,
-    current_user: AppUser = Depends(require_super_admin)
-):
-    """Polls real-time live progress and counters for a batch email dispatch job."""
-    from app.admin.services.batch_email_service import BatchEmailService
-    status_info = BatchEmailService.get_job_status(job_id)
-    if not status_info:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Batch email job not found")
-    return status_info
-
-@router.post("/{candidate_id}/generate-access-code")
-def generate_access_code(
-    candidate_id: int,
-    round: str = "ROUND_1",
-    payload: Optional[Dict[str, Any]] = Body(default=None),
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db)
-):
-    """Generates a secure Unique Access ID valid for strictly 3 uses for the given round."""
-    force_new = True
-    if payload and isinstance(payload, dict) and "force_new" in payload:
-        force_new = bool(payload["force_new"])
-    elif payload and isinstance(payload, dict) and "forceNew" in payload:
-        force_new = bool(payload["forceNew"])
-    return CandidateService.generate_access_code(
-        db, candidate_id, current_user.email, round_name=round, force_new=force_new
-    )
-
-@router.post("/{candidate_id}/send-access-code")
-def send_access_code(
-    candidate_id: int,
-    round: str = "ROUND_1",
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db)
-):
-    """Dispatches the Unique Access ID to the candidate's email address."""
-    return CandidateService.send_access_code_email(db, candidate_id, current_user.email, round_name=round)
 

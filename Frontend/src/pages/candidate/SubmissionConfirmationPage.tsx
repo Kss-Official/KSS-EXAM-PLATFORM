@@ -1,4 +1,4 @@
-﻿import { useEffect } from "react";
+import { useEffect } from "react";
 import { 
   Check, 
   CheckCircle2, 
@@ -85,14 +85,12 @@ export default function SubmissionConfirmationPage({
     }
   };
 
-  const isRound2 = receipt?.assessmentRound === "ROUND_2";
-  const candidateName = receipt?.candidateName || "Jingyasa Priyadarsini";
-  const candidateId = receipt?.roundUniqueId || receipt?.candidateId || "CAND-012-09";
+  const candidateName = receipt?.candidateName || "Candidate";
+  const candidateEmail = receipt?.candidateEmail;
+  const candidateId = receipt?.candidateId || "CAND-001";
   const department = receipt?.department || "Developer";
   const submissionStatus = getReasonLabel(receipt?.submissionReason);
-  const questionsAnswered = isRound2 
-    ? `${receipt?.codingAttemptedCount ?? 3} of ${receipt?.totalQuestions ?? 3} Problems Submitted`
-    : `${receipt?.answeredCount ?? 48} of ${receipt?.totalQuestions ?? 50}`;
+  const questionsAnswered = `${receipt?.answeredCount ?? 0} of ${receipt?.totalQuestions ?? 60}`;
   const timeTaken = formatTimeTaken();
   const submittedAt = formatSubmittedDate(receipt?.submittedAt);
 
@@ -320,10 +318,10 @@ export default function SubmissionConfirmationPage({
               </div>
               <div style={{ overflow: "hidden", minWidth: 0 }}>
                 <span style={{ display: "block", fontSize: "10.5px", color: "#64748b", marginBottom: "2px", fontWeight: 500 }}>
-                  Candidate ID
+                  {candidateEmail ? "Registered Email" : "Candidate ID"}
                 </span>
-                <strong style={{ display: "block", fontSize: "clamp(12px, 1.45vh, 13px)", color: "#0f172a", fontWeight: 700 }}>
-                  {candidateId}
+                <strong style={{ display: "block", fontSize: "clamp(12px, 1.45vh, 13px)", color: "#0f172a", fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {candidateEmail || candidateId}
                 </strong>
               </div>
             </div>
