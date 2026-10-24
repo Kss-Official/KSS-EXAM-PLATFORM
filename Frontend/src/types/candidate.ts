@@ -29,7 +29,7 @@ export interface ExamQuestion {
   options: string[];
 }
 
-export type AutosaveStatus = "idle" | "saving" | "saved" | "error";
+export type AutosaveStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
 export interface CandidateSession {
   version: "v1";
@@ -70,7 +70,7 @@ export interface SubmissionReceipt {
   examId: string | number;
   candidateName: string;
   candidateEmail?: string;
-  candidateId: string;
+  candidateId?: string;
   department: Department;
   answeredCount: number;
   unansweredCount: number;

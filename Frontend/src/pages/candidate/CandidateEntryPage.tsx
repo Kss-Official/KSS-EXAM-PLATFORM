@@ -3,7 +3,6 @@ import {
   ShieldCheck, 
   GraduationCap, 
   Clock3, 
-  LockKeyhole, 
   Info, 
   AlertCircle,
   PlayCircle,
@@ -162,7 +161,7 @@ export default function CandidateEntryPage({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span className="secure">
-            <LockKeyhole size={14} /> Secure Candidate Session
+            <ShieldCheck size={14} /> Secure Candidate Session
           </span>
         </div>
       </nav>
@@ -417,7 +416,7 @@ export default function CandidateEntryPage({
           </form>
 
           <div className="card-bottom-footnote">
-            <LockKeyhole size={12} /> SECURE CLIENT WORKFLOW | DATABASE VALIDATED
+            <ShieldCheck size={12} /> SECURE CLIENT WORKFLOW | DATABASE VALIDATED
           </div>
         </div>
       </section>

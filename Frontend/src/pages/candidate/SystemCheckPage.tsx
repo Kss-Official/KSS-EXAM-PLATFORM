@@ -12,13 +12,13 @@ import {
   Camera,
   Mic,
   Check,
+  CheckCircle2,
   ShieldCheck,
   AlertTriangle,
   ArrowLeft,
   Video,
   Menu,
-  Mail,
-  LockKeyhole
+  Mail
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
@@ -212,7 +212,7 @@ export default function SystemCheckPage({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span className="secure">
-            <LockKeyhole size={14} /> Secure Candidate Session
+            <ShieldCheck size={14} /> Secure Candidate Session
           </span>
         </div>
       </nav>

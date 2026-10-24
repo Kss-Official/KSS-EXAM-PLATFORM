@@ -157,7 +157,7 @@ export default function CandidatesPage() {
     setUploadingCsv(true);
     try {
       const res = await uploadCandidatesCsv(csvFile);
-      setNotice({ text: res.message || "CSV batch processed successfully.", type: "success" });
+      setNotice({ text: `CSV batch processed successfully. Imported ${res.totalImported} candidates.`, type: "success" });
       setIsCsvModalOpen(false);
       setCsvFile(null);
       fetchCandidates();

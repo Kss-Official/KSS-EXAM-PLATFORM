@@ -963,14 +963,14 @@ export default function CandidateExamPage({
     });
 
     // Auto-recover active attempt if aid not set yet
-    if (!activeAid && (session?.profile?.dbCandidateId || session?.profile?.candidateId)) {
+    if (!activeAid && (session?.profile?.dbCandidateId || session?.profile?.email)) {
       try {
         let cId = session.profile.dbCandidateId;
         let eId = session.profile.assignedExamId;
-        if (!cId && session.profile.candidateId) {
+        if (!cId && session.profile.email) {
           const v = await verifyCandidateEligibility({ 
+            email: session.profile.email.trim().toLowerCase(),
             registrationNumber: session.profile.candidateId,
-            uniqueId: session.profile.candidateId,
             fullName: session.profile.name,
             name: session.profile.name,
             departmentId: session.profile.departmentId,

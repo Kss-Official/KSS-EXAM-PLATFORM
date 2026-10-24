@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   CandidateProfile,
   CandidateSession,
   SubmissionReceipt
@@ -91,8 +91,9 @@ export function createCandidateSession(
     examId: DEMO_EXAM_ID,
     profile: {
       name: profile.name.trim(),
+      email: (profile.email || "").trim().toLowerCase(),
       department: profile.department,
-      candidateId: profile.candidateId.trim().toUpperCase()
+      candidateId: (profile.candidateId || profile.email || "CANDIDATE").trim().toUpperCase()
     },
     answers: {},
     flags: [],
@@ -134,7 +135,8 @@ export function finalizeCandidateSession(
       sessionId: session.sessionId,
       examId: session.examId,
       candidateName: session.profile.name,
-      candidateId: session.profile.candidateId,
+      candidateEmail: session.profile.email,
+      candidateId: session.profile.candidateId || session.profile.email || "CANDIDATE",
       department: session.profile.department,
       answeredCount,
       unansweredCount: Math.max(0, DEMO_TOTAL_QUESTIONS - answeredCount),
@@ -165,7 +167,8 @@ export function finalizeCandidateSession(
     sessionId: finalizedSession.sessionId,
     examId: finalizedSession.examId,
     candidateName: finalizedSession.profile.name,
-    candidateId: finalizedSession.profile.candidateId,
+    candidateEmail: finalizedSession.profile.email,
+    candidateId: finalizedSession.profile.candidateId || finalizedSession.profile.email || "CANDIDATE",
     department: finalizedSession.profile.department,
     answeredCount,
     unansweredCount: Math.max(0, DEMO_TOTAL_QUESTIONS - answeredCount),
