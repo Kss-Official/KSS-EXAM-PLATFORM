@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   FileText, 
   Users, 
@@ -57,7 +57,7 @@ export default function OverviewPage({
 
   return (
     <div className="dashboard-grid">
-      {/* FastAPI Backend Status Banner */}
+      {/* Spring Boot Backend Status Banner */}
       <BackendStatusBanner 
         data={data as any}
         loading={loading}
@@ -160,9 +160,9 @@ export default function OverviewPage({
                     <h4>{exam.title}</h4>
                     <div className="schedule-meta">
                       <span><Calendar size={13} /> {exam.timingMode}</span>
-                      <span>•</span>
+                      <span>ΓÇó</span>
                       <span>Total Marks: {exam.totalMarks}</span>
-                      <span>•</span>
+                      <span>ΓÇó</span>
                       <span className={`status-pill ${exam.status.toLowerCase()}`}>{exam.status}</span>
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   ShieldCheck, 
   GraduationCap, 
@@ -15,6 +15,7 @@ import DepartmentSelector from "../../components/candidate/DepartmentSelector";
 import { loadCandidateSession, clearCandidateSession } from "../../services/candidateSessionStorage";
 import DemoRestartDialog from "../../components/candidate/DemoRestartDialog";
 import { verifyCandidateEligibility, ApiError } from "../../services/api";
+import { isCandidateSelectedForRound2, getRound2CandidateDetails } from "../../services/candidateRoundIdService";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 interface CandidateEntryPageProps {
@@ -52,13 +53,11 @@ export default function CandidateEntryPage({
     const session = loadCandidateSession();
     if (session && session.profile) {
       setExistingSession(session);
-      if (!session.isSubmitted) {
-        // Only prefill if the fields are currently empty
-        setName(prev => prev ? prev : (session.profile.name || ""));
-        setDepartment(prev => prev ? prev : (session.profile.department || ""));
-        setDepartmentId(prev => prev ? prev : session.profile.departmentId);
-        setCandidateId(prev => prev ? prev : (session.profile.candidateId || ""));
-      }
+      // Pre-fill fields with existing draft/session details if available
+      setName(session.profile.name || "");
+      setDepartment(session.profile.department || "");
+      setDepartmentId(session.profile.departmentId);
+      setCandidateId(session.profile.candidateId || "");
     }
   }, []);
 
@@ -102,57 +101,56 @@ export default function CandidateEntryPage({
 
     setIsVerifying(true);
     try {
-      const code = candidateId.trim().toUpperCase();
-      const trimmedName = name.trim();
-      const deptName = typeof department === "string" ? department : undefined;
-
-      const verifyRes = await verifyCandidateEligibility({
-        registrationNumber: code,
-        accessCode: code,
-        uniqueId: code,
-        fullName: trimmedName,
-        name: trimmedName,
-        departmentId: departmentId,
-        departmentName: deptName,
-        department: deptName
-      });
-
-      if (!verifyRes.eligible) {
-        setServerError(verifyRes.message || "Candidate record verification failed. Please check your details.");
-        // Highlight corresponding field if mentioned in error
-        const msg = (verifyRes.message || "").toLowerCase();
-        if (msg.includes("full name")) {
-          setErrors(prev => ({ ...prev, name: verifyRes.message }));
-        } else if (msg.includes("department")) {
-          setErrors(prev => ({ ...prev, department: verifyRes.message }));
-        } else if (msg.includes("unique") || msg.includes("id")) {
-          setErrors(prev => ({ ...prev, candidateId: verifyRes.message }));
+      // Check if candidate credentials are for Round 2 Coding Assessment
+      const isRound2Selected = isCandidateSelectedForRound2(candidateId);
+      if (isRound2Selected || candidateId.trim().toUpperCase().startsWith("CODE-")) {
+        if (!isRound2Selected) {
+          setServerError(`Access Denied: Candidate identifier "${candidateId.trim().toUpperCase()}" is not selected for Round 2 Coding Assessment. Round 2 access is strictly restricted to candidates selected by the administrator after Round 1.`);
+          setIsVerifying(false);
+          return;
         }
+
+        const round2Details = getRound2CandidateDetails(candidateId);
+        onContinue({
+          name: round2Details?.candidateName || name.trim(),
+          department: (round2Details?.departmentName || department || "Developer") as Department,
+          departmentId: departmentId,
+          candidateId: round2Details?.registrationNumber || candidateId.trim().toUpperCase(),
+          roundUniqueId: round2Details?.round2UniqueId || candidateId.trim().toUpperCase(),
+          assessmentRound: "ROUND_2",
+          examTitle: "Round 2 ΓÇö Technical Coding Assessment",
+          codingExamId: "CODE-101"
+        });
         setIsVerifying(false);
         return;
       }
 
-      const targetCandId = verifyRes.registrationNumber || code;
-      if (existingSession && existingSession.profile?.candidateId && existingSession.profile.candidateId !== targetCandId) {
-        clearCandidateSession(existingSession.profile.candidateId);
-        setExistingSession(null);
+      const verifyRes = await verifyCandidateEligibility({
+        registrationNumber: candidateId.trim().toUpperCase(),
+        departmentId: departmentId
+      });
+
+      if (!verifyRes.eligible) {
+        setServerError(verifyRes.message || "Candidate record is not eligible or examination has not started.");
+        setIsVerifying(false);
+        return;
       }
 
       onContinue({
-        name: verifyRes.candidateName || verifyRes.fullName || trimmedName,
+        name: verifyRes.candidateName || name.trim(),
         department: verifyRes.departmentName || (department as Department),
         departmentId: departmentId,
-        candidateId: targetCandId,
+        candidateId: verifyRes.registrationNumber || candidateId.trim().toUpperCase(),
         dbCandidateId: verifyRes.candidateId,
-        assignedExamId: verifyRes.assignedExamId || verifyRes.examId,
+        assignedExamId: verifyRes.assignedExamId,
         examTitle: verifyRes.examTitle,
         slotName: verifyRes.slotName,
-        questionSetCode: verifyRes.questionSetCode || verifyRes.setCode,
-        round: verifyRes.round || "ROUND_1"
+        questionSetCode: verifyRes.questionSetCode,
+        assessmentRound: "ROUND_1"
       });
     } catch (err: unknown) {
       const error = err as ApiError;
-      setServerError(error.message || "Verification failed. Please ensure your name, department, and Unique ID match database records.");
+      setServerError(error.message || "Verification failed. Please ensure the candidate is registered in this department.");
     } finally {
       setIsVerifying(false);
     }
@@ -251,7 +249,7 @@ export default function CandidateEntryPage({
               </div>
               <p>
                 An ongoing session was detected for <strong>{existingSession.profile?.name || "Candidate"}</strong> (
-                {existingSession.profile?.candidateId || "MCQ-REG001"}) in <strong>{existingSession.profile?.department || "General"}</strong>.
+                {existingSession.profile?.candidateId || "CAND-001"}) in <strong>{existingSession.profile?.department || "General"}</strong>.
               </p>
               <div className="active-session-actions">
                 <button
@@ -382,7 +380,7 @@ export default function CandidateEntryPage({
                     setErrors((prev) => ({ ...prev, candidateId: "Candidate ID is required." }));
                   }
                 }}
-                placeholder="E.G. MCQ-REG001 or CODE-REG001"
+                placeholder="E.G. CAND-2026-001"
                 aria-required="true"
                 aria-invalid={!!errors.candidateId}
                 aria-describedby={errors.candidateId ? "id-error" : undefined}
@@ -419,7 +417,7 @@ export default function CandidateEntryPage({
             <div className="green-info-panel">
               <Info size={16} />
               <span>
-                Please enter your Unique ID (e.g. MCQ-REG001 for Round 1, or CODE-REG001 for Round 2) as allocated by your administrator. Your profile will be verified against our examination eligibility system before launch.
+                Please ensure your Candidate ID matches your institutional allocation document. Your profile will be verified against our backend examination eligibility before launch.
               </span>
             </div>
 
@@ -430,7 +428,7 @@ export default function CandidateEntryPage({
                 </>
               ) : (
                 <>
-                  Continue to System Compatibility Check &rarr;
+                  Continue to Role & Application &rarr;
                 </>
               )}
             </button>
@@ -443,7 +441,7 @@ export default function CandidateEntryPage({
       </section>
 
       <footer className="welcomefoot">
-        © 2026 Kalpanaa Software Solutions · Secure Candidate Examination Portal
+        ┬⌐ 2026 Kalpanaa Software Solutions ┬╖ Secure Candidate Examination Portal
         <span>
           <ShieldCheck size={14} /> Safe Exam Browser Verified Flow
         </span>

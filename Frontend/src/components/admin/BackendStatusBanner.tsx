@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { 
   Server, 
   CheckCircle, 
@@ -9,12 +9,12 @@ import {
   ChevronDown, 
   ChevronUp
 } from "lucide-react";
+import type { AdminDashboardResponse } from "../../types";
 import { 
   API_BASE_URL, 
   setAdminCredentials, 
   clearAdminCredentials, 
-  hasAdminCredentials,
-  type AdminDashboardResponse
+  hasAdminCredentials 
 } from "../../services/api";
 
 interface BackendStatusBannerProps {
@@ -56,16 +56,16 @@ export default function BackendStatusBanner({
 
   if (loading) {
     return (
-      <div className="backend-banner" style={{ background: "#f8fafc", borderLeft: "4px solid #365fe5" }}>
+      <div className="backend-banner" style={{ background: "#f8fafc", borderLeft: "4px solid #017846" }}>
         <div className="banner-header">
           <div className="banner-title">
             <Server size={18} className="animate-spin" />
-            <span>Connecting to ExamSecure FastAPI Backend...</span>
+            <span>Connecting to Spring Boot Backend API...</span>
           </div>
           <small style={{ color: "#64748b" }}>{API_BASE_URL}/admin/dashboard</small>
         </div>
         <p className="banner-desc" style={{ margin: 0 }}>
-          Verifying backend health and retrieving real-time administrator telemetry.
+          Verifying backend health and retrieving admin statistics from Spring Boot.
         </p>
       </div>
     );
@@ -78,7 +78,7 @@ export default function BackendStatusBanner({
         <div className="banner-header">
           <div className="banner-title" style={{ color: "#065f46" }}>
             <CheckCircle size={18} color="#10b981" />
-            <span>FastAPI Backend Connected: {data.application} ({data.status})</span>
+            <span>Backend Connected: {data.application} ({data.status})</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span className="api-status-pill up">HTTP 200 OK</span>
@@ -93,24 +93,24 @@ export default function BackendStatusBanner({
           </div>
         </div>
         <p className="banner-desc">
-          <strong>API Message:</strong> "{data.message}" · Connected to <code>{API_BASE_URL}</code>.
+          <strong>API Message:</strong> "{data.message}" ┬╖ Connected to <code>{API_BASE_URL}</code>.
           <br />
           <small style={{ color: "#64748b" }}>
-            Live PostgreSQL Telemetry: totalExams={data.totalExams}, activeExams={data.activeExams}, totalCandidates={data.totalCandidates}, totalAttempts={data.totalAttempts}.
+            Note: Current values (totalExams: {data.totalExams}, totalCandidates: {data.totalCandidates}, activeExams: {data.activeExams}) are demonstration endpoints from the initial backend seed.
           </small>
         </p>
       </div>
     );
   }
 
-  // 2. Authentication Required (HTTP 401 Unauthorized)
+  // 2. Spring Security 401 Unauthorized State
   if (statusCode === 401 || (error && error.includes("401"))) {
     return (
       <div className="backend-banner warning">
         <div className="banner-header">
           <div className="banner-title" style={{ color: "#92400e" }}>
             <ShieldAlert size={18} color="#f59e0b" />
-            <span>Administrator Authentication Required (HTTP 401 Unauthorized)</span>
+            <span>Spring Security Authentication Required (HTTP 401 Unauthorized)</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span className="api-status-pill auth">HTTP 401</span>
@@ -125,7 +125,7 @@ export default function BackendStatusBanner({
         </div>
 
         <p className="banner-desc">
-          The FastAPI backend at <code>{API_BASE_URL}/admin/dashboard</code> is online and protected. Please sign in via the Administrator Login portal or verify your session cookie.
+          The Spring Boot backend at <code>{API_BASE_URL}/admin/dashboard</code> is online and responsive, but <strong>Spring Security</strong> is intercepting the request with <code>WWW-Authenticate: Basic realm="Realm"</code>.
         </p>
 
         <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "10px" }}>
@@ -136,7 +136,7 @@ export default function BackendStatusBanner({
             style={{ fontSize: "11px", padding: "4px 10px" }}
           >
             {showDetails ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
-            {showDetails ? "Hide Authentication Details" : "View Session Details"}
+            {showDetails ? "Hide Backend Configuration Instructions" : "View Required Spring Security Backend Configuration"}
           </button>
 
           {authSubmitted && (
@@ -153,24 +153,42 @@ export default function BackendStatusBanner({
         {showDetails && (
           <div style={{ marginTop: "12px", borderTop: "1px solid #fde68a", paddingTop: "12px" }}>
             <p style={{ fontSize: "12px", color: "#78350f", margin: "0 0 6px 0" }}>
-              <strong>Authentication Method:</strong> ExamSecure uses cryptographic HMAC-SHA256 session cookies (<code>JSESSIONID</code>) verified on every request by FastAPI.
+              <strong>Required Backend Change:</strong> Ensure your Spring Boot <code>SecurityConfig</code> permits admin dashboard access or enables appropriate CORS and authentication:
+            </p>
+            <div className="banner-code-box">
+{`// Example Spring Boot SecurityConfig.java
+@Bean
+public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    http
+        .cors(Customizer.withDefaults())
+        .csrf(csrf -> csrf.disable()) // for stateless REST APIs
+        .authorizeHttpRequests(auth -> auth
+            .requestMatchers("/api/admin/**").permitAll() // or .hasRole("ADMIN") with HTTP Basic/JWT
+            .anyRequest().authenticated()
+        )
+        .httpBasic(Customizer.withDefaults());
+    return http.build();
+}`}
+            </div>
+            <p style={{ fontSize: "11px", color: "#92400e", margin: "6px 0 0 0" }}>
+              Also ensure CORS is configured on the backend with <code>@CrossOrigin(origins = "http://localhost:5173")</code> or a <code>WebMvcConfigurer</code> bean.
             </p>
           </div>
         )}
 
         <form onSubmit={handleApplyAuth} className="auth-form-inline">
           <span style={{ fontSize: "12px", fontWeight: 600, color: "#78350f", display: "flex", alignItems: "center", gap: "4px" }}>
-            <Key size={14}/> Sign In:
+            <Key size={14}/> Test with Spring Boot credentials:
           </span>
           <input 
             type="text" 
-            placeholder="Email (e.g. d.koushik@kalpanaaasoftwaresolutions.in)" 
+            placeholder="Username (e.g. user / admin)" 
             value={username} 
             onChange={e => setUsername(e.target.value)} 
           />
           <input 
             type="password" 
-            placeholder="Password" 
+            placeholder="Password (from backend console)" 
             value={password} 
             onChange={e => setPassword(e.target.value)} 
           />
@@ -188,7 +206,7 @@ export default function BackendStatusBanner({
       <div className="banner-header">
         <div className="banner-title" style={{ color: "#991b1b" }}>
           <XCircle size={18} color="#ef4444" />
-          <span>Cannot Connect to FastAPI Backend</span>
+          <span>Cannot Connect to Spring Boot Backend</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span className="api-status-pill down">Connection Failed</span>
@@ -207,8 +225,8 @@ export default function BackendStatusBanner({
       <div style={{ fontSize: "11.5px", color: "#7f1d1d", background: "#fee2e2", padding: "10px 12px", borderLeft: "3px solid #dc2626", borderRadius: "6px" }}>
         <strong>Checklist to resolve:</strong>
         <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
-          <li>Ensure FastAPI backend is running on <code>http://127.0.0.1:8000</code> (run <code>python run.py</code> in <code>backend/</code>).</li>
-          <li>Ensure CORS headers allow origin <code>http://localhost:5173</code>.</li>
+          <li>Ensure Spring Boot backend is running on <code>http://localhost:8080</code>.</li>
+          <li>Ensure CORS headers allow origin <code>http://localhost:5173</code> (e.g., <code>Access-Control-Allow-Origin: http://localhost:5173</code>).</li>
           <li>Verify <code>VITE_API_BASE_URL</code> in your <code>.env</code> file.</li>
         </ul>
       </div>

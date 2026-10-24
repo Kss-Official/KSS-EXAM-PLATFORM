@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+﻿import { useState, useRef } from "react";
 import { UploadCloud, FileText, CheckCircle2, AlertTriangle, Download, X, ArrowRight } from "lucide-react";
 import type { AdminQuestion, QuestionSetKey } from "../../types/adminExam";
 import { parseQuestionsFromText } from "../../services/adminExamStorage";
@@ -145,8 +145,8 @@ export default function QuestionDocumentImporter({
         onDragLeave={() => setIsDragOver(false)}
         onDrop={handleFileDrop}
         style={{
-          border: `2px dashed ${isDragOver ? "#365fe5" : "#cbd5e1"}`,
-          background: isDragOver ? "#eff6ff" : "#f8fafc",
+          border: `2px dashed ${isDragOver ? "#017846" : "#cbd5e1"}`,
+          background: isDragOver ? "#EAF6EF" : "#f8fafc",
           borderRadius: "10px",
           padding: "20px",
           textAlign: "center",
@@ -168,12 +168,12 @@ export default function QuestionDocumentImporter({
           }}
         />
 
-        <UploadCloud size={32} color="#365fe5" style={{ margin: "0 auto 8px" }} />
+        <UploadCloud size={32} color="#017846" style={{ margin: "0 auto 8px" }} />
         <strong style={{ display: "block", fontSize: "13px", color: "#0f172a", marginBottom: "4px" }}>
           {isProcessing ? "Reading and parsing document..." : `Drop PDF, Word (.docx), or Text (.txt) files here to import into ${setKey.replace("_", " ")}`}
         </strong>
         <span style={{ fontSize: "11px", color: "#64748b" }}>
-          Client-side local parsing only · No files are uploaded to external servers · Max 10MB
+          Client-side local parsing only ┬╖ No files are uploaded to external servers ┬╖ Max 10MB
         </span>
 
         <div style={{ marginTop: "12px", display: "flex", justifyContent: "center", gap: "8px" }}>
@@ -205,7 +205,7 @@ export default function QuestionDocumentImporter({
           fontSize: "12px"
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <FileText size={16} color="#365fe5" />
+            <FileText size={16} color="#017846" />
             <b>{selectedFile.name}</b>
             <span style={{ color: "#64748b" }}>({Math.round(selectedFile.size / 1024)} KB)</span>
           </div>

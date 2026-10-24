@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   ShieldCheck, 
   Lock, 
@@ -100,7 +100,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         } else if (err.statusCode === 429) {
           setErrorMessage("Rate limit exceeded: Too many failed login attempts. Temporarily locked for 15 minutes.");
         } else if (err.isCorsOrNetworkError || err.statusCode === 502 || err.statusCode === 503 || err.statusCode === 504) {
-          setErrorMessage("Cannot reach ExamSecure FastAPI backend at http://127.0.0.1:8000. Start backend with 'python run.py' in the backend folder.");
+          setErrorMessage("Cannot reach Spring Boot server at http://localhost:8080. Start the backend with './mvnw.cmd spring-boot:run' in another terminal.");
           setBackendStatus("offline");
         } else {
           setErrorMessage(err.message || "An authentication error occurred.");
@@ -208,7 +208,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
             ExamSecure Administrator
           </h1>
           <p style={{ margin: 0, fontSize: "12.5px", color: "#94a3b8" }}>
-            Single-Administrator Secure Access · Role-Based Control (RBAC)
+            Single-Administrator Secure Access ┬╖ Role-Based Control (RBAC)
           </p>
         </div>
 

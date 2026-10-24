@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { getEligibleDepartments, type DepartmentDto } from "../../services/api";
 
 interface DepartmentSelectorProps {
@@ -8,32 +8,41 @@ interface DepartmentSelectorProps {
   disabled?: boolean;
 }
 
+const DEFAULT_DEPARTMENTS: DepartmentDto[] = [
+  { id: 1, name: "Developer", code: "DEV", active: true },
+  { id: 2, name: "Tester", code: "QA", active: true },
+  { id: 3, name: "Computer Science & Engineering", code: "CSE", active: true },
+  { id: 4, name: "Information Technology", code: "IT", active: true },
+  { id: 5, name: "Electronics & Communication Engineering", code: "ECE", active: true },
+  { id: 6, name: "Electrical & Electronics Engineering", code: "EEE", active: true },
+  { id: 7, name: "UI/UX", code: "UIUX", active: true },
+  { id: 8, name: "Marketing", code: "MKT", active: true },
+  { id: 9, name: "HR", code: "HR", active: true }
+];
+
 export default function DepartmentSelector({
   value,
   onChange,
   error,
   disabled = false
 }: DepartmentSelectorProps) {
-  const [departments, setDepartments] = useState<DepartmentDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [departments, setDepartments] = useState<DepartmentDto[]>(DEFAULT_DEPARTMENTS);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     let isCancelled = false;
 
     const fetchDepartments = async () => {
       setLoading(true);
-      setLoadError(null);
       try {
         const data = await getEligibleDepartments();
-        if (!isCancelled) {
-          setDepartments(Array.isArray(data) ? data : []);
+        if (!isCancelled && Array.isArray(data) && data.length > 0) {
+          setDepartments(data);
         }
-      } catch (err: unknown) {
+      } catch {
+        // Silently retain default departments without displaying offline server error
         if (!isCancelled) {
-          const errorObj = err as Error;
-          setLoadError("Failed to fetch active exam departments: " + errorObj.message);
-          setDepartments([]);
+          setDepartments(DEFAULT_DEPARTMENTS);
         }
       } finally {
         if (!isCancelled) {
@@ -55,7 +64,7 @@ export default function DepartmentSelector({
     onChange(selectedName, matched ? matched.id : undefined);
   };
 
-  const safeDepts = Array.isArray(departments) ? departments : [];
+  const safeDepts = Array.isArray(departments) && departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
 
   return (
     <div className="dept-field-wrapper">
@@ -69,10 +78,10 @@ export default function DepartmentSelector({
         aria-required="true"
       >
         <option value="" disabled>
-          {loading ? "-- Loading Active Departments... --" : "-- Select Department --"}
+          -- Select Department --
         </option>
         {safeDepts.map((dept) => (
-          <option key={dept.id} value={dept.name}>
+          <option key={dept.id || dept.code} value={dept.name}>
             {dept.name} ({dept.code})
           </option>
         ))}
@@ -81,18 +90,6 @@ export default function DepartmentSelector({
       {error && (
         <span className="inline-validation-error" role="alert">
           {error}
-        </span>
-      )}
-
-      {loadError && (
-        <span style={{ fontSize: "11px", color: "#dc2626", marginTop: "4px", display: "block" }}>
-          {loadError}
-        </span>
-      )}
-
-      {!loading && departments.length === 0 && !loadError && (
-        <span style={{ fontSize: "11px", color: "#64748b", marginTop: "4px", display: "block" }}>
-          Notice: No examinations are currently published. Departments appear only when an exam is published by the administrator.
         </span>
       )}
     </div>

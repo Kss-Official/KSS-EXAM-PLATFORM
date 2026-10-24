@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   ArrowLeft,
   UploadCloud,
@@ -447,7 +447,7 @@ export default function QuestionBankPage() {
             onClick={() => setNotice(null)} 
             style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontWeight: 700 }}
           >
-            ✕
+            Γ£ò
           </button>
         </div>
       )}
@@ -696,7 +696,7 @@ export default function QuestionBankPage() {
             marginBottom: "20px"
           }}>
             <h3 style={{ margin: "0 0 4px 0", fontSize: "15px", color: "#0f172a" }}>
-              {selectedDept.name} — Question Sets Overview
+              {selectedDept.name} ΓÇö Question Sets Overview
             </h3>
             <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
               Each set is completely isolated. Candidates assigned to {selectedDept.name} receive one of these four independent sets in round-robin fashion.
@@ -779,13 +779,13 @@ export default function QuestionBankPage() {
                         <div style={{ display: "flex", justifyContent: "space-between" }}>
                           <span style={{ color: "#64748b" }}>Question Paper:</span>
                           <span style={{ fontWeight: 600, color: hasPaper ? "#166534" : "#94a3b8" }}>
-                            {hasPaper ? "✓ Uploaded" : "Not Configured"}
+                            {hasPaper ? "Γ£ô Uploaded" : "Not Configured"}
                           </span>
                         </div>
                         <div style={{ display: "flex", justifyContent: "space-between" }}>
                           <span style={{ color: "#64748b" }}>Answer Key:</span>
                           <span style={{ fontWeight: 600, color: hasKey ? "#166534" : "#94a3b8" }}>
-                            {hasKey ? "✓ Uploaded" : "Not Configured"}
+                            {hasKey ? "Γ£ô Uploaded" : "Not Configured"}
                           </span>
                         </div>
                       </div>
@@ -815,7 +815,7 @@ export default function QuestionBankPage() {
       )}
 
       {/* =========================================================================
-          PAGE 3: INDIVIDUAL SET QUESTION BANK (Exam → Department → Set A)
+          PAGE 3: INDIVIDUAL SET QUESTION BANK (Exam ΓåÆ Department ΓåÆ Set A)
           ========================================================================= */}
       {selectedDept && selectedSetCode && (
         <div>
@@ -948,7 +948,7 @@ export default function QuestionBankPage() {
           {/* Tab 2: Batch Text Import */}
           {activeSubTab === "IMPORT" && !isEditingSet && (
             <div className="admin-form-card" style={{ marginBottom: "20px" }}>
-              <h4 style={{ margin: "0 0 8px 0" }}>Batch Text Import for {selectedDept.name} — Set {selectedSetCode}</h4>
+              <h4 style={{ margin: "0 0 8px 0" }}>Batch Text Import for {selectedDept.name} ΓÇö Set {selectedSetCode}</h4>
               <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b" }}>
                 Paste questions in structured format (e.g. Q1. Text... A) Opt1 B) Opt2 C) Opt3 D) Opt4 Ans: B).
               </p>
@@ -970,7 +970,7 @@ export default function QuestionBankPage() {
           {/* Tab 3: Answer Key Mapping */}
           {activeSubTab === "ANSWER_KEY" && !isEditingSet && (
             <div className="admin-form-card" style={{ marginBottom: "20px" }}>
-              <h4 style={{ margin: "0 0 8px 0" }}>Official Answer Key Mapping for {selectedDept.name} — Set {selectedSetCode}</h4>
+              <h4 style={{ margin: "0 0 8px 0" }}>Official Answer Key Mapping for {selectedDept.name} ΓÇö Set {selectedSetCode}</h4>
               <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b" }}>
                 Map correct answers to questions (Format: <code>1. B, 2. D, 3. A</code> or <code>1:B\n2:D</code>).
               </p>
@@ -992,7 +992,7 @@ export default function QuestionBankPage() {
           {/* Tab 4: Private Document Storage */}
           {activeSubTab === "DOCUMENTS" && !isEditingSet && (
             <div className="admin-form-card" style={{ marginBottom: "20px" }}>
-              <h4 style={{ margin: "0 0 8px 0" }}>Upload Confidential Paper / Key for {selectedDept.name} — Set {selectedSetCode}</h4>
+              <h4 style={{ margin: "0 0 8px 0" }}>Upload Confidential Paper / Key for {selectedDept.name} ΓÇö Set {selectedSetCode}</h4>
               <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b" }}>
                 Stored in private encrypted vault with SHA-256 integrity checksums. Accessible only to authorized administrators.
               </p>
@@ -1040,7 +1040,7 @@ export default function QuestionBankPage() {
                 <div>
                   <strong style={{ color: "#1e40af", fontSize: "13px" }}>Set-Level Edit Mode Active:</strong>
                   <span style={{ marginLeft: "8px", fontSize: "12px", color: "#3b82f6" }}>
-                    Editing all questions for {selectedDept.name} — Set {selectedSetCode}. Changes apply only upon clicking "Save Changes".
+                    Editing all questions for {selectedDept.name} ΓÇö Set {selectedSetCode}. Changes apply only upon clicking "Save Changes".
                   </span>
                 </div>
                 <button
@@ -1205,7 +1205,7 @@ export default function QuestionBankPage() {
                 alignItems: "center"
               }}>
                 <strong style={{ fontSize: "13.5px", color: "#0f172a" }}>
-                  {selectedDept.name} — Set {selectedSetCode} Questions ({questions.length} Total)
+                  {selectedDept.name} ΓÇö Set {selectedSetCode} Questions ({questions.length} Total)
                 </strong>
                 <small style={{ color: "#64748b" }}>Isolated question bank for Set {selectedSetCode}</small>
               </div>
@@ -1260,7 +1260,7 @@ export default function QuestionBankPage() {
                                 fontWeight: opt.correct ? 600 : 400
                               }}
                             >
-                              <b>{opt.label})</b> {opt.optionText} {opt.correct && "✓ (Correct)"}
+                              <b>{opt.label})</b> {opt.optionText} {opt.correct && "Γ£ô (Correct)"}
                             </div>
                           ))}
                         </div>
@@ -1321,7 +1321,7 @@ export default function QuestionBankPage() {
             }}>
               <div>
                 <strong style={{ fontSize: "14px", color: "#0f172a" }}>
-                  Add Question to {selectedDept?.name} — Set {selectedSetCode}
+                  Add Question to {selectedDept?.name} ΓÇö Set {selectedSetCode}
                 </strong>
                 <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
                   Exam: {selectedExam?.title}
@@ -1464,7 +1464,7 @@ export default function QuestionBankPage() {
             </p>
 
             <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "6px", padding: "10px", fontSize: "12px", color: "#991b1b", marginBottom: "16px" }}>
-              ⚠️ Historical candidate attempts and live exams will be protected. If candidates have started attempts with this set, deletion will be safely rejected.
+              ΓÜá∩╕Å Historical candidate attempts and live exams will be protected. If candidates have started attempts with this set, deletion will be safely rejected.
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
@@ -1523,7 +1523,7 @@ export default function QuestionBankPage() {
             </p>
 
             <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "6px", padding: "10px", fontSize: "12px", color: "#475569", marginBottom: "16px" }}>
-              ℹ️ The Question Set configuration and other sets (Sets A, B, C, D) will NOT be affected.
+              Γä╣∩╕Å The Question Set configuration and other sets (Sets A, B, C, D) will NOT be affected.
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>

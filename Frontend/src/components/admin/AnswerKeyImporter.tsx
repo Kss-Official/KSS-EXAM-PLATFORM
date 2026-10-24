@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+﻿import { useState, useRef } from "react";
 import { FileKey, CheckCircle2, AlertTriangle, X, UploadCloud, Download } from "lucide-react";
 import type { AnswerKeyDraft, QuestionSetKey, AdminQuestion } from "../../types/adminExam";
 import { parseAnswerKeyText } from "../../services/adminExamStorage";
@@ -129,9 +129,9 @@ export default function AnswerKeyImporter({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <FileKey size={16} color="#365fe5" />
+            <FileKey size={16} color="#017846" />
             <strong style={{ fontSize: "13px", color: "#0f172a" }}>
-              Answer Key / Official Scoring Document — {setKey.replace("_", " ")}
+              Answer Key / Official Scoring Document ΓÇö {setKey.replace("_", " ")}
             </strong>
           </div>
           <small style={{ color: "#64748b" }}>
@@ -166,7 +166,7 @@ export default function AnswerKeyImporter({
               <CheckCircle2 size={16} /> Validated Answer Key Active for {setKey.replace("_", " ")}
             </div>
             <small style={{ color: "#15803d" }}>
-              {Object.keys(currentAnswerKey.entries).length} recognized questions mapped · {currentAnswerKey.fileName || "Active Draft"}
+              {Object.keys(currentAnswerKey.entries).length} recognized questions mapped ┬╖ {currentAnswerKey.fileName || "Active Draft"}
             </small>
           </div>
 
@@ -206,7 +206,7 @@ export default function AnswerKeyImporter({
           }}
         />
 
-        <UploadCloud size={24} color="#365fe5" style={{ margin: "0 auto 6px" }} />
+        <UploadCloud size={24} color="#017846" style={{ margin: "0 auto 6px" }} />
         <strong style={{ display: "block", fontSize: "12px", color: "#0f172a" }}>
           Upload Official Answer Key Document (.pdf, .docx, .txt)
         </strong>

@@ -1,4 +1,4 @@
-import { ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
+﻿import { ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { ExamTimingMode, QuestionSetKey, QuestionSetSummary } from "../../types/adminExam";
 
 interface ExamReadinessSummaryProps {
@@ -58,7 +58,7 @@ export default function ExamReadinessSummary({
   const calculatedTotal = targetQ * mpc;
   const hasMarksInconsistency = targetQ > 0 && mpc > 0 && targetM > 0 && calculatedTotal !== targetM;
   if (hasMarksInconsistency) {
-    warnings.push(`Marks mismatch: ${targetQ} questions × ${mpc} marks = ${calculatedTotal} total marks (entered: ${targetM}).`);
+    warnings.push(`Marks mismatch: ${targetQ} questions ├ù ${mpc} marks = ${calculatedTotal} total marks (entered: ${targetM}).`);
   }
 
   // Determine overall blueprint readiness status
@@ -98,7 +98,7 @@ export default function ExamReadinessSummary({
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <ShieldCheck size={18} color="#365fe5" />
+          <ShieldCheck size={18} color="#017846" />
           <strong style={{ fontSize: "14px", color: "#0f172a" }}>Exam Blueprint & Readiness Summary</strong>
         </div>
 
@@ -132,7 +132,7 @@ export default function ExamReadinessSummary({
         </div>
         <div>
           <span style={{ color: "#64748b", display: "block" }}>Duration & Date</span>
-          <b>{durationMinutes || 60}m · {examDate}</b>
+          <b>{durationMinutes || 60}m ┬╖ {examDate}</b>
         </div>
         <div>
           <span style={{ color: "#64748b", display: "block" }}>Marking Scheme</span>
@@ -165,7 +165,7 @@ export default function ExamReadinessSummary({
                 </span>
               </div>
               <div style={{ color: "#64748b", marginTop: "2px" }}>
-                {s.validQuestionsCount} questions · {s.totalMarks} marks
+                {s.validQuestionsCount} questions ┬╖ {s.totalMarks} marks
               </div>
             </div>
           );

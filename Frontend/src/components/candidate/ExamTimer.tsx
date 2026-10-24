@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from "react";
-import { Clock3, AlertTriangle } from "lucide-react";
+﻿import { useState, useEffect, useRef } from "react";
+import { Clock3 } from "lucide-react";
 
 interface ExamTimerProps {
   deadline: number;
@@ -48,10 +48,6 @@ export default function ExamTimer({ deadline, isSubmitted, onExpire }: ExamTimer
 
   const minutes = Math.floor(remainingSeconds / 60);
   const seconds = remainingSeconds % 60;
-  const formattedTime = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-
-  const isLowTime = remainingSeconds > 0 && remainingSeconds <= 300; // < 5 minutes
-  const isUrgent = remainingSeconds > 0 && remainingSeconds <= 60; // < 1 minute
 
   return (
     <div

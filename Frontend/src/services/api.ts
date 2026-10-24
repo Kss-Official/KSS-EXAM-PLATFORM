@@ -1,6 +1,3 @@
-import type { CodingExamDto } from "./codingExamService";
-export type { CodingExamDto };
-
 export const API_BASE_URL: string =
   (import.meta.env.VITE_API_BASE_URL as string) || "/api";
 
@@ -161,26 +158,17 @@ export interface CandidateDto {
   departmentName?: string;
   status: string;
   createdAt?: string;
-  currentAccessCode?: string;
-  round1AccessCode?: string;
-  round2AccessCode?: string;
-  accessCodeUses?: number;
-  access_code_active?: boolean;
-  accessCodeActive?: boolean;
-  accessCodeSentAt?: string;
-  assignedSet?: string | null;
 }
 
 export interface CandidateVerifyRequest {
-  registrationNumber?: string;
-  uniqueId?: string;
-  accessCode?: string;
-  fullName?: string;
-  name?: string;
+  registrationNumber: string;
   departmentId?: number;
+  fullName?: string;
+  accessCode?: string;
+  uniqueId?: string;
+  name?: string;
   departmentName?: string;
   department?: string;
-  round?: string;
 }
 
 export interface CandidateVerifyResponse {
@@ -202,10 +190,6 @@ export interface CandidateVerifyResponse {
   scheduledEndTime?: string;
   setCode?: string;
   questionSetCode?: string;
-  accessCode?: string;
-  accessCodeUses?: number;
-  accessCodeMaxUses?: number;
-  round?: string;
 }
 
 export interface CandidateOptionDto {
@@ -287,25 +271,6 @@ export interface AdminDashboardResponse {
   message: string;
 }
 
-export interface AuditLogDto {
-  id: number;
-  action: string;
-  entityType: string;
-  entityId?: string;
-  performedBy: string;
-  details?: string;
-  createdAt?: string;
-}
-
-export interface AuditLogResponse {
-  items: AuditLogDto[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
-
 export class ApiError extends Error {
   statusCode: number;
   status: number;
@@ -348,7 +313,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (err: unknown) {
     const error = err as Error;
     throw new ApiError(
-      `Cannot connect to backend at ${url}. Either the FastAPI server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
+      `Cannot connect to backend at ${url}. Either the Spring Boot server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
       0,
       { isCorsOrNetworkError: true }
     );
@@ -358,13 +323,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     let errorDetail = "";
     try {
       const data = await response.json();
-      if (typeof data.detail === "string") {
-        errorDetail = data.detail;
-      } else if (Array.isArray(data.detail)) {
-        errorDetail = data.detail.map((e: any) => e.msg || JSON.stringify(e)).join(", ");
-      } else {
-        errorDetail = data.message || data.error || (typeof data === "string" ? data : JSON.stringify(data));
-      }
+      errorDetail = data.message || data.error || JSON.stringify(data);
     } catch {
       try {
         errorDetail = await response.text();
@@ -375,7 +334,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 401) {
       throw new ApiError(
-        errorDetail || "401 Unauthorized: Authentication required for this endpoint.",
+        errorDetail || "401 Unauthorized: Spring Security requires authentication for this endpoint.",
         401,
         { isAuthError: true, backendMessage: errorDetail }
       );
@@ -383,7 +342,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 403) {
       throw new ApiError(
-        errorDetail || "403 Forbidden: Access denied.",
+        errorDetail || "403 Forbidden: Spring Security denied access. SUPER_ADMIN role is required.",
         403,
         { isAuthError: true, backendMessage: errorDetail }
       );
@@ -391,7 +350,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 502 || response.status === 503 || response.status === 504) {
       throw new ApiError(
-        "ExamSecure Backend server at http://127.0.0.1:8000 is offline. Please start the backend with 'python run.py'.",
+        "Spring Boot server at http://localhost:8080 is offline. Please start the backend with './mvnw.cmd spring-boot:run'.",
         response.status,
         { isCorsOrNetworkError: true, backendMessage: errorDetail }
       );
@@ -438,24 +397,6 @@ export async function logoutAdmin(): Promise<void> {
 export async function getAdminDashboard(): Promise<AdminDashboardResponse> {
   return request<AdminDashboardResponse>("admin/dashboard");
 }
-
-export async function getAuditLogs(params?: {
-  page?: number;
-  pageSize?: number;
-  action?: string;
-  entityType?: string;
-  search?: string;
-}): Promise<AuditLogResponse> {
-  const query = new URLSearchParams();
-  if (params?.page) query.set("page", String(params.page));
-  if (params?.pageSize) query.set("pageSize", String(params.pageSize));
-  if (params?.action) query.set("action", params.action);
-  if (params?.entityType) query.set("entityType", params.entityType);
-  if (params?.search) query.set("search", params.search);
-  const qs = query.toString();
-  return request<AuditLogResponse>(qs ? `admin/audit-logs?${qs}` : "admin/audit-logs");
-}
-
 
 /* =========================================================================
    3. DEPARTMENT MANAGEMENT APIS
@@ -742,141 +683,6 @@ export async function assignCandidateToExam(candidateId: number, examId: number,
   });
 }
 
-export async function generateCandidateAccessCode(
-  candidateId: number,
-  round: "ROUND_1" | "ROUND_2" = "ROUND_1",
-  forceNew: boolean = true
-): Promise<{
-  id: number;
-  candidateId: number;
-  code: string;
-  usageCount: number;
-  maxUses: number;
-  isActive: boolean;
-  createdAt: string;
-}> {
-  return request<any>(`admin/candidates/${candidateId}/generate-access-code?round=${round}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ force_new: forceNew, forceNew })
-  });
-}
-
-export async function sendCandidateAccessCodeEmail(candidateId: number, round: "ROUND_1" | "ROUND_2" = "ROUND_1"): Promise<{
-  success: boolean;
-  candidateId: number;
-  candidateName: string;
-  email: string;
-  accessCode: string;
-  usageCount: number;
-  maxUses: number;
-  provider: string;
-  message: string;
-}> {
-  return request<any>(`admin/candidates/${candidateId}/send-access-code?round=${round}`, {
-    method: "POST"
-  });
-}
-
-export async function batchGenerateRoundUniqueIds(
-  round: "ROUND_1" | "ROUND_2" = "ROUND_1",
-  forceNew: boolean = true
-): Promise<{
-  success: boolean;
-  round: string;
-  totalEligible: number;
-  newlyGenerated: number;
-  alreadyExisted: number;
-  roundIds: Record<string, string>;
-  count?: number;
-  mapping?: Record<string, string>;
-}> {
-  return request<any>("admin/candidates/round-ids/batch-generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ round, force_new: forceNew, forceNew })
-  });
-}
-
-export async function generateSelectedRoundUniqueIds(
-  candidateIds: number[],
-  round: "ROUND_1" | "ROUND_2" = "ROUND_1",
-  forceNew: boolean = true
-): Promise<{
-  success: boolean;
-  round: string;
-  totalSelected: number;
-  generatedCount: number;
-  failedIds: number[];
-  roundIds: Record<string, string>;
-}> {
-  return request<any>("admin/candidates/round-ids/generate-selected", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ candidateIds, round, force_new: forceNew, forceNew })
-  });
-}
-
-export async function assignCandidateSet(
-  candidateId: number,
-  setCode: string | null
-): Promise<CandidateDto> {
-  return request<CandidateDto>(`admin/candidates/${candidateId}/assign-set`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ setCode })
-  });
-}
-
-export async function batchAssignCandidateSet(
-  candidateIds: number[],
-  setCode: string | null
-): Promise<{
-  success: boolean;
-  updatedCount: number;
-  assignedSet: string | null;
-}> {
-  return request<any>("admin/candidates/batch-assign-set", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ candidateIds, setCode })
-  });
-}
-
-export async function getRoundUniqueIds(round: "ROUND_1" | "ROUND_2" = "ROUND_1"): Promise<Record<string, string>> {
-  return request<Record<string, string>>(`admin/candidates/round-ids?round=${round}`);
-}
-
-export async function batchSendAccessCodesEmail(req: {
-  round: "ROUND_1" | "ROUND_2";
-  candidateIds?: number[];
-  examTitle?: string;
-  delaySeconds?: number;
-}): Promise<{
-  success: boolean;
-  jobId: string;
-  status: string;
-  totalCandidates: number;
-}> {
-  return request<any>("admin/candidates/batch-send-access-codes", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req)
-  });
-}
-
-export async function getBatchEmailStatus(jobId: string): Promise<{
-  jobId: string;
-  round: string;
-  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
-  totalCandidates: number;
-  sentCount: number;
-  failedCount: number;
-  provider: string;
-}> {
-  return request<any>(`admin/candidates/batch-send-status/${jobId}`);
-}
-
 /* =========================================================================
    7. RESULTS APIS
    ========================================================================= */
@@ -929,91 +735,6 @@ export async function saveCandidateAnswer(attemptId: number, questionId: number,
 export async function submitCandidateAttempt(attemptId: number): Promise<SubmissionResponse> {
   return request<SubmissionResponse>(`candidate/submit?attemptId=${attemptId}`, {
     method: "POST"
-  });
-}
-
-/* =========================================================================
-   9. ROUND 2: CODING ASSESSMENT APIS (ADMIN & CANDIDATE)
-   ========================================================================= */
-
-export async function getAllCodingExams(): Promise<CodingExamDto[]> {
-  return request<CodingExamDto[]>("admin/exams/coding");
-}
-
-export async function getCodingExamById(id: number | string): Promise<CodingExamDto> {
-  return request<CodingExamDto>(`admin/exams/coding/${id}`);
-}
-
-export async function createCodingExam(exam: CodingExamDto): Promise<CodingExamDto> {
-  return request<CodingExamDto>("admin/exams/coding", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(exam)
-  });
-}
-
-export async function updateCodingExam(id: number | string, exam: CodingExamDto): Promise<CodingExamDto> {
-  return request<CodingExamDto>(`admin/exams/coding/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(exam)
-  });
-}
-
-export async function publishCodingExam(id: number | string): Promise<CodingExamDto> {
-  return request<CodingExamDto>(`admin/exams/coding/${id}/publish`, {
-    method: "POST"
-  });
-}
-
-export async function deleteCodingExam(id: number | string): Promise<{ success: boolean; message: string }> {
-  return request<any>(`admin/exams/coding/${id}`, {
-    method: "DELETE"
-  });
-}
-
-export async function getCandidateCodingExam(examId: number | string): Promise<CodingExamDto> {
-  return request<CodingExamDto>(`candidate/coding/exam/${examId}`);
-}
-
-export async function runCandidateCode(req: {
-  language: string;
-  code: string;
-  input?: string;
-  timeLimitMs?: number;
-}): Promise<{
-  output: string;
-  error?: string | null;
-  executionTimeMs: number;
-  status: "SUCCESS" | "ERROR" | "TIMEOUT";
-}> {
-  return request<any>("candidate/coding/run", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req)
-  });
-}
-
-export async function submitCandidateCode(req: {
-  examId: any;
-  questionId: string;
-  candidateId: number;
-  language: string;
-  code: string;
-}): Promise<{
-  success: boolean;
-  status: "PASSED" | "PARTIAL" | "FAILED" | "ERROR";
-  passedCount: number;
-  totalCount: number;
-  score: number;
-  maxMarks: number;
-  testCaseResults: any[];
-  message: string;
-}> {
-  return request<any>("candidate/coding/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(req)
   });
 }
 

@@ -1,13 +1,9 @@
-export interface AdminDashboardResponse {
+﻿export interface AdminDashboardResponse {
   application: string;
   status: string;
   totalExams: number;
-  activeExams: number;
   totalCandidates: number;
-  totalDepartments?: number;
-  totalAttempts?: number;
-  submittedAttempts?: number;
-  qualifiedCandidates?: number;
+  activeExams: number;
   message: string;
 }
 
@@ -71,25 +67,6 @@ export interface UpcomingSchedule {
   durationMinutes: number;
 }
 
-export interface AuditLogDto {
-  id: number;
-  action: string;
-  entityType: string;
-  entityId?: string;
-  performedBy: string;
-  details?: string;
-  createdAt?: string;
-}
-
-export interface AuditLogResponse {
-  items: AuditLogDto[];
-  total: number;
-  page: number;
-  pageSize: number;
-  totalPages: number;
-}
-
 export * from "./candidate";
 export * from "./adminExam";
-
 

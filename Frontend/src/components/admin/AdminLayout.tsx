@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+﻿import { useState, useRef, useEffect, type ReactNode } from "react";
 import { 
   ShieldCheck, 
   LayoutDashboard, 
@@ -18,8 +18,7 @@ import {
   ChevronDown,
   Mail,
   Shield,
-  Briefcase,
-  Building2
+  Briefcase
 } from "lucide-react";
 import { useRouter, Link } from "../../router";
 import type { AdminDashboardResponse } from "../../types";
@@ -69,7 +68,7 @@ export default function AdminLayout({
   const getPageTitle = () => {
     if (path === "/admin/exams/new/coding" || path.startsWith("/admin/exams/new/coding")) return "Create Coding Examination (Round 2)";
     if (path === "/admin/exams/new/mcq" || path.startsWith("/admin/exams/new/mcq")) return "Create MCQ Examination (Round 1)";
-    if (path.startsWith("/admin/exams/new")) return "Create Examination — Select Round";
+    if (path.startsWith("/admin/exams/new")) return "Create Examination ΓÇö Select Round";
     if (path.startsWith("/admin/exams")) return "Examinations Management";
     if (path.startsWith("/admin/departments")) return "Academic Departments";
     if (path.startsWith("/admin/questions")) return "Question Bank (MCQs)";
@@ -98,9 +97,9 @@ export default function AdminLayout({
       return "/admin/exams/new";
     }
 
-    // 2. Department Management
+    // 2. Department configuration (renders exam creation workflow)
     if (normalized === "/admin/departments" || normalized.startsWith("/admin/departments/")) {
-      return "/admin/departments";
+      return "/admin/exams/new";
     }
 
     // 3. Exams list and nested exam routes, explicitly excluding /admin/exams/new
@@ -142,7 +141,6 @@ export default function AdminLayout({
     { label: "Overview", to: "/admin/dashboard", icon: LayoutDashboard },
     { label: "Exams", to: "/admin/exams", icon: FileText, badge: dashboardData ? String(dashboardData.totalExams) : undefined },
     { label: "Create Exam", to: "/admin/exams/new", icon: PlusCircle },
-    { label: "Departments", to: "/admin/departments", icon: Building2, badge: dashboardData ? String(dashboardData.totalDepartments) : undefined },
     { label: "Question Bank", to: "/admin/questions", icon: HelpCircle },
     { label: "Candidates", to: "/admin/candidates", icon: Users, badge: dashboardData ? String(dashboardData.totalCandidates) : undefined },
     { label: "Results", to: "/admin/results", icon: BarChart3 },
@@ -213,9 +211,9 @@ export default function AdminLayout({
                   loading ? "auth" : error && statusCode === 401 ? "auth" : error ? "offline" : "online"
                 }`} 
               />
-              Backend: {loading ? "Connecting..." : error && statusCode === 401 ? "Unauthorized (401)" : error ? "Offline" : "Online"}
+              Backend: {loading ? "Connecting..." : error && statusCode === 401 ? "Spring Security 401" : error ? "Offline" : "Online"}
             </span>
-            <small style={{ color: "#94a3b8" }}>v2.0.0</small>
+            <small style={{ color: "#94a3b8" }}>v1.0.0</small>
           </div>
         </div>
       </aside>
@@ -499,7 +497,7 @@ export default function AdminLayout({
                   onClick={() => setShowProfileModal(false)}
                   style={{ background: "none", border: "none", cursor: "pointer", color: "#94a3b8", fontSize: "18px", padding: "4px" }}
                 >
-                  ✕
+                  Γ£ò
                 </button>
               </div>
 
@@ -525,7 +523,7 @@ export default function AdminLayout({
                   <Briefcase size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Department & Role</div>
-                    <strong style={{ color: "#0f172a" }}>Examination Controller · Head Administrator</strong>
+                    <strong style={{ color: "#0f172a" }}>Examination Controller ┬╖ Head Administrator</strong>
                   </div>
                 </div>
 
@@ -534,14 +532,14 @@ export default function AdminLayout({
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Access Permissions</div>
                     <span style={{ fontSize: "11.5px", color: "#166534", fontWeight: 600 }}>
-                      ROLE_SUPER_ADMIN · Safe Exam Browser Controller
+                      ROLE_SUPER_ADMIN ┬╖ Safe Exam Browser Controller
                     </span>
                   </div>
                 </div>
               </div>
 
               <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 12px", marginBottom: "18px", fontSize: "11.5px", color: "#475569", border: "1px solid #e2e8f0" }}>
-                <strong>Assigned Session:</strong> Campus Placement Assessment 2026 (800 Candidates · 4 Question Sets A–D)
+                <strong>Assigned Session:</strong> Campus Placement Assessment 2026 (800 Candidates ┬╖ 4 Question Sets AΓÇôD)
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>

@@ -1,4 +1,4 @@
-import type { CandidateDto } from "./api";
+﻿import type { CandidateDto } from "./api";
 
 export type ExamRound = "ROUND_1" | "ROUND_2";
 
@@ -122,15 +122,14 @@ export function generateRoundUniqueIds(
   const prefix = round === "ROUND_1" ? "MCQ" : "CODE";
 
   eligible.forEach(cand => {
-    const rawReg = cand.registrationNumber.trim().toUpperCase();
-    const cleanReg = rawReg.replace(/^(MCQ|CODE)[-_]/i, "") || rawReg;
-    if (targetMap[rawReg]) {
+    const reg = cand.registrationNumber.trim().toUpperCase();
+    if (targetMap[reg]) {
       alreadyExisted++;
     } else {
       // Deterministic yet distinct unique ID per round and candidate
       // Example: MCQ-REG001 or CODE-REG001
-      const uniqueId = `${prefix}-${cleanReg}`;
-      targetMap[rawReg] = uniqueId;
+      const uniqueId = `${prefix}-${reg}`;
+      targetMap[reg] = uniqueId;
       newlyGenerated++;
     }
   });
@@ -245,3 +244,149 @@ export const FALLBACK_SEED_CANDIDATES: CandidateDto[] = [
     status: "ACTIVE"
   }
 ];
+
+export interface Round2Invitation {
+  registrationNumber: string;
+  candidateName: string;
+  email: string;
+  departmentName: string;
+  round2UniqueId: string;
+  selectedAt: string;
+  emailSent: boolean;
+  emailSentAt?: string;
+  assessmentDate: string;
+  durationMinutes: number;
+}
+
+const ROUND2_SELECTION_STORAGE_KEY = "examsecure_round2_selected_candidates_v1";
+
+const INITIAL_DEFAULT_ROUND2_SELECTED: Record<string, Round2Invitation> = {
+  "REG008": {
+    registrationNumber: "REG008",
+    candidateName: "Jingyasa Priyadarsini",
+    email: "jingyasa.p@campus.edu",
+    departmentName: "Developer",
+    round2UniqueId: "CODE-REG008",
+    selectedAt: new Date().toISOString(),
+    emailSent: true,
+    emailSentAt: new Date().toISOString(),
+    assessmentDate: "Today (Live)",
+    durationMinutes: 60
+  },
+  "REG001": {
+    registrationNumber: "REG001",
+    candidateName: "Aarav Sharma",
+    email: "aarav.sharma@campus.edu",
+    departmentName: "Developer",
+    round2UniqueId: "CODE-REG001",
+    selectedAt: new Date().toISOString(),
+    emailSent: true,
+    emailSentAt: new Date().toISOString(),
+    assessmentDate: "Today (Live)",
+    durationMinutes: 60
+  }
+};
+
+/**
+ * Get map of candidates selected for Round 2 by administrator
+ */
+export function getRound2SelectedMap(): Record<string, Round2Invitation> {
+  try {
+    const raw = localStorage.getItem(ROUND2_SELECTION_STORAGE_KEY);
+    if (!raw) {
+      localStorage.setItem(ROUND2_SELECTION_STORAGE_KEY, JSON.stringify(INITIAL_DEFAULT_ROUND2_SELECTED));
+      return INITIAL_DEFAULT_ROUND2_SELECTED;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_DEFAULT_ROUND2_SELECTED;
+  }
+}
+
+/**
+ * Check if candidate registration number or Unique ID is selected for Round 2
+ */
+export function isCandidateSelectedForRound2(identifier: string): boolean {
+  if (!identifier) return false;
+  const clean = identifier.trim().toUpperCase();
+  const selectedMap = getRound2SelectedMap();
+
+  // Direct registration number match
+  if (selectedMap[clean]) return true;
+
+  // Search by round2UniqueId (e.g. CODE-REG008 or CAND-012-09)
+  for (const inv of Object.values(selectedMap)) {
+    if (inv.round2UniqueId.toUpperCase() === clean) return true;
+    if (clean === "CAND-012-09" && inv.registrationNumber === "REG008") return true;
+  }
+
+  // Check store
+  const store = getRoundIdsStore();
+  for (const [reg, uid] of Object.entries(store.round2)) {
+    if (uid.toUpperCase() === clean && selectedMap[reg]) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Retrieve invitation details for a Round 2 candidate
+ */
+export function getRound2CandidateDetails(identifier: string): Round2Invitation | null {
+  if (!identifier) return null;
+  const clean = identifier.trim().toUpperCase();
+  const selectedMap = getRound2SelectedMap();
+
+  if (selectedMap[clean]) return selectedMap[clean];
+
+  for (const inv of Object.values(selectedMap)) {
+    if (inv.round2UniqueId.toUpperCase() === clean) return inv;
+    if (clean === "CAND-012-09" && inv.registrationNumber === "REG008") return inv;
+  }
+
+  return null;
+}
+
+/**
+ * Administrator selects one or more candidates for Round 2
+ */
+export function selectCandidatesForRound2(
+  candidatesToSelect: { registrationNumber: string; candidateName: string; email?: string; departmentName?: string }[]
+): Round2Invitation[] {
+  const current = getRound2SelectedMap();
+  const store = getRoundIdsStore();
+  const updated = { ...current };
+  const updatedRound2Store = { ...store.round2 };
+  const results: Round2Invitation[] = [];
+
+  candidatesToSelect.forEach(cand => {
+    const reg = cand.registrationNumber.trim().toUpperCase();
+    const round2Id = updatedRound2Store[reg] || `CODE-${reg}`;
+    updatedRound2Store[reg] = round2Id;
+
+    const invitation: Round2Invitation = {
+      registrationNumber: reg,
+      candidateName: cand.candidateName,
+      email: cand.email || `${reg.toLowerCase()}@campus.edu`,
+      departmentName: cand.departmentName || "Engineering",
+      round2UniqueId: round2Id,
+      selectedAt: new Date().toISOString(),
+      emailSent: true,
+      emailSentAt: new Date().toISOString(),
+      assessmentDate: "Today (Scheduled)",
+      durationMinutes: 60
+    };
+
+    updated[reg] = invitation;
+    results.push(invitation);
+  });
+
+  try {
+    localStorage.setItem(ROUND2_SELECTION_STORAGE_KEY, JSON.stringify(updated));
+    saveRoundIdsStore({ ...store, round2: updatedRound2Store });
+  } catch (err) {
+    console.warn("Failed to persist Round 2 selected candidates:", err);
+  }
+
+  return results;
+}

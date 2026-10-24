@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { RouterProvider, useRouter } from "./router";
 import type { AdminDashboardResponse } from "./services/api";
 
@@ -14,7 +14,6 @@ import QuestionBankPage from "./pages/admin/QuestionBankPage";
 import CandidatesPage from "./pages/admin/CandidatesPage";
 import ResultsPage from "./pages/admin/ResultsPage";
 import SettingsPage from "./pages/admin/SettingsPage";
-import DepartmentsPage from "./pages/admin/DepartmentsPage";
 import AdminLoginPage from "./pages/admin/AdminLoginPage";
 import CandidatePortal from "./pages/candidate/CandidatePortal";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -72,12 +71,7 @@ function AppContent() {
   const renderAdminPage = () => {
     // Multi-Round Examination Creation Routes:
     // 1. Coding Round Configuration
-    if (
-      path === "/admin/exams/new/coding" || 
-      path.startsWith("/admin/exams/new/coding") ||
-      path === "/admin/exams/coding/new" || 
-      path.startsWith("/admin/exams/coding/new")
-    ) {
+    if (path === "/admin/exams/new/coding" || path.startsWith("/admin/exams/new/coding")) {
       return <CreateCodingExamPage />;
     }
     // 2. MCQ Round Configuration (Existing Workflow preserved)
@@ -92,7 +86,7 @@ function AppContent() {
       return <ExamsPage />;
     }
     if (path.startsWith("/admin/departments")) {
-      return <DepartmentsPage />;
+      return <CreateExamPage />;
     }
     if (path.startsWith("/admin/questions")) {
       return <QuestionBankPage />;
