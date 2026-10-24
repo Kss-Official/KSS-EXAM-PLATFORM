@@ -10,6 +10,32 @@ def ensure_indexes_and_constraints():
     in PostgreSQL / SQLite to eliminate race conditions and avoid full table scans.
     """
     dialect = engine.dialect.name
+
+    cleanup_statements = [
+        # Clean any legacy duplicate rows before applying unique indexes
+        """
+        DELETE FROM attempt_randomized_questions a
+        USING attempt_randomized_questions b
+        WHERE a.id > b.id
+          AND a.attempt_id = b.attempt_id
+          AND a.question_id = b.question_id;
+        """,
+        """
+        DELETE FROM attempt_answers a
+        USING attempt_answers b
+        WHERE a.id > b.id
+          AND a.attempt_id = b.attempt_id
+          AND a.question_id = b.question_id;
+        """
+    ]
+
+    for cleanup_stmt in cleanup_statements:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(cleanup_stmt))
+        except Exception as e:
+            logger.debug(f"Cleanup notice (non-fatal): {e}")
+
     ddl_statements = [
         # Risk 2: Unique constraint and index for attempt answers to guarantee idempotent upserts
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_attempt_answer_attempt_question ON attempt_answers (attempt_id, question_id);",
@@ -25,11 +51,11 @@ def ensure_indexes_and_constraints():
         "CREATE INDEX IF NOT EXISTS ix_aro_attempt_q_order ON attempt_randomized_options (attempt_id, question_id, display_order);",
     ]
 
-    with engine.begin() as conn:
-        for stmt in ddl_statements:
-            try:
+    for stmt in ddl_statements:
+        try:
+            with engine.begin() as conn:
                 conn.execute(text(stmt))
-            except Exception as e:
-                logger.warning(f"Notice applying DDL statement ({stmt[:50]}...): {e}")
+        except Exception as e:
+            logger.warning(f"Notice applying DDL statement ({stmt[:50]}...): {e}")
 
     logger.info("High-concurrency database constraints and indexes verified successfully.")
