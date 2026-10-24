@@ -233,6 +233,9 @@ class CandidateExamService:
                     existing_attempt.question_set_id = target_qs.id
                     db.commit()
                     db.refresh(existing_attempt)
+            if existing_attempt.status == "ASSIGNED":
+                db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == existing_attempt.id).delete()
+                db.commit()
             question_set = existing_attempt.question_set
             slot = existing_attempt.slot
         else:
@@ -473,6 +476,9 @@ class CandidateExamService:
                             f"({access_code.usage_count}/{access_code.max_uses} uses) and is permanently expired."
                         )
                     )
+
+            # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
+            db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
 
             attempt.status = "IN_PROGRESS"
             attempt.started_at = now

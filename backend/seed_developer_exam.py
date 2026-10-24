@@ -197,35 +197,10 @@ def seed_developer_assessment():
                 db.commit()
                 print(f"Aligned Attempt {attempt.id} with Developer Assessment.")
 
-                # Save candidate's answers as shown on screen:
-                # Question 1: answered (Inheritance = option 1)
-                # Question 2: answered (200m = option 1)
-                # Question 3: answered (100 = option 1)
-                # Question 4: answered (700 = option 0)
-                # Question 5: answered (Option C, 2050 = option 2)
-                # Question 8: answered (5.6 = option 0)
-                answers_to_save = [
-                    (1, opt_lookup.get((1, 1))),
-                    (2, opt_lookup.get((2, 1))),
-                    (3, opt_lookup.get((3, 1))),
-                    (4, opt_lookup.get((4, 0))),
-                    (5, opt_lookup.get((5, 2))),  # Option C!
-                    (8, opt_lookup.get((8, 0))),
-                ]
-
+                # Ensure attempt has a completely clean slate with zero preselected answers
                 db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
-                for q_num, opt_id in answers_to_save:
-                    q_obj = q_lookup.get(q_num)
-                    if q_obj and opt_id:
-                        ans = AttemptAnswer(
-                            attempt_id=attempt.id,
-                            question_id=q_obj.id,
-                            selected_option_id=opt_id,
-                            answered_at=datetime.now(timezone.utc)
-                        )
-                        db.add(ans)
                 db.commit()
-                print(f"Saved initial answers for Attempt {attempt.id} to match candidate UI state.")
+                print(f"Ensured Attempt {attempt.id} has a clean slate (0 pre-selected answers).")
 
         print("Developer Assessment seeding completed successfully!")
     finally:

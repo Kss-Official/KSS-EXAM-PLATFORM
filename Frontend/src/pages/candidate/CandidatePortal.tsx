@@ -148,8 +148,8 @@ export default function CandidatePortal() {
     }
   };
 
-  // Route 1: Submitted Confirmation Screen
-  if (path === "/candidate/submitted" || (activeSession && activeSession.isSubmitted && path.startsWith("/candidate"))) {
+  // Route 1: Submitted Confirmation Screen (Strictly on /candidate/submitted)
+  if (path === "/candidate/submitted") {
     const session = activeSession || loadCandidateSession();
     if (session && session.isSubmitted) {
       const receipt = buildReceiptFromSession(session);

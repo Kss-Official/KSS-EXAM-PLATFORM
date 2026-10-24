@@ -716,12 +716,12 @@ export default function CandidateExamPage({
   const [answers, setAnswers] = useState<Record<number, number>>(
     initialSession?.answers && Object.keys(initialSession.answers).length > 0
       ? initialSession.answers
-      : { 1: 2, 4: 0 }
+      : {}
   );
   const [flags, setFlags] = useState<number[]>(
     initialSession?.flags && initialSession.flags.length > 0
       ? initialSession.flags
-      : [3]
+      : []
   );
 
   const [backendAttemptId, setBackendAttemptId] = useState<number | undefined>(initialSession?.backendAttemptId);
@@ -813,7 +813,7 @@ export default function CandidateExamPage({
               const restoredAnswers: Record<number, number> = {};
               activeQList.forEach((q, qIndex) => {
                 const qKey = q.id ?? q.questionId;
-                const selectedOptId = qKey !== undefined ? answersMap[qKey] : undefined;
+                const selectedOptId = qKey !== undefined ? (answersMap[qKey] ?? answersMap[String(qKey)]) : undefined;
                 if (selectedOptId !== undefined && selectedOptId !== null) {
                   const optIdx = q.options.findIndex((o: any) => (o.id ?? o.optionId) === selectedOptId);
                   if (optIdx !== -1) {
@@ -821,12 +821,16 @@ export default function CandidateExamPage({
                   }
                 }
               });
-              if (Object.keys(restoredAnswers).length > 0) {
-                setAnswers(prev => ({ ...prev, ...restoredAnswers }));
-              }
-            } else if (answers && Object.keys(answers).length > 0) {
-              // Sync local answers that candidate had chosen to the backend attempt
-              Object.entries(answers).forEach(async ([qNumStr, optIdx]) => {
+              setAnswers(restoredAnswers);
+              saveCandidateSession({
+                ...session,
+                backendAttemptId: attemptData.attemptId,
+                answers: restoredAnswers,
+                deadline: serverDeadline || session.deadline
+              });
+            } else if (initialSession?.answers && Object.keys(initialSession.answers).length > 0) {
+              // Only sync if initialSession had explicitly saved answers for this candidate
+              Object.entries(initialSession.answers).forEach(async ([qNumStr, optIdx]) => {
                 const qNum = parseInt(qNumStr, 10);
                 const q = activeQList[qNum - 1];
                 if (q && q.options && q.options[optIdx]) {
@@ -840,6 +844,8 @@ export default function CandidateExamPage({
                   }
                 }
               });
+            } else {
+              setAnswers({});
             }
           }
         } catch (err) {
@@ -874,10 +880,19 @@ export default function CandidateExamPage({
 
   const handleSelectAnswer = useCallback(async (optionIndex: number) => {
     const questionNum = idx + 1;
-    const updatedAnswers = { ...answers, [questionNum]: optionIndex };
-    setAnswers(updatedAnswers);
-
     let activeAid = backendAttemptId || session?.backendAttemptId;
+
+    setAnswers(prevAnswers => {
+      const updatedAnswers = { ...prevAnswers, [questionNum]: optionIndex };
+      saveCandidateSession({
+        ...session,
+        backendAttemptId: activeAid,
+        answers: updatedAnswers,
+        flags,
+        currentQuestionIndex: idx
+      });
+      return updatedAnswers;
+    });
 
     // Auto-recover active attempt if aid not set yet
     if (!activeAid && (session?.profile?.dbCandidateId || session?.profile?.candidateId)) {
@@ -907,14 +922,6 @@ export default function CandidateExamPage({
       }
     }
 
-    saveCandidateSession({
-      ...session,
-      backendAttemptId: activeAid,
-      answers: updatedAnswers,
-      flags,
-      currentQuestionIndex: idx
-    });
-
     if (activeAid && currentQuestion) {
       const qId = currentQuestion.id ?? currentQuestion.questionId ?? questionNum;
       const chosenOpt = currentQuestion.options?.[optionIndex];
@@ -930,26 +937,29 @@ export default function CandidateExamPage({
         }
       }
     }
-  }, [idx, answers, session, backendAttemptId, flags, currentQuestion]);
+  }, [idx, session, backendAttemptId, flags, currentQuestion]);
 
   const handleToggleFlag = useCallback(() => {
     const questionNum = idx + 1;
-    let updatedFlags: number[];
-    if (flags.includes(questionNum)) {
-      updatedFlags = flags.filter(f => f !== questionNum);
-    } else {
-      updatedFlags = [...flags, questionNum];
-    }
-    setFlags(updatedFlags);
+    setFlags(prevFlags => {
+      const updatedFlags = prevFlags.includes(questionNum)
+        ? prevFlags.filter(f => f !== questionNum)
+        : [...prevFlags, questionNum];
 
-    saveCandidateSession({
-      ...session,
-      backendAttemptId,
-      answers,
-      flags: updatedFlags,
-      currentQuestionIndex: idx
+      setAnswers(currentAnswers => {
+        saveCandidateSession({
+          ...session,
+          backendAttemptId,
+          answers: currentAnswers,
+          flags: updatedFlags,
+          currentQuestionIndex: idx
+        });
+        return currentAnswers;
+      });
+
+      return updatedFlags;
     });
-  }, [idx, flags, session, backendAttemptId, answers]);
+  }, [idx, session, backendAttemptId]);
 
   const handleNavigateQuestion = useCallback((targetIndex: number) => {
     if (targetIndex >= 0 && targetIndex < total) {

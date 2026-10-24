@@ -52,11 +52,13 @@ export default function CandidateEntryPage({
     const session = loadCandidateSession();
     if (session && session.profile) {
       setExistingSession(session);
-      // Pre-fill fields with existing draft/session details if available
-      setName(session.profile.name || "");
-      setDepartment(session.profile.department || "");
-      setDepartmentId(session.profile.departmentId);
-      setCandidateId(session.profile.candidateId || "");
+      if (!session.isSubmitted) {
+        // Only prefill if the fields are currently empty
+        setName(prev => prev ? prev : (session.profile.name || ""));
+        setDepartment(prev => prev ? prev : (session.profile.department || ""));
+        setDepartmentId(prev => prev ? prev : session.profile.departmentId);
+        setCandidateId(prev => prev ? prev : (session.profile.candidateId || ""));
+      }
     }
   }, []);
 
@@ -130,11 +132,17 @@ export default function CandidateEntryPage({
         return;
       }
 
+      const targetCandId = verifyRes.registrationNumber || code;
+      if (existingSession && existingSession.profile?.candidateId && existingSession.profile.candidateId !== targetCandId) {
+        clearCandidateSession(existingSession.profile.candidateId);
+        setExistingSession(null);
+      }
+
       onContinue({
         name: verifyRes.candidateName || verifyRes.fullName || trimmedName,
         department: verifyRes.departmentName || (department as Department),
         departmentId: departmentId,
-        candidateId: verifyRes.registrationNumber || code,
+        candidateId: targetCandId,
         dbCandidateId: verifyRes.candidateId,
         assignedExamId: verifyRes.assignedExamId || verifyRes.examId,
         examTitle: verifyRes.examTitle,
