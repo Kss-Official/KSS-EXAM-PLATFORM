@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "private-storage"
     MAX_FILE_SIZE_BYTES: int = 25 * 1024 * 1024  # 25 MB
 
-    # PostgreSQL Database Connection
-    DATABASE_URL: str = "postgresql://postgres.rborsyccguiyupkmmvpr:B5hJjBwB13nQO4R8@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+    # Neon Cloud PostgreSQL Database Connection
+    DATABASE_URL: str = "postgresql://neondb_owner:npg_LIkXjciq2e0s@ep-shy-tooth-b5gyc99a-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_RECYCLE: int = 1800

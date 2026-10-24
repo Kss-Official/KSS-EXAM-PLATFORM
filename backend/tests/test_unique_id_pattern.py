@@ -313,3 +313,96 @@ def test_candidate_verification_delivers_assigned_set(db: Session):
     assert resp.set_code == "B"
 
 
+def test_create_new_id_generates_distinct_sequential_versioned_id(db: Session):
+    """
+    Verifies that when an admin triggers 'Create New ID' (force_new=True):
+      1. Initial ID is canonical: MCQ-REG-FORCE-01
+      2. Second trigger creates a distinct, brand new ID: MCQ-REG-FORCE-01-2
+      3. Third trigger creates: MCQ-REG-FORCE-01-3
+      4. Previous IDs are marked inactive (is_active=False)
+      5. The candidate CAN verify with the newly issued ID
+      6. Verification using the old deactivated ID is rejected with clear superseded message
+    """
+    from app.schemas.candidate import CandidateVerifyRequest
+    from app.candidate.services.candidate_exam_service import CandidateExamService
+    from app.models import Department
+
+    dept = db.query(Department).filter(Department.name == "Developer").first()
+    if not dept:
+        dept = Department(name="Developer", code="DEV", active=True)
+        db.add(dept)
+        db.commit()
+        db.refresh(dept)
+
+    test_reg = "TEST-FORCE-NEW-CAND"
+    cand = db.query(Candidate).filter(Candidate.registration_number == test_reg).first()
+    if not cand:
+        cand = Candidate(
+            registration_number=test_reg,
+            full_name="Force New Test Candidate",
+            email="force_new_cand@campus.edu",
+            department_id=dept.id,
+            status="ACTIVE"
+        )
+        db.add(cand)
+        db.commit()
+        db.refresh(cand)
+    else:
+        cand.department_id = dept.id
+        cand.full_name = "Force New Test Candidate"
+        db.commit()
+
+    # Clean slate for this test candidate's access codes
+    db.query(CandidateAccessCode).filter(CandidateAccessCode.candidate_id == cand.id).delete(synchronize_session=False)
+    db.commit()
+
+    # Step 1: Initial creation (first time)
+    first_dto = CandidateService.generate_access_code(db, cand.id, "TEST_ADMIN", round_name="ROUND_1", force_new=False)
+    assert first_dto.code == f"MCQ-{test_reg}"
+    assert first_dto.is_active is True
+    assert first_dto.usage_count == 0
+    assert first_dto.max_uses == 3
+
+    # Step 2: Admin triggers 'Create New ID' (force_new=True)
+    second_dto = CandidateService.generate_access_code(db, cand.id, "TEST_ADMIN", round_name="ROUND_1", force_new=True)
+    assert second_dto.code == f"MCQ-{test_reg}-2"
+    assert second_dto.code != first_dto.code
+    assert second_dto.is_active is True
+    assert second_dto.usage_count == 0
+    assert second_dto.max_uses == 3
+
+    # Verify first code is now inactive in DB
+    first_db = db.query(CandidateAccessCode).filter(CandidateAccessCode.code == first_dto.code).first()
+    assert first_db.is_active is False
+
+    # Step 3: Admin triggers 'Create New ID' again
+    third_dto = CandidateService.generate_access_code(db, cand.id, "TEST_ADMIN", round_name="ROUND_1", force_new=True)
+    assert third_dto.code == f"MCQ-{test_reg}-3"
+    assert third_dto.code != second_dto.code
+    assert third_dto.is_active is True
+
+    # Step 4: Verification using the newest ID succeeds
+    verify_new = CandidateVerifyRequest(
+        registration_number=cand.registration_number,
+        access_code=third_dto.code,
+        full_name=cand.full_name,
+        department_id=dept.id,
+        department_name=dept.name
+    )
+    resp_new = CandidateExamService.verify_candidate(db, verify_new)
+    assert resp_new.eligible is True
+    assert resp_new.access_code == third_dto.code
+
+    # Step 5: Verification using the superseded first code fails
+    verify_old = CandidateVerifyRequest(
+        registration_number=cand.registration_number,
+        access_code=first_dto.code,
+        full_name=cand.full_name,
+        department_id=dept.id,
+        department_name=dept.name
+    )
+    resp_old = CandidateExamService.verify_candidate(db, verify_old)
+    assert resp_old.eligible is False
+    assert "superseded" in resp_old.message.lower() or "deactivated" in resp_old.message.lower()
+
+

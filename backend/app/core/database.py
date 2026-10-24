@@ -12,8 +12,8 @@ def _init_engine():
     db_url = settings.DATABASE_URL
     if db_url.startswith("postgresql"):
         try:
-            # Quick connectivity verification
-            probe_engine = create_engine(db_url, connect_args={"connect_timeout": 3})
+            # Quick connectivity verification with 15s timeout for Neon serverless
+            probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
             with probe_engine.connect() as conn:
                 pass
             logger.info("Successfully connected to primary PostgreSQL database.")
@@ -23,6 +23,7 @@ def _init_engine():
                 max_overflow=settings.DB_MAX_OVERFLOW,
                 pool_recycle=settings.DB_POOL_RECYCLE,
                 pool_pre_ping=settings.DB_POOL_PRE_PING,
+                connect_args={"connect_timeout": 15},
                 echo=False
             )
         except Exception as exc:

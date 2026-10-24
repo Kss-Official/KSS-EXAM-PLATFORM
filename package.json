@@ -19,5 +19,9 @@
     "typescript"
   ],
   "author": "ExamSecure Team",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@neon/config": "^1.9.3",
+    "@neon/env": "^1.6.4"
+  }
 }

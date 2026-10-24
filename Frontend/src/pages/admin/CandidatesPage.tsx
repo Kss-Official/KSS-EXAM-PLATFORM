@@ -37,6 +37,7 @@ import {
   type ExamRound,
   type RoundIdStore,
   getRoundIdsStore,
+  saveRoundIdsStore,
   filterCandidatesByRound,
   generateRoundUniqueIds,
   FALLBACK_SEED_CANDIDATES
@@ -316,7 +317,7 @@ export default function CandidatesPage() {
 
     setGeneratingIds(true);
     try {
-      const res = await batchGenerateRoundUniqueIds(selectedRound);
+      const res = await batchGenerateRoundUniqueIds(selectedRound, true);
       if (res && res.roundIds) {
         setRoundIdsStore(prev => {
           const updated = {
@@ -326,13 +327,24 @@ export default function CandidatesPage() {
               ...res.roundIds
             }
           };
-          try {
-            localStorage.setItem("examsecure_round_unique_ids_store_v1", JSON.stringify(updated));
-          } catch {}
+          saveRoundIdsStore(updated);
           return updated;
         });
+
+        // Immediately update candidates list in React state
+        setCandidates(prev => prev.map(c => {
+          const reg = c.registrationNumber.trim().toUpperCase();
+          const newCode = res.roundIds[reg];
+          if (!newCode) return c;
+          if (selectedRound === "ROUND_1") {
+            return { ...c, round1AccessCode: newCode, currentAccessCode: newCode, accessCodeUses: 0, accessCodeActive: true };
+          } else {
+            return { ...c, round2AccessCode: newCode, currentAccessCode: newCode, accessCodeUses: 0, accessCodeActive: true };
+          }
+        }));
+
         setNotice({
-          text: `Successfully generated Unique IDs for ALL ${res.totalEligible} candidates in ${selectedRound === "ROUND_1" ? "Round 1 (MCQ)" : "Round 2 (Coding)"}.`,
+          text: `Successfully created new Unique IDs for ALL ${res.totalEligible} candidates in ${selectedRound === "ROUND_1" ? "Round 1 (MCQ)" : "Round 2 (Coding)"}.`,
           type: "success"
         });
         setIsCreateIdModalOpen(false);
@@ -343,6 +355,7 @@ export default function CandidatesPage() {
       console.warn("Backend batch generation fallback to local generator:", err);
       const result = generateRoundUniqueIds(candidates, selectedRound);
       setRoundIdsStore(result.store);
+      saveRoundIdsStore(result.store);
       setNotice({
         text: `Generated ${result.newlyGenerated} new Unique IDs (${result.totalEligible} total eligible).`,
         type: "success"
@@ -366,7 +379,7 @@ export default function CandidatesPage() {
 
     setGeneratingIds(true);
     try {
-      const res = await generateSelectedRoundUniqueIds(idsArray, selectedRound);
+      const res = await generateSelectedRoundUniqueIds(idsArray, selectedRound, true);
       if (res && res.roundIds) {
         setRoundIdsStore(prev => {
           const updated = {
@@ -376,13 +389,24 @@ export default function CandidatesPage() {
               ...res.roundIds
             }
           };
-          try {
-            localStorage.setItem("examsecure_round_unique_ids_store_v1", JSON.stringify(updated));
-          } catch {}
+          saveRoundIdsStore(updated);
           return updated;
         });
+
+        // Immediately update candidates list in React state
+        setCandidates(prev => prev.map(c => {
+          const reg = c.registrationNumber.trim().toUpperCase();
+          const newCode = res.roundIds[reg];
+          if (!newCode) return c;
+          if (selectedRound === "ROUND_1") {
+            return { ...c, round1AccessCode: newCode, currentAccessCode: newCode, accessCodeUses: 0, accessCodeActive: true };
+          } else {
+            return { ...c, round2AccessCode: newCode, currentAccessCode: newCode, accessCodeUses: 0, accessCodeActive: true };
+          }
+        }));
+
         setNotice({
-          text: `Successfully generated Unique IDs for ${res.generatedCount} selected candidate(s) in ${selectedRound === "ROUND_1" ? "Round 1" : "Round 2"}.`,
+          text: `Successfully created new Unique IDs for ${res.generatedCount} selected candidate(s) in ${selectedRound === "ROUND_1" ? "Round 1" : "Round 2"}.`,
           type: "success"
         });
         setIsCreateIdModalOpen(false);
@@ -395,6 +419,47 @@ export default function CandidatesPage() {
       });
     } finally {
       setGeneratingIds(false);
+    }
+  };
+
+  // Option 3: Generate New Unique ID for Single Candidate
+  const handleGenerateSingleCandidateId = async (cand: CandidateDto) => {
+    setActionLoadingId(cand.id);
+    try {
+      const res = await generateCandidateAccessCode(cand.id, selectedRound, true);
+      const regUpper = cand.registrationNumber.trim().toUpperCase();
+      setRoundIdsStore(prev => {
+        const updated = {
+          ...prev,
+          [selectedRound === "ROUND_1" ? "round1" : "round2"]: {
+            ...(selectedRound === "ROUND_1" ? prev.round1 : prev.round2),
+            [regUpper]: res.code
+          }
+        };
+        saveRoundIdsStore(updated);
+        return updated;
+      });
+
+      setCandidates(prev => prev.map(c => {
+        if (c.id !== cand.id) return c;
+        if (selectedRound === "ROUND_1") {
+          return { ...c, round1AccessCode: res.code, currentAccessCode: res.code, accessCodeUses: 0, accessCodeActive: true };
+        } else {
+          return { ...c, round2AccessCode: res.code, currentAccessCode: res.code, accessCodeUses: 0, accessCodeActive: true };
+        }
+      }));
+
+      setNotice({
+        text: `Created new Unique ID '${res.code}' for ${cand.fullName} (${selectedRound === "ROUND_1" ? "Round 1" : "Round 2"}, strictly 3 uses).`,
+        type: "success"
+      });
+    } catch (err: any) {
+      setNotice({
+        text: `Failed to create new ID for ${cand.fullName}: ` + (err?.message || "Unknown error"),
+        type: "error"
+      });
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -892,30 +957,57 @@ export default function CandidatesPage() {
                         </span>
                       </td>
                       <td style={{ textAlign: "right" }}>
-                        <button
-                          type="button"
-                          className="admin-btn primary"
-                          style={{ 
-                            padding: "5px 12px", 
-                            fontSize: "11px", 
-                            display: "inline-flex", 
-                            alignItems: "center", 
-                            gap: "5px", 
-                            background: "linear-gradient(135deg, #017846, #015c36)", 
-                            color: "#ffffff", 
-                            border: "none", 
-                            borderRadius: "6px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            boxShadow: "0 2px 4px rgba(1, 120, 70, 0.2)"
-                          }}
-                          disabled={actionLoadingId === cand.id}
-                          onClick={() => handleSendEmail(cand)}
-                          title="Send the Unique ID to candidate's email address"
-                        >
-                          <Mail size={12} />
-                          {actionLoadingId === cand.id ? "Sending..." : "Send to Email"}
-                        </button>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                          <button
+                            type="button"
+                            className="admin-btn secondary"
+                            style={{ 
+                              padding: "5px 9px", 
+                              fontSize: "11px", 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              gap: "4px", 
+                              background: "#ffffff", 
+                              color: "#017846", 
+                              border: "1px solid #a7f3d0", 
+                              borderRadius: "6px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.05)"
+                            }}
+                            disabled={actionLoadingId === cand.id}
+                            onClick={() => handleGenerateSingleCandidateId(cand)}
+                            title={`Generate a new, fresh Unique ID for ${cand.fullName}`}
+                          >
+                            <KeyRound size={12} color="#017846" />
+                            <span>New ID</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="admin-btn primary"
+                            style={{ 
+                              padding: "5px 12px", 
+                              fontSize: "11px", 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              gap: "5px", 
+                              background: "linear-gradient(135deg, #017846, #015c36)", 
+                              color: "#ffffff", 
+                              border: "none", 
+                              borderRadius: "6px",
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              boxShadow: "0 2px 4px rgba(1, 120, 70, 0.2)"
+                            }}
+                            disabled={actionLoadingId === cand.id}
+                            onClick={() => handleSendEmail(cand)}
+                            title="Send the Unique ID to candidate's email address"
+                          >
+                            <Mail size={12} />
+                            {actionLoadingId === cand.id ? "Sending..." : "Send to Email"}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );

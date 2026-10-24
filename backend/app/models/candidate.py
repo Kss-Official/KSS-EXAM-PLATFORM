@@ -29,7 +29,7 @@ class CandidateAccessCode(Base):
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False, index=True)
-    code = Column(String(32), unique=True, nullable=False, index=True)
+    code = Column(String(100), unique=True, nullable=False, index=True)
     round = Column(String(20), nullable=False, default="ROUND_1")
     usage_count = Column(Integer, nullable=False, default=0)
     max_uses = Column(Integer, nullable=False, default=3)

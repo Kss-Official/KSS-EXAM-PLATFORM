@@ -742,7 +742,11 @@ export async function assignCandidateToExam(candidateId: number, examId: number,
   });
 }
 
-export async function generateCandidateAccessCode(candidateId: number, round: "ROUND_1" | "ROUND_2" = "ROUND_1"): Promise<{
+export async function generateCandidateAccessCode(
+  candidateId: number,
+  round: "ROUND_1" | "ROUND_2" = "ROUND_1",
+  forceNew: boolean = true
+): Promise<{
   id: number;
   candidateId: number;
   code: string;
@@ -752,7 +756,9 @@ export async function generateCandidateAccessCode(candidateId: number, round: "R
   createdAt: string;
 }> {
   return request<any>(`admin/candidates/${candidateId}/generate-access-code?round=${round}`, {
-    method: "POST"
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force_new: forceNew, forceNew })
   });
 }
 
@@ -772,7 +778,10 @@ export async function sendCandidateAccessCodeEmail(candidateId: number, round: "
   });
 }
 
-export async function batchGenerateRoundUniqueIds(round: "ROUND_1" | "ROUND_2" = "ROUND_1"): Promise<{
+export async function batchGenerateRoundUniqueIds(
+  round: "ROUND_1" | "ROUND_2" = "ROUND_1",
+  forceNew: boolean = true
+): Promise<{
   success: boolean;
   round: string;
   totalEligible: number;
@@ -785,13 +794,14 @@ export async function batchGenerateRoundUniqueIds(round: "ROUND_1" | "ROUND_2" =
   return request<any>("admin/candidates/round-ids/batch-generate", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ round })
+    body: JSON.stringify({ round, force_new: forceNew, forceNew })
   });
 }
 
 export async function generateSelectedRoundUniqueIds(
   candidateIds: number[],
-  round: "ROUND_1" | "ROUND_2" = "ROUND_1"
+  round: "ROUND_1" | "ROUND_2" = "ROUND_1",
+  forceNew: boolean = true
 ): Promise<{
   success: boolean;
   round: string;
@@ -803,7 +813,7 @@ export async function generateSelectedRoundUniqueIds(
   return request<any>("admin/candidates/round-ids/generate-selected", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ candidateIds, round })
+    body: JSON.stringify({ candidateIds, round, force_new: forceNew, forceNew })
   });
 }
 

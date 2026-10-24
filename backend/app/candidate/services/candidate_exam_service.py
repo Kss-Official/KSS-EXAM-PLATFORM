@@ -59,8 +59,9 @@ class CandidateExamService:
         # If not matching code directly, check candidate registration number in database
         if not access_code_obj:
             clean_reg = re.sub(r'^(MCQ|CODE)[-_]', '', input_code.upper())
+            base_reg = re.sub(r'[-_]\d+$', '', clean_reg) or clean_reg
             cand_by_reg = db.query(Candidate).filter(
-                func.upper(Candidate.registration_number).in_([input_code.upper(), clean_reg])
+                func.upper(Candidate.registration_number).in_([input_code.upper(), clean_reg, base_reg])
             ).first()
             if cand_by_reg:
                 target_round = req.round or ("ROUND_2" if input_code.upper().startswith("CODE-") else "ROUND_1")
@@ -72,7 +73,7 @@ class CandidateExamService:
                 if not access_code_obj:
                     # Auto-provision canonical access code for this candidate and round
                     from app.admin.services.candidate_service import CandidateService
-                    CandidateService.generate_access_code(db, cand_by_reg.id, performed_by="SYSTEM", round_name=target_round)
+                    CandidateService.generate_access_code(db, cand_by_reg.id, performed_by="SYSTEM", round_name=target_round, force_new=False)
                     access_code_obj = db.query(CandidateAccessCode).filter(
                         CandidateAccessCode.candidate_id == cand_by_reg.id,
                         CandidateAccessCode.round == target_round,
@@ -86,11 +87,17 @@ class CandidateExamService:
         # Check 3-use limit and code active status
         if access_code_obj.usage_count >= access_code_obj.max_uses or not access_code_obj.is_active:
             resp.eligible = False
-            resp.message = (
-                f"This Unique Access ID ({access_code_obj.code}) has reached its maximum limit "
-                f"({access_code_obj.usage_count}/{access_code_obj.max_uses} uses) and is permanently expired. "
-                "Please contact your exam administrator for assistance."
-            )
+            if access_code_obj.usage_count >= access_code_obj.max_uses:
+                resp.message = (
+                    f"This Unique Access ID ({access_code_obj.code}) has reached its maximum limit "
+                    f"({access_code_obj.usage_count}/{access_code_obj.max_uses} uses) and is permanently expired. "
+                    "Please contact your exam administrator for assistance."
+                )
+            else:
+                resp.message = (
+                    f"This Unique Access ID ({access_code_obj.code}) has been superseded by a newly issued ID or deactivated. "
+                    "Please enter your newly issued Unique ID or contact your administrator."
+                )
             resp.access_code = access_code_obj.code
             resp.access_code_uses = access_code_obj.usage_count
             resp.access_code_max_uses = access_code_obj.max_uses

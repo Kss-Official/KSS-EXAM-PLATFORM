@@ -18,9 +18,9 @@ class CandidateService:
     @staticmethod
     def _to_dto(c: Candidate) -> CandidateDto:
         codes = c.access_codes or []
-        r1_code = next((ac for ac in codes if ac.round == "ROUND_1"), None)
-        r2_code = next((ac for ac in codes if ac.round == "ROUND_2"), None)
-        latest_code = codes[0] if codes else None
+        r1_code = next((ac for ac in codes if ac.round == "ROUND_1" and ac.is_active), None) or next((ac for ac in codes if ac.round == "ROUND_1"), None)
+        r2_code = next((ac for ac in codes if ac.round == "ROUND_2" and ac.is_active), None) or next((ac for ac in codes if ac.round == "ROUND_2"), None)
+        latest_code = next((ac for ac in codes if ac.is_active), None) or (codes[0] if codes else None)
         return CandidateDto(
             id=c.id,
             registration_number=c.registration_number,
@@ -271,14 +271,14 @@ class CandidateService:
 
     @classmethod
     def generate_access_code(
-        cls, db: Session, candidate_id: int, performed_by: str, round_name: str = "ROUND_1"
+        cls, db: Session, candidate_id: int, performed_by: str, round_name: str = "ROUND_1", force_new: bool = False
     ) -> CandidateAccessCodeDto:
         """
         Generates/resets a secure Unique Access ID valid for strictly 3 uses for the given round.
-        Strictly maintains the uniform, predictable pattern:
-          Round 1: MCQ-<REGISTRATION_NUMBER>
-          Round 2: CODE-<REGISTRATION_NUMBER>
-        Never appends random hex suffixes. Resets usage count to 0 and reactivates the canonical ID.
+        Format:
+          Canonical initial: MCQ-<REGISTRATION_NUMBER> or CODE-<REGISTRATION_NUMBER>
+          When force_new=True and code exists: increments to MCQ-<REG>-2, MCQ-<REG>-3, etc.
+        Deactivates previous codes for this candidate & round, and activates the new Unique ID with 3 fresh attempts.
         """
         candidate = db.query(Candidate).filter(Candidate.id == candidate_id).first()
         if not candidate:
@@ -289,36 +289,31 @@ class CandidateService:
 
         # Sanitize candidate registration: uppercase, strip accidental leading MCQ- or CODE- prefixes
         raw_reg = candidate.registration_number.strip().upper()
-        clean_reg = re.sub(r'^(MCQ|CODE)[-_]', '', raw_reg)
-        if not clean_reg:
-            clean_reg = raw_reg
-        target_code = f"{prefix}-{clean_reg}"
+        clean_reg = re.sub(r'^(MCQ|CODE)[-_]', '', raw_reg) or raw_reg
+        base_code = f"{prefix}-{clean_reg}"
 
         now = datetime.now(timezone.utc)
 
-        # Check if an access code already exists for this candidate & round, or with target_code
-        existing_ac = db.query(CandidateAccessCode).filter(
+        # Retrieve all existing access codes for this candidate & round
+        existing_codes = db.query(CandidateAccessCode).filter(
             CandidateAccessCode.candidate_id == candidate_id,
             CandidateAccessCode.round == r_upper
-        ).first()
+        ).order_by(CandidateAccessCode.created_at.desc()).all()
 
-        if not existing_ac:
-            existing_ac = db.query(CandidateAccessCode).filter(
-                CandidateAccessCode.code == target_code
-            ).first()
+        target_code = base_code
+        ac = None
 
-        if existing_ac:
-            # Maintain exact same pattern: reset usage limit, reactivate, and set canonical code
-            existing_ac.candidate_id = candidate.id
-            existing_ac.code = target_code
-            existing_ac.round = r_upper
-            existing_ac.is_active = True
-            existing_ac.usage_count = 0
-            existing_ac.max_uses = 3
-            existing_ac.created_at = now
-            existing_ac.last_used_at = None
-            ac = existing_ac
-        else:
+        if not existing_codes:
+            # First time generating code for this candidate and round: use base canonical code
+            taken = db.query(CandidateAccessCode).filter(CandidateAccessCode.code == base_code).first()
+            if taken and taken.candidate_id != candidate.id:
+                next_v = 2
+                while db.query(CandidateAccessCode).filter(CandidateAccessCode.code == f"{base_code}-{next_v}").first():
+                    next_v += 1
+                target_code = f"{base_code}-{next_v}"
+            else:
+                target_code = base_code
+
             ac = CandidateAccessCode(
                 candidate_id=candidate.id,
                 code=target_code,
@@ -330,20 +325,64 @@ class CandidateService:
             )
             db.add(ac)
             db.flush()
+        else:
+            if not force_new:
+                # If not forcing new, re-activate and reset the canonical or latest code
+                canonical_ac = next((c for c in existing_codes if c.code == base_code), None)
+                ac = canonical_ac or existing_codes[0]
+                ac.is_active = True
+                ac.usage_count = 0
+                ac.max_uses = 3
+                ac.created_at = now
+                ac.last_used_at = None
+                target_code = ac.code
 
-        # Clean up any secondary/salt-appended codes for this candidate & round so only the uniform code remains
-        db.query(CandidateAccessCode).filter(
-            CandidateAccessCode.candidate_id == candidate_id,
-            CandidateAccessCode.round == r_upper,
-            CandidateAccessCode.id != ac.id
-        ).delete(synchronize_session=False)
+                for other in existing_codes:
+                    if other.id != ac.id:
+                        other.is_active = False
+            else:
+                # force_new == True: Generate a brand new, distinct versioned Unique ID
+                versions = [1]
+                for c in existing_codes:
+                    m = re.match(r"^" + re.escape(base_code) + r"-(\d+)$", c.code)
+                    if m:
+                        try:
+                            versions.append(int(m.group(1)))
+                        except ValueError:
+                            pass
+                    elif c.code == base_code:
+                        versions.append(1)
+
+                next_ver = max(versions) + 1
+                target_code = f"{base_code}-{next_ver}"
+
+                # Ensure global uniqueness across candidate_access_codes table
+                while db.query(CandidateAccessCode).filter(CandidateAccessCode.code == target_code).first():
+                    next_ver += 1
+                    target_code = f"{base_code}-{next_ver}"
+
+                # Deactivate all previous codes for this candidate & round
+                for old in existing_codes:
+                    old.is_active = False
+
+                ac = CandidateAccessCode(
+                    candidate_id=candidate.id,
+                    code=target_code,
+                    round=r_upper,
+                    usage_count=0,
+                    max_uses=3,
+                    is_active=True,
+                    created_at=now
+                )
+                db.add(ac)
+                db.flush()
 
         db.add(AuditLog(
             action="GENERATE_ACCESS_CODE",
             entity_type="CandidateAccessCode",
             entity_id=target_code,
             performed_by=performed_by,
-            details=f"Generated {r_upper} uniform access ID {target_code} (3-use limit) for candidate {candidate.registration_number}"
+            details=f"Generated {r_upper} Unique Access ID {target_code} (3-use limit) for candidate {candidate.registration_number}"
         ))
         db.commit()
         db.refresh(ac)
@@ -368,20 +407,23 @@ class CandidateService:
             CandidateAccessCode.round == r_upper,
             CandidateAccessCode.is_active == True,
             CandidateAccessCode.usage_count < CandidateAccessCode.max_uses
-        ).all()
+        ).order_by(CandidateAccessCode.created_at.desc()).all()
 
         mapping = {}
         for c in codes:
             if c.candidate:
-                mapping[c.candidate.registration_number.strip().upper()] = c.code
+                reg = c.candidate.registration_number.strip().upper()
+                if reg not in mapping:
+                    mapping[reg] = c.code
         return mapping
 
     @classmethod
     def batch_generate_round_ids(
-        cls, db: Session, round_name: str = "ROUND_1", performed_by: str = "ADMIN"
+        cls, db: Session, round_name: str = "ROUND_1", performed_by: str = "ADMIN", force_new: bool = False
     ) -> Dict[str, Any]:
         """
-        Generates Unique Access IDs (strictly 3-use limit) in uniform pattern for all eligible candidates in the selected round.
+        Generates Unique Access IDs (strictly 3-use limit) for all eligible candidates in the selected round.
+        When force_new=True, generates a new Unique ID for each candidate.
         """
         r_upper = round_name.upper()
         candidates = db.query(Candidate).filter(Candidate.status == "ACTIVE").all()
@@ -403,24 +445,23 @@ class CandidateService:
 
         for cand in eligible_candidates:
             reg_upper = cand.registration_number.strip().upper()
-            prefix = "MCQ" if r_upper == "ROUND_1" else "CODE"
-            clean_reg = re.sub(r'^(MCQ|CODE)[-_]', '', reg_upper) or reg_upper
-            expected_code = f"{prefix}-{clean_reg}"
 
-            active_code = db.query(CandidateAccessCode).filter(
-                CandidateAccessCode.candidate_id == cand.id,
-                CandidateAccessCode.round == r_upper,
-                CandidateAccessCode.is_active == True,
-                CandidateAccessCode.usage_count < CandidateAccessCode.max_uses
-            ).first()
+            if not force_new:
+                active_code = db.query(CandidateAccessCode).filter(
+                    CandidateAccessCode.candidate_id == cand.id,
+                    CandidateAccessCode.round == r_upper,
+                    CandidateAccessCode.is_active == True,
+                    CandidateAccessCode.usage_count < CandidateAccessCode.max_uses
+                ).order_by(CandidateAccessCode.created_at.desc()).first()
 
-            if active_code and active_code.code == expected_code:
-                already_existed += 1
-                round_map[reg_upper] = active_code.code
-            else:
-                dto = cls.generate_access_code(db, cand.id, performed_by, round_name=r_upper)
-                round_map[reg_upper] = dto.code
-                newly_generated += 1
+                if active_code:
+                    already_existed += 1
+                    round_map[reg_upper] = active_code.code
+                    continue
+
+            dto = cls.generate_access_code(db, cand.id, performed_by, round_name=r_upper, force_new=force_new)
+            round_map[reg_upper] = dto.code
+            newly_generated += 1
 
         return {
             "success": True,
@@ -499,7 +540,7 @@ class CandidateService:
 
     @classmethod
     def generate_selected_round_ids(
-        cls, db: Session, candidate_ids: List[int], round_name: str = "ROUND_1", performed_by: str = "ADMIN"
+        cls, db: Session, candidate_ids: List[int], round_name: str = "ROUND_1", performed_by: str = "ADMIN", force_new: bool = False
     ) -> Dict[str, Any]:
         """
         Generates/resets Unique Access IDs for the specified selected candidate IDs.
@@ -515,7 +556,7 @@ class CandidateService:
 
         for cid in candidate_ids:
             try:
-                dto = cls.generate_access_code(db, cid, performed_by, round_name=r_upper)
+                dto = cls.generate_access_code(db, cid, performed_by, round_name=r_upper, force_new=force_new)
                 cand = db.query(Candidate).filter(Candidate.id == cid).first()
                 if cand:
                     round_map[cand.registration_number.strip().upper()] = dto.code

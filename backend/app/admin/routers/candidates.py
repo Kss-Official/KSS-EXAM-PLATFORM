@@ -75,7 +75,10 @@ def batch_generate_round_ids(
 ):
     """Generates unique IDs with strictly 3-use limits for all eligible candidates in the selected round."""
     round_name = payload.get("round", "ROUND_1")
-    return CandidateService.batch_generate_round_ids(db, round_name=round_name, performed_by=current_user.email)
+    force_new = payload.get("force_new", payload.get("forceNew", True))
+    return CandidateService.batch_generate_round_ids(
+        db, round_name=round_name, performed_by=current_user.email, force_new=force_new
+    )
 
 @router.post("/round-ids/generate-selected")
 def generate_selected_round_ids(
@@ -86,8 +89,9 @@ def generate_selected_round_ids(
     """Generates/resets unique IDs with strictly 3-use limits for selected candidate IDs."""
     candidate_ids = payload.get("candidateIds") or payload.get("candidate_ids") or []
     round_name = payload.get("round", "ROUND_1")
+    force_new = payload.get("force_new", payload.get("forceNew", True))
     return CandidateService.generate_selected_round_ids(
-        db, candidate_ids=candidate_ids, performed_by=current_user.email, round_name=round_name
+        db, candidate_ids=candidate_ids, performed_by=current_user.email, round_name=round_name, force_new=force_new
     )
 
 @router.post("/batch-assign-set")
@@ -157,11 +161,19 @@ def get_batch_send_status(
 def generate_access_code(
     candidate_id: int,
     round: str = "ROUND_1",
+    payload: Optional[Dict[str, Any]] = Body(default=None),
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
     """Generates a secure Unique Access ID valid for strictly 3 uses for the given round."""
-    return CandidateService.generate_access_code(db, candidate_id, current_user.email, round_name=round)
+    force_new = True
+    if payload and isinstance(payload, dict) and "force_new" in payload:
+        force_new = bool(payload["force_new"])
+    elif payload and isinstance(payload, dict) and "forceNew" in payload:
+        force_new = bool(payload["forceNew"])
+    return CandidateService.generate_access_code(
+        db, candidate_id, current_user.email, round_name=round, force_new=force_new
+    )
 
 @router.post("/{candidate_id}/send-access-code")
 def send_access_code(
