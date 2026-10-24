@@ -1,0 +1,23 @@
+{
+  "name": "exam-portal",
+  "version": "2.0.0",
+  "description": "ExamSecure — Enterprise Online Examination & Proctoring Platform",
+  "private": true,
+  "scripts": {
+    "start": "node start.js",
+    "dev": "node start.js",
+    "backend": "python backend/run.py",
+    "frontend": "npm --prefix Frontend run dev",
+    "build": "npm --prefix Frontend run build",
+    "test:backend": "python -m pytest backend/tests"
+  },
+  "keywords": [
+    "exam-portal",
+    "proctoring",
+    "fastapi",
+    "react",
+    "typescript"
+  ],
+  "author": "ExamSecure Team",
+  "license": "UNLICENSED"
+}

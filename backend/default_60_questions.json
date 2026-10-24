@@ -1,0 +1,1622 @@
+[
+  {
+    "id": 1,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "Which principle of object-oriented programming allows one class to acquire properties and methods from another class?",
+    "options": [
+      {
+        "id": 101,
+        "label": "A",
+        "text": "Encapsulation"
+      },
+      {
+        "id": 102,
+        "label": "B",
+        "text": "Inheritance"
+      },
+      {
+        "id": 103,
+        "label": "C",
+        "text": "Polymorphism"
+      },
+      {
+        "id": 104,
+        "label": "D",
+        "text": "Abstraction"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "A train running at 54 km/hr crosses a bridge of length 250 meters in 30 seconds. What is the length of the train?",
+    "options": [
+      {
+        "id": 105,
+        "label": "A",
+        "text": "150 meters"
+      },
+      {
+        "id": 106,
+        "label": "B",
+        "text": "200 meters"
+      },
+      {
+        "id": 107,
+        "label": "C",
+        "text": "250 meters"
+      },
+      {
+        "id": 108,
+        "label": "D",
+        "text": "180 meters"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "If the ratio of two numbers is 3:5 and their sum is 160, what is the value of the greater number?",
+    "options": [
+      {
+        "id": 109,
+        "label": "A",
+        "text": "80"
+      },
+      {
+        "id": 110,
+        "label": "B",
+        "text": "100"
+      },
+      {
+        "id": 111,
+        "label": "C",
+        "text": "96"
+      },
+      {
+        "id": 112,
+        "label": "D",
+        "text": "110"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "A shopkeeper sells an article for ₹840 gaining a profit of 20%. What was the original cost price?",
+    "options": [
+      {
+        "id": 113,
+        "label": "A",
+        "text": "₹700"
+      },
+      {
+        "id": 114,
+        "label": "B",
+        "text": "₹680"
+      },
+      {
+        "id": 115,
+        "label": "C",
+        "text": "₹720"
+      },
+      {
+        "id": 116,
+        "label": "D",
+        "text": "₹750"
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "What is the compound interest on ₹10,000 for 2 years at an annual interest rate of 10% compounded annually?",
+    "options": [
+      {
+        "id": 117,
+        "label": "A",
+        "text": "₹2,000"
+      },
+      {
+        "id": 118,
+        "label": "B",
+        "text": "₹2,100"
+      },
+      {
+        "id": 119,
+        "label": "C",
+        "text": "₹2,050"
+      },
+      {
+        "id": 120,
+        "label": "D",
+        "text": "₹2,200"
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "A vehicle covers a distance of 360 km in 4.5 hours. What is its average speed in meters per second?",
+    "options": [
+      {
+        "id": 121,
+        "label": "A",
+        "text": "20 m/s"
+      },
+      {
+        "id": 122,
+        "label": "B",
+        "text": "22.2 m/s"
+      },
+      {
+        "id": 123,
+        "label": "C",
+        "text": "25 m/s"
+      },
+      {
+        "id": 124,
+        "label": "D",
+        "text": "18 m/s"
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "If 12 engineers can configure a distributed network cluster in 15 days, in how many days can 20 engineers complete it?",
+    "options": [
+      {
+        "id": 125,
+        "label": "A",
+        "text": "8 days"
+      },
+      {
+        "id": 126,
+        "label": "B",
+        "text": "9 days"
+      },
+      {
+        "id": 127,
+        "label": "C",
+        "text": "10 days"
+      },
+      {
+        "id": 128,
+        "label": "D",
+        "text": "12 days"
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "What is the average of the first five prime numbers (2, 3, 5, 7, 11)?",
+    "options": [
+      {
+        "id": 129,
+        "label": "A",
+        "text": "5.6"
+      },
+      {
+        "id": 130,
+        "label": "B",
+        "text": "5.2"
+      },
+      {
+        "id": 131,
+        "label": "C",
+        "text": "4.8"
+      },
+      {
+        "id": 132,
+        "label": "D",
+        "text": "6.2"
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "In a cohort of 60 candidates, 40% are placed in Cloud Ops. How many candidates are placed in other domains?",
+    "options": [
+      {
+        "id": 133,
+        "label": "A",
+        "text": "24"
+      },
+      {
+        "id": 134,
+        "label": "B",
+        "text": "36"
+      },
+      {
+        "id": 135,
+        "label": "C",
+        "text": "32"
+      },
+      {
+        "id": 136,
+        "label": "D",
+        "text": "28"
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "Find the next missing number in the progression: 4, 9, 16, 25, 36, ?",
+    "options": [
+      {
+        "id": 137,
+        "label": "A",
+        "text": "47"
+      },
+      {
+        "id": 138,
+        "label": "B",
+        "text": "49"
+      },
+      {
+        "id": 139,
+        "label": "C",
+        "text": "51"
+      },
+      {
+        "id": 140,
+        "label": "D",
+        "text": "64"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "Pipe A fills a buffer pool in 6 hours, while Pipe B drains it in 9 hours. How long to fill if both operate simultaneously?",
+    "options": [
+      {
+        "id": 141,
+        "label": "A",
+        "text": "15 hours"
+      },
+      {
+        "id": 142,
+        "label": "B",
+        "text": "18 hours"
+      },
+      {
+        "id": 143,
+        "label": "C",
+        "text": "12 hours"
+      },
+      {
+        "id": 144,
+        "label": "D",
+        "text": "14 hours"
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "The perimeter of a square hardware module is 64 cm. What is the surface area of this module?",
+    "options": [
+      {
+        "id": 145,
+        "label": "A",
+        "text": "256 sq cm"
+      },
+      {
+        "id": 146,
+        "label": "B",
+        "text": "128 sq cm"
+      },
+      {
+        "id": 147,
+        "label": "C",
+        "text": "196 sq cm"
+      },
+      {
+        "id": 148,
+        "label": "D",
+        "text": "225 sq cm"
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "What percentage of a 2.5 GB database file is 125 MB?",
+    "options": [
+      {
+        "id": 149,
+        "label": "A",
+        "text": "2.5%"
+      },
+      {
+        "id": 150,
+        "label": "B",
+        "text": "5%"
+      },
+      {
+        "id": 151,
+        "label": "C",
+        "text": "7.5%"
+      },
+      {
+        "id": 152,
+        "label": "D",
+        "text": "10%"
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "What is the diagonal length of a display panel with width 12 inches and height 5 inches?",
+    "options": [
+      {
+        "id": 153,
+        "label": "A",
+        "text": "13 inches"
+      },
+      {
+        "id": 154,
+        "label": "B",
+        "text": "15 inches"
+      },
+      {
+        "id": 155,
+        "label": "C",
+        "text": "17 inches"
+      },
+      {
+        "id": 156,
+        "label": "D",
+        "text": "14 inches"
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "section": "Section A: Quantitative Aptitude",
+    "questionText": "Evaluate the precedence expression: 48 ÷ (6 × 2) + 3 × (8 - 5):",
+    "options": [
+      {
+        "id": 157,
+        "label": "A",
+        "text": "13"
+      },
+      {
+        "id": 158,
+        "label": "B",
+        "text": "11"
+      },
+      {
+        "id": 159,
+        "label": "C",
+        "text": "17"
+      },
+      {
+        "id": 160,
+        "label": "D",
+        "text": "15"
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Pointing to a photograph, a woman says: 'He is the only son of my father's only daughter.' How is the person related to the woman?",
+    "options": [
+      {
+        "id": 161,
+        "label": "A",
+        "text": "Brother"
+      },
+      {
+        "id": 162,
+        "label": "B",
+        "text": "Son"
+      },
+      {
+        "id": 163,
+        "label": "C",
+        "text": "Nephew"
+      },
+      {
+        "id": 164,
+        "label": "D",
+        "text": "Father"
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "If CLOCK is coded as KCOLC in a cipher, how will WATCH be written in that same cipher?",
+    "options": [
+      {
+        "id": 165,
+        "label": "A",
+        "text": "HCTAW"
+      },
+      {
+        "id": 166,
+        "label": "B",
+        "text": "HTCAW"
+      },
+      {
+        "id": 167,
+        "label": "C",
+        "text": "HACTW"
+      },
+      {
+        "id": 168,
+        "label": "D",
+        "text": "WHTAC"
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Statement: 'All microservices communicate via REST. Some REST endpoints use JSON.' Which conclusion is valid?",
+    "options": [
+      {
+        "id": 169,
+        "label": "A",
+        "text": "All microservices use JSON"
+      },
+      {
+        "id": 170,
+        "label": "B",
+        "text": "Some microservice communication uses JSON"
+      },
+      {
+        "id": 171,
+        "label": "C",
+        "text": "No microservices use JSON"
+      },
+      {
+        "id": 172,
+        "label": "D",
+        "text": "All JSON endpoints are microservices"
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Find the odd one out among the following protocol standards:",
+    "options": [
+      {
+        "id": 173,
+        "label": "A",
+        "text": "HTTP"
+      },
+      {
+        "id": 174,
+        "label": "B",
+        "text": "FTP"
+      },
+      {
+        "id": 175,
+        "label": "C",
+        "text": "SMTP"
+      },
+      {
+        "id": 176,
+        "label": "D",
+        "text": "JPEG"
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "A person travels 5 km North, turns right and walks 3 km, then turns right and walks 5 km. How far is he from the starting point?",
+    "options": [
+      {
+        "id": 177,
+        "label": "A",
+        "text": "3 km East"
+      },
+      {
+        "id": 178,
+        "label": "B",
+        "text": "5 km North"
+      },
+      {
+        "id": 179,
+        "label": "C",
+        "text": "3 km West"
+      },
+      {
+        "id": 180,
+        "label": "D",
+        "text": "8 km South"
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Complete the alphanumeric sequence: B2D, D4F, F6H, H8J, ?",
+    "options": [
+      {
+        "id": 181,
+        "label": "A",
+        "text": "J10L"
+      },
+      {
+        "id": 182,
+        "label": "B",
+        "text": "J12K"
+      },
+      {
+        "id": 183,
+        "label": "C",
+        "text": "K10L"
+      },
+      {
+        "id": 184,
+        "label": "D",
+        "text": "I10K"
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "If '+' means multiply, '-' means divide, '×' means add, and '÷' means subtract, calculate: 15 × 5 + 4 - 2 ÷ 3:",
+    "options": [
+      {
+        "id": 185,
+        "label": "A",
+        "text": "22"
+      },
+      {
+        "id": 186,
+        "label": "B",
+        "text": "25"
+      },
+      {
+        "id": 187,
+        "label": "C",
+        "text": "20"
+      },
+      {
+        "id": 188,
+        "label": "D",
+        "text": "28"
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "In a queue of 40 developers, Rohit is 14th from the front. What is his position from the rear end?",
+    "options": [
+      {
+        "id": 189,
+        "label": "A",
+        "text": "26th"
+      },
+      {
+        "id": 190,
+        "label": "B",
+        "text": "27th"
+      },
+      {
+        "id": 191,
+        "label": "C",
+        "text": "28th"
+      },
+      {
+        "id": 192,
+        "label": "D",
+        "text": "25th"
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Which word cannot be formed using the letters of the keyword 'AUTHENTICATION'?",
+    "options": [
+      {
+        "id": 193,
+        "label": "A",
+        "text": "NATION"
+      },
+      {
+        "id": 194,
+        "label": "B",
+        "text": "ACTION"
+      },
+      {
+        "id": 195,
+        "label": "C",
+        "text": "AUTHENTIC"
+      },
+      {
+        "id": 196,
+        "label": "D",
+        "text": "ROUTINE"
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "If Monday falls on January 1st of a non-leap year, which day of the week will January 31st be?",
+    "options": [
+      {
+        "id": 197,
+        "label": "A",
+        "text": "Tuesday"
+      },
+      {
+        "id": 198,
+        "label": "B",
+        "text": "Wednesday"
+      },
+      {
+        "id": 199,
+        "label": "C",
+        "text": "Thursday"
+      },
+      {
+        "id": 200,
+        "label": "D",
+        "text": "Friday"
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "A cube has six faces painted with different colors. Red is opposite Blue. Green is between Red and Blue. What is opposite Green?",
+    "options": [
+      {
+        "id": 201,
+        "label": "A",
+        "text": "Yellow or White"
+      },
+      {
+        "id": 202,
+        "label": "B",
+        "text": "Red"
+      },
+      {
+        "id": 203,
+        "label": "C",
+        "text": "Blue"
+      },
+      {
+        "id": 204,
+        "label": "D",
+        "text": "Cannot be determined"
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Five nodes A, B, C, D, E are in a cluster. B is faster than A but slower than C. D is faster than E but slower than A. Which is fastest?",
+    "options": [
+      {
+        "id": 205,
+        "label": "A",
+        "text": "C"
+      },
+      {
+        "id": 206,
+        "label": "B",
+        "text": "B"
+      },
+      {
+        "id": 207,
+        "label": "C",
+        "text": "D"
+      },
+      {
+        "id": 208,
+        "label": "D",
+        "text": "A"
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Choose the correct analogy: Compiler : Bytecode :: Interpreter : ?",
+    "options": [
+      {
+        "id": 209,
+        "label": "A",
+        "text": "Machine Code / Direct Execution"
+      },
+      {
+        "id": 210,
+        "label": "B",
+        "text": "Assembly"
+      },
+      {
+        "id": 211,
+        "label": "C",
+        "text": "High Level Syntax"
+      },
+      {
+        "id": 212,
+        "label": "D",
+        "text": "Linker"
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "Select the pair that exhibits the same relationship as 'ENCRYPT : DECRYPT':",
+    "options": [
+      {
+        "id": 213,
+        "label": "A",
+        "text": "Compress : Decompress"
+      },
+      {
+        "id": 214,
+        "label": "B",
+        "text": "Store : Read"
+      },
+      {
+        "id": 215,
+        "label": "C",
+        "text": "Compile : Link"
+      },
+      {
+        "id": 216,
+        "label": "D",
+        "text": "Lock : Secure"
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "section": "Section B: Logical Reasoning",
+    "questionText": "In a binary matrix of size 3x3, if each cell has either 0 or 1, what is the total number of distinct matrix configurations?",
+    "options": [
+      {
+        "id": 217,
+        "label": "A",
+        "text": "512 (2^9)"
+      },
+      {
+        "id": 218,
+        "label": "B",
+        "text": "256 (2^8)"
+      },
+      {
+        "id": 219,
+        "label": "C",
+        "text": "1024 (2^10)"
+      },
+      {
+        "id": 220,
+        "label": "D",
+        "text": "64"
+      }
+    ]
+  },
+  {
+    "id": 31,
+    "section": "Section C: Technical Core",
+    "questionText": "Which SQL command is commonly used to retrieve records from a database table without mutating state?",
+    "options": [
+      {
+        "id": 221,
+        "label": "A",
+        "text": "SELECT"
+      },
+      {
+        "id": 222,
+        "label": "B",
+        "text": "FETCH ONLY"
+      },
+      {
+        "id": 223,
+        "label": "C",
+        "text": "OPEN TABLE"
+      },
+      {
+        "id": 224,
+        "label": "D",
+        "text": "PULL ROWS"
+      }
+    ]
+  },
+  {
+    "id": 32,
+    "section": "Section C: Technical Core",
+    "questionText": "Which data structure follows the Last In, First Out (LIFO) operational principle?",
+    "options": [
+      {
+        "id": 225,
+        "label": "A",
+        "text": "Stack"
+      },
+      {
+        "id": 226,
+        "label": "B",
+        "text": "Queue"
+      },
+      {
+        "id": 227,
+        "label": "C",
+        "text": "Linked List"
+      },
+      {
+        "id": 228,
+        "label": "D",
+        "text": "Binary Tree"
+      }
+    ]
+  },
+  {
+    "id": 33,
+    "section": "Section C: Technical Core",
+    "questionText": "What is the worst-case time complexity of searching for an element in an unsorted array of size N?",
+    "options": [
+      {
+        "id": 229,
+        "label": "A",
+        "text": "O(N)"
+      },
+      {
+        "id": 230,
+        "label": "B",
+        "text": "O(log N)"
+      },
+      {
+        "id": 231,
+        "label": "C",
+        "text": "O(1)"
+      },
+      {
+        "id": 232,
+        "label": "D",
+        "text": "O(N log N)"
+      }
+    ]
+  },
+  {
+    "id": 34,
+    "section": "Section C: Technical Core",
+    "questionText": "In Java Spring Boot, which annotation marks a class as a component providing specialized service business logic?",
+    "options": [
+      {
+        "id": 233,
+        "label": "A",
+        "text": "@Service"
+      },
+      {
+        "id": 234,
+        "label": "B",
+        "text": "@Controller"
+      },
+      {
+        "id": 235,
+        "label": "C",
+        "text": "@Repository"
+      },
+      {
+        "id": 236,
+        "label": "D",
+        "text": "@Configuration"
+      }
+    ]
+  },
+  {
+    "id": 35,
+    "section": "Section C: Technical Core",
+    "questionText": "What is the primary role of Inversion of Control (IoC) in modern enterprise frameworks?",
+    "options": [
+      {
+        "id": 237,
+        "label": "A",
+        "text": "Decouple component creation and dependency wiring"
+      },
+      {
+        "id": 238,
+        "label": "B",
+        "text": "Directly compile Java into byte arrays"
+      },
+      {
+        "id": 239,
+        "label": "C",
+        "text": "Execute load testing scenarios"
+      },
+      {
+        "id": 240,
+        "label": "D",
+        "text": "Encrypt database credentials"
+      }
+    ]
+  },
+  {
+    "id": 36,
+    "section": "Section C: Technical Core",
+    "questionText": "Which HTTP status code signifies that a client request lacks valid authentication credentials?",
+    "options": [
+      {
+        "id": 241,
+        "label": "A",
+        "text": "401 Unauthorized"
+      },
+      {
+        "id": 242,
+        "label": "B",
+        "text": "403 Forbidden"
+      },
+      {
+        "id": 243,
+        "label": "C",
+        "text": "404 Not Found"
+      },
+      {
+        "id": 244,
+        "label": "D",
+        "text": "500 Internal Error"
+      }
+    ]
+  },
+  {
+    "id": 37,
+    "section": "Section C: Technical Core",
+    "questionText": "In relational database management systems, what does the ACID property 'Atomicity' guarantee?",
+    "options": [
+      {
+        "id": 245,
+        "label": "A",
+        "text": "All transaction steps succeed or all are rolled back"
+      },
+      {
+        "id": 246,
+        "label": "B",
+        "text": "Data remains consistent across all replicas"
+      },
+      {
+        "id": 247,
+        "label": "C",
+        "text": "Transactions execute isolated without interference"
+      },
+      {
+        "id": 248,
+        "label": "D",
+        "text": "Committed data persists permanently across power loss"
+      }
+    ]
+  },
+  {
+    "id": 38,
+    "section": "Section C: Technical Core",
+    "questionText": "Which index data structure is most widely used by default in relational databases (e.g. PostgreSQL, MySQL)?",
+    "options": [
+      {
+        "id": 249,
+        "label": "A",
+        "text": "B-Tree (Balanced Tree)"
+      },
+      {
+        "id": 250,
+        "label": "B",
+        "text": "Hash Table"
+      },
+      {
+        "id": 251,
+        "label": "C",
+        "text": "Binary Search Tree"
+      },
+      {
+        "id": 252,
+        "label": "D",
+        "text": "Trie"
+      }
+    ]
+  },
+  {
+    "id": 39,
+    "section": "Section C: Technical Core",
+    "questionText": "In React, what hook is used to perform side effects like data fetching or subscription cleanup?",
+    "options": [
+      {
+        "id": 253,
+        "label": "A",
+        "text": "useEffect"
+      },
+      {
+        "id": 254,
+        "label": "B",
+        "text": "useState"
+      },
+      {
+        "id": 255,
+        "label": "C",
+        "text": "useMemo"
+      },
+      {
+        "id": 256,
+        "label": "D",
+        "text": "useContext"
+      }
+    ]
+  },
+  {
+    "id": 40,
+    "section": "Section C: Technical Core",
+    "questionText": "What is the key advantage of using connection pooling in backend database drivers?",
+    "options": [
+      {
+        "id": 257,
+        "label": "A",
+        "text": "Reuses existing TCP connections to reduce handshake overhead"
+      },
+      {
+        "id": 258,
+        "label": "B",
+        "text": "Encrypts all SQL tables automatically"
+      },
+      {
+        "id": 259,
+        "label": "C",
+        "text": "Replaces database constraints"
+      },
+      {
+        "id": 260,
+        "label": "D",
+        "text": "Prevents duplicate primary key inserts"
+      }
+    ]
+  },
+  {
+    "id": 41,
+    "section": "Section C: Technical Core",
+    "questionText": "Which HTTP request method is inherently idempotent according to RFC specifications?",
+    "options": [
+      {
+        "id": 261,
+        "label": "A",
+        "text": "GET and PUT"
+      },
+      {
+        "id": 262,
+        "label": "B",
+        "text": "POST only"
+      },
+      {
+        "id": 263,
+        "label": "C",
+        "text": "PATCH only"
+      },
+      {
+        "id": 264,
+        "label": "D",
+        "text": "CONNECT"
+      }
+    ]
+  },
+  {
+    "id": 42,
+    "section": "Section C: Technical Core",
+    "questionText": "What type of join in SQL returns all records from the left table and matched records from the right table?",
+    "options": [
+      {
+        "id": 265,
+        "label": "A",
+        "text": "LEFT OUTER JOIN"
+      },
+      {
+        "id": 266,
+        "label": "B",
+        "text": "INNER JOIN"
+      },
+      {
+        "id": 267,
+        "label": "C",
+        "text": "RIGHT OUTER JOIN"
+      },
+      {
+        "id": 268,
+        "label": "D",
+        "text": "CROSS JOIN"
+      }
+    ]
+  },
+  {
+    "id": 43,
+    "section": "Section C: Technical Core",
+    "questionText": "In Java memory management, where are object instances allocated at runtime?",
+    "options": [
+      {
+        "id": 269,
+        "label": "A",
+        "text": "Heap Memory"
+      },
+      {
+        "id": 270,
+        "label": "B",
+        "text": "Call Stack"
+      },
+      {
+        "id": 271,
+        "label": "C",
+        "text": "Register File"
+      },
+      {
+        "id": 272,
+        "label": "D",
+        "text": "Metaspace only"
+      }
+    ]
+  },
+  {
+    "id": 44,
+    "section": "Section C: Technical Core",
+    "questionText": "Which transport protocol guarantees ordered, reliable, and error-checked delivery of a stream of octets?",
+    "options": [
+      {
+        "id": 273,
+        "label": "A",
+        "text": "TCP (Transmission Control Protocol)"
+      },
+      {
+        "id": 274,
+        "label": "B",
+        "text": "UDP (User Datagram Protocol)"
+      },
+      {
+        "id": 275,
+        "label": "C",
+        "text": "IP (Internet Protocol)"
+      },
+      {
+        "id": 276,
+        "label": "D",
+        "text": "ICMP"
+      }
+    ]
+  },
+  {
+    "id": 45,
+    "section": "Section C: Technical Core",
+    "questionText": "What is the primary function of a reverse proxy like NGINX in production architectures?",
+    "options": [
+      {
+        "id": 277,
+        "label": "A",
+        "text": "Load balancing, SSL termination, and routing requests to internal servers"
+      },
+      {
+        "id": 278,
+        "label": "B",
+        "text": "Executing SQL transactions"
+      },
+      {
+        "id": 279,
+        "label": "C",
+        "text": "Compiling JavaScript files"
+      },
+      {
+        "id": 280,
+        "label": "D",
+        "text": "Managing database migrations"
+      }
+    ]
+  },
+  {
+    "id": 46,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Choose the word most nearly opposite in meaning (antonym) to 'EXPEDITE':",
+    "options": [
+      {
+        "id": 281,
+        "label": "A",
+        "text": "Delay / Impede"
+      },
+      {
+        "id": 282,
+        "label": "B",
+        "text": "Accelerate"
+      },
+      {
+        "id": 283,
+        "label": "C",
+        "text": "Promote"
+      },
+      {
+        "id": 284,
+        "label": "D",
+        "text": "Dispatch"
+      }
+    ]
+  },
+  {
+    "id": 47,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Select the correctly spelt word from the options below:",
+    "options": [
+      {
+        "id": 285,
+        "label": "A",
+        "text": "Accommodate"
+      },
+      {
+        "id": 286,
+        "label": "B",
+        "text": "Acommodate"
+      },
+      {
+        "id": 287,
+        "label": "C",
+        "text": "Accomodate"
+      },
+      {
+        "id": 288,
+        "label": "D",
+        "text": "Acomodate"
+      }
+    ]
+  },
+  {
+    "id": 48,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Fill in the blank with the appropriate preposition: 'The team adheres strictly _____ engineering standards.'",
+    "options": [
+      {
+        "id": 289,
+        "label": "A",
+        "text": "to"
+      },
+      {
+        "id": 290,
+        "label": "B",
+        "text": "with"
+      },
+      {
+        "id": 291,
+        "label": "C",
+        "text": "at"
+      },
+      {
+        "id": 292,
+        "label": "D",
+        "text": "for"
+      }
+    ]
+  },
+  {
+    "id": 49,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Choose the synonym for 'METICULOUS':",
+    "options": [
+      {
+        "id": 293,
+        "label": "A",
+        "text": "Careful and precise"
+      },
+      {
+        "id": 294,
+        "label": "B",
+        "text": "Careless"
+      },
+      {
+        "id": 295,
+        "label": "C",
+        "text": "Hasty"
+      },
+      {
+        "id": 296,
+        "label": "D",
+        "text": "Uncertain"
+      }
+    ]
+  },
+  {
+    "id": 50,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Identify the grammatically correct sentence:",
+    "options": [
+      {
+        "id": 297,
+        "label": "A",
+        "text": "Neither the manager nor the engineers were present at the standup."
+      },
+      {
+        "id": 298,
+        "label": "B",
+        "text": "Neither the manager nor the engineers was present at the standup."
+      },
+      {
+        "id": 299,
+        "label": "C",
+        "text": "Neither the manager or the engineers was present at the standup."
+      },
+      {
+        "id": 300,
+        "label": "D",
+        "text": "Neither the manager nor the engineers is present at the standup."
+      }
+    ]
+  },
+  {
+    "id": 51,
+    "section": "Section D: Verbal Ability",
+    "questionText": "What does the idiom 'Bite the bullet' mean?",
+    "options": [
+      {
+        "id": 301,
+        "label": "A",
+        "text": "To face an inevitable grim situation with courage"
+      },
+      {
+        "id": 302,
+        "label": "B",
+        "text": "To make a rash and violent decision"
+      },
+      {
+        "id": 303,
+        "label": "C",
+        "text": "To surrender unconditionally"
+      },
+      {
+        "id": 304,
+        "label": "D",
+        "text": "To celebrate an unexpected milestone"
+      }
+    ]
+  },
+  {
+    "id": 52,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Choose the word that best substitutes: 'A person with extensive knowledge in many subject domains':",
+    "options": [
+      {
+        "id": 305,
+        "label": "A",
+        "text": "Polymath"
+      },
+      {
+        "id": 306,
+        "label": "B",
+        "text": "Novice"
+      },
+      {
+        "id": 307,
+        "label": "C",
+        "text": "Amateur"
+      },
+      {
+        "id": 308,
+        "label": "D",
+        "text": "Skeptic"
+      }
+    ]
+  },
+  {
+    "id": 53,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Fill in the blank: 'Had she known about the deployment schedule, she _____ notified the stakeholders.'",
+    "options": [
+      {
+        "id": 309,
+        "label": "A",
+        "text": "would have"
+      },
+      {
+        "id": 310,
+        "label": "B",
+        "text": "will have"
+      },
+      {
+        "id": 311,
+        "label": "C",
+        "text": "would"
+      },
+      {
+        "id": 312,
+        "label": "D",
+        "text": "will"
+      }
+    ]
+  },
+  {
+    "id": 54,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Choose the antonym for 'CANDID':",
+    "options": [
+      {
+        "id": 313,
+        "label": "A",
+        "text": "Evasive / Deceptive"
+      },
+      {
+        "id": 314,
+        "label": "B",
+        "text": "Frank"
+      },
+      {
+        "id": 315,
+        "label": "C",
+        "text": "Honest"
+      },
+      {
+        "id": 316,
+        "label": "D",
+        "text": "Direct"
+      }
+    ]
+  },
+  {
+    "id": 55,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Select the sentence with proper punctuation and capitalisation:",
+    "options": [
+      {
+        "id": 317,
+        "label": "A",
+        "text": "The system's throughput is optimal; however, latency requires profiling."
+      },
+      {
+        "id": 318,
+        "label": "B",
+        "text": "The systems throughput is optimal, however latency requires profiling."
+      },
+      {
+        "id": 319,
+        "label": "C",
+        "text": "The system's throughput is optimal however; latency requires profiling."
+      },
+      {
+        "id": 320,
+        "label": "D",
+        "text": "The systems' throughput is optimal; however latency requires profiling."
+      }
+    ]
+  },
+  {
+    "id": 56,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Choose the correct meaning of the phrasal verb 'Phase out':",
+    "options": [
+      {
+        "id": 321,
+        "label": "A",
+        "text": "Gradually discontinue the use or production of something"
+      },
+      {
+        "id": 322,
+        "label": "B",
+        "text": "Suddenly introduce a new feature"
+      },
+      {
+        "id": 323,
+        "label": "C",
+        "text": "Temporarily pause execution"
+      },
+      {
+        "id": 324,
+        "label": "D",
+        "text": "Accelerate delivery"
+      }
+    ]
+  },
+  {
+    "id": 57,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Fill in the blank: 'The architect was praised for her _____ approach to distributed cloud reliability.'",
+    "options": [
+      {
+        "id": 325,
+        "label": "A",
+        "text": "innovative"
+      },
+      {
+        "id": 326,
+        "label": "B",
+        "text": "innovatively"
+      },
+      {
+        "id": 327,
+        "label": "C",
+        "text": "innovation"
+      },
+      {
+        "id": 328,
+        "label": "D",
+        "text": "innovate"
+      }
+    ]
+  },
+  {
+    "id": 58,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Choose the word most similar in meaning (synonym) to 'ROBUST':",
+    "options": [
+      {
+        "id": 329,
+        "label": "A",
+        "text": "Resilient and sturdy"
+      },
+      {
+        "id": 330,
+        "label": "B",
+        "text": "Fragile"
+      },
+      {
+        "id": 331,
+        "label": "C",
+        "text": "Incomplete"
+      },
+      {
+        "id": 332,
+        "label": "D",
+        "text": "Volatile"
+      }
+    ]
+  },
+  {
+    "id": 59,
+    "section": "Section D: Verbal Ability",
+    "questionText": "Identify the part of speech of the word 'EFFICIENTLY' in: 'The caching layer serves requests efficiently.'",
+    "options": [
+      {
+        "id": 333,
+        "label": "A",
+        "text": "Adverb"
+      },
+      {
+        "id": 334,
+        "label": "B",
+        "text": "Adjective"
+      },
+      {
+        "id": 335,
+        "label": "C",
+        "text": "Noun"
+      },
+      {
+        "id": 336,
+        "label": "D",
+        "text": "Conjunction"
+      }
+    ]
+  },
+  {
+    "id": 60,
+    "section": "Section D: Verbal Ability",
+    "questionText": "What is the logical conclusion of the passage: 'Automated testing reduces human regression errors, enabling faster release cadences.'?",
+    "options": [
+      {
+        "id": 337,
+        "label": "A",
+        "text": "Automated testing contributes to higher software deployment velocity"
+      },
+      {
+        "id": 338,
+        "label": "B",
+        "text": "Human testers should be completely abolished"
+      },
+      {
+        "id": 339,
+        "label": "C",
+        "text": "Release cadences are independent of testing"
+      },
+      {
+        "id": 340,
+        "label": "D",
+        "text": "Manual testing is faster than automated testing"
+      }
+    ]
+  }
+]

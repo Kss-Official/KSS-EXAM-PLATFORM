@@ -473,14 +473,25 @@ export default function CreateExamPage() {
     <div style={{ maxWidth: "1050px", margin: "0 auto", paddingBottom: "60px" }}>
       {/* Top back navigation */}
       <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <button 
-          type="button" 
-          className="secondary" 
-          onClick={() => navigate("/admin/exams")}
-          style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-        >
-          <ArrowLeft size={14} /> Back to Examinations
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button 
+            type="button" 
+            className="secondary" 
+            onClick={() => navigate("/admin/exams/new")}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            title="Return to Round Selection"
+          >
+            <ArrowLeft size={14} /> Back to Round Selection
+          </button>
+          <button 
+            type="button" 
+            className="secondary" 
+            onClick={() => navigate("/admin/exams")}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11.5px" }}
+          >
+            All Exams
+          </button>
+        </div>
 
         <span style={{ fontSize: "11px", color: "#64748b" }}>
           ExamSecure Assessment Engine · Integrated Department & Question Management
@@ -564,8 +575,8 @@ export default function CreateExamPage() {
                 padding: "8px 12px",
                 borderRadius: "8px",
                 border: "none",
-                background: isActive ? "#eff6ff" : "transparent",
-                color: isActive ? "#1d4ed8" : (isDone ? "#166534" : "#64748b"),
+                background: isActive ? "#EAF6EF" : "transparent",
+                color: isActive ? "#017846" : (isDone ? "#166534" : "#64748b"),
                 cursor: "pointer",
                 textAlign: "left",
                 transition: "all 0.15s ease",
@@ -577,7 +588,7 @@ export default function CreateExamPage() {
                 width: "24px",
                 height: "24px",
                 borderRadius: "50%",
-                background: isActive ? "#2563eb" : (isDone ? "#dcfce7" : "#f1f5f9"),
+                background: isActive ? "#017846" : (isDone ? "#dcfce7" : "#f1f5f9"),
                 color: isActive ? "#ffffff" : (isDone ? "#166534" : "#64748b"),
                 display: "grid",
                 placeItems: "center",
@@ -600,7 +611,7 @@ export default function CreateExamPage() {
         {wizardStep === 1 && (
           <div className="admin-form-card" style={{ marginBottom: "20px" }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Calendar size={18} color="#365fe5" /> 1. Examination Details & Timing
+            <Calendar size={18} color="#017846" /> 1. Examination Details & Timing
           </h3>
 
           <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -713,7 +724,7 @@ export default function CreateExamPage() {
         {wizardStep === 2 && (
           <div className="admin-form-card" style={{ marginBottom: "20px" }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-            <Layers size={18} color="#365fe5" /> 2. Marking Scheme & Qualification Rules
+            <Layers size={18} color="#017846" /> 2. Marking Scheme & Qualification Rules
           </h3>
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "16px" }}>
@@ -826,7 +837,7 @@ export default function CreateExamPage() {
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
             <div>
               <h3 style={{ margin: "0 0 4px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-                <Building2 size={18} color="#365fe5" /> 3. Department-Wise Question Sets & MCQ Extraction
+                <Building2 size={18} color="#017846" /> 3. Department-Wise Question Sets & MCQ Extraction
               </h3>
               <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
                 Every assigned department has four independent sets (Set A, Set B, Set C, Set D). Attach question papers & answer keys directly to each set — text and MCQs are extracted automatically in-memory.
@@ -861,7 +872,7 @@ export default function CreateExamPage() {
           {showAddDeptForm && (
             <div style={{ background: "#f8fafc", border: "1px solid #cbd5e1", borderRadius: "8px", padding: "16px", marginBottom: "16px" }}>
               <h4 style={{ margin: "0 0 10px 0", fontSize: "13px", color: "#1e293b", display: "flex", alignItems: "center", gap: "6px" }}>
-                <FolderPlus size={15} color="#365fe5" /> Create New Academic / Functional Department
+                <FolderPlus size={15} color="#017846" /> Create New Academic / Functional Department
               </h4>
               {deptFormError && (
                 <div style={{ color: "#dc2626", fontSize: "11px", marginBottom: "8px" }}>{deptFormError}</div>
@@ -976,7 +987,7 @@ export default function CreateExamPage() {
                 <button
                   type="button"
                   onClick={handleSelectAllDepts}
-                  style={{ background: "none", border: "none", color: "#365fe5", cursor: "pointer", fontSize: "12px", padding: 0 }}
+                  style={{ background: "none", border: "none", color: "#017846", cursor: "pointer", fontSize: "12px", padding: 0 }}
                 >
                   Add All
                 </button>
@@ -1048,7 +1059,7 @@ export default function CreateExamPage() {
                       alignItems: "center"
                     }}>
                       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <Building2 size={18} color="#2563eb" />
+                        <Building2 size={18} color="#017846" />
                         <div>
                           <strong style={{ fontSize: "14px", color: "#0f172a" }}>{dept.name}</strong>
                           <span style={{ marginLeft: "8px", fontSize: "11px", background: "#e0e7ff", color: "#3730a3", padding: "2px 7px", borderRadius: "4px", fontWeight: 700 }}>
@@ -1120,7 +1131,7 @@ export default function CreateExamPage() {
                                     height: "22px",
                                     lineHeight: "22px",
                                     borderRadius: "50%",
-                                    background: hasQuestions ? "#16a34a" : (isConfigured ? "#2563eb" : "#64748b"),
+                                    background: hasQuestions ? "#16a34a" : (isConfigured ? "#017846" : "#64748b"),
                                     color: "#ffffff",
                                     textAlign: "center",
                                     fontWeight: 700,
@@ -1136,8 +1147,8 @@ export default function CreateExamPage() {
                                   padding: "2px 8px",
                                   borderRadius: "10px",
                                   fontWeight: 600,
-                                  background: hasQuestions ? "#dcfce7" : (isComplete ? "#dbeafe" : "#f1f5f9"),
-                                  color: hasQuestions ? "#15803d" : (isComplete ? "#1d4ed8" : "#64748b")
+                                  background: hasQuestions ? "#dcfce7" : (isComplete ? "#EAF6EF" : "#f1f5f9"),
+                                  color: hasQuestions ? "#15803d" : (isComplete ? "#017846" : "#64748b")
                                 }}>
                                   {isExtracting ? "⏳ Extracting..." : (hasQuestions ? `✓ ${setQuestions.length} MCQs Extracted` : (isComplete ? "✓ Fully Configured" : (qp ? "Paper Attached" : (ak ? "Key Attached" : "Not Configured"))))}
                                 </span>
@@ -1235,7 +1246,7 @@ export default function CreateExamPage() {
 
                               {/* Live In-Memory MCQ Extraction Status & Preview */}
                               {isExtracting && (
-                                <div style={{ marginTop: "8px", fontSize: "11px", color: "#2563eb", display: "flex", alignItems: "center", gap: "6px" }}>
+                                <div style={{ marginTop: "8px", fontSize: "11px", color: "#017846", display: "flex", alignItems: "center", gap: "6px" }}>
                                   <span>⏳ Extracting text & MCQs from PDF in-memory...</span>
                                 </div>
                               )}
@@ -1257,7 +1268,7 @@ export default function CreateExamPage() {
                                   <button
                                     type="button"
                                     onClick={() => setReviewingSet({ deptName: dept.name, deptId: dept.id, setCode, questions: setQuestions })}
-                                    style={{ background: "none", border: "none", color: "#2563eb", fontSize: "11px", fontWeight: 600, cursor: "pointer", padding: 0 }}
+                                    style={{ background: "none", border: "none", color: "#017846", fontSize: "11px", fontWeight: 600, cursor: "pointer", padding: 0 }}
                                   >
                                     Review Questions ({setQuestions.length}) →
                                   </button>
@@ -1317,7 +1328,7 @@ export default function CreateExamPage() {
                 <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
                   <small style={{ color: "#64748b", display: "block", fontSize: "11px" }}>Title & Duration</small>
                   <b style={{ color: "#0f172a", fontSize: "13px" }}>{title || "(Untitled Examination)"}</b>
-                  <div style={{ fontSize: "11px", color: "#2563eb", marginTop: "4px" }}>{durationMinutes} Minutes ({timingMode === "SCHEDULED" ? `Scheduled: ${examDate} at ${startTime}` : "On-Demand Duration"})</div>
+                  <div style={{ fontSize: "11px", color: "#017846", marginTop: "4px" }}>{durationMinutes} Minutes ({timingMode === "SCHEDULED" ? `Scheduled: ${examDate} at ${startTime}` : "On-Demand Duration"})</div>
                 </div>
 
                 <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
@@ -1384,8 +1395,8 @@ export default function CreateExamPage() {
                                   fontSize: "11px",
                                   padding: "2px 7px",
                                   borderRadius: "4px",
-                                  background: qCount > 0 ? "#dcfce7" : (isConfigured ? "#dbeafe" : "#f1f5f9"),
-                                  color: qCount > 0 ? "#15803d" : (isConfigured ? "#1d4ed8" : "#64748b"),
+                                  background: qCount > 0 ? "#dcfce7" : (isConfigured ? "#EAF6EF" : "#f1f5f9"),
+                                  color: qCount > 0 ? "#15803d" : (isConfigured ? "#017846" : "#64748b"),
                                   fontWeight: 600
                                 }}
                               >
@@ -1439,7 +1450,7 @@ export default function CreateExamPage() {
 
               <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                 {submissionProgress && (
-                  <span style={{ fontSize: "12px", color: "#2563eb", fontWeight: 600 }}>
+                  <span style={{ fontSize: "12px", color: "#017846", fontWeight: 600 }}>
                     ⏳ {submissionProgress}
                   </span>
                 )}

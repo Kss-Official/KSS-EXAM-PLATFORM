@@ -36,10 +36,10 @@
 **ExamSecure** is an enterprise-grade, high-security online examination and automated proctoring platform engineered for educational institutions, corporate recruitment, and competitive assessment authorities. 
 
 The system solves critical vulnerabilities common in traditional online examination software:
-- **Zero-Disk In-Memory Parsing**: Eliminates storage leaks of unreleased examination papers by extracting MCQs in volatile RAM via Apache PDFBox.
+- **Zero-Disk In-Memory Parsing**: Eliminates storage leaks of unreleased examination papers by extracting MCQs in volatile RAM via PyPDF (`pypdf`).
 - **Department-Isolated 4-Set Question Banks**: Each exam supports multiple academic departments, each possessing four distinct balanced question sets (Set A, Set B, Set C, Set D) with independent answer keys and difficulty balancing.
 - **Candidate-Level Double Shuffling**: Every candidate is allocated a department-specific set, with deterministic per-attempt randomization of both question sequences and option labels (A, B, C, D), eliminating side-by-side shoulder surfing.
-- **Instant High-Throughput Batch Persistence**: Eliminates connection timeouts and latency bottlenecks across distributed cloud databases via JPA/Hibernate batch persistence (`saveAll`).
+- **Instant High-Throughput Batch Persistence**: Eliminates connection timeouts and latency bottlenecks across distributed cloud databases via SQLAlchemy bulk inserts and joined eager loads.
 - **Comprehensive Proctoring & Tamper-Evident Auditing**: Fullscreen lockdown, blur/tab-switch tracking, copy/paste prevention, cryptographic SHA-256 document hashing, and immutable action logging.
 
 ---
@@ -48,76 +48,19 @@ The system solves critical vulnerabilities common in traditional online examinat
 
 ExamSecure utilizes a decoupled client-server architecture:
 - **Client Tier**: Single Page Application (SPA) built with React 18, TypeScript, Vite, and modern CSS design tokens with glassmorphic aesthetics.
-- **Application Tier**: High-concurrency RESTful micro-service built on Java 23 / Java 21, Spring Boot 4.1.1, Spring Security with stateless JWT, and Hibernate ORM.
-- **Data Tier**: Cloud-managed PostgreSQL 17 (Supabase) accessed via HikariCP connection pooling with SSL encryption and Flyway schema migrations.
-
-```mermaid
-graph TD
-    subgraph Client Tier
-        AdminUI["React Admin Console\n(Vite + TypeScript)"]
-        CandidateUI["Candidate Assessment Portal\n(Proctored Client)"]
-    end
-
-    subgraph Security & API Gateway
-        JWTAuth["JWT Authentication\n& Rate Limiter"]
-        CORS["CORS & Web Security Filter"]
-    end
-
-    subgraph Spring Boot Backend Tier
-        AuthController["AuthController"]
-        ExamCtrl["AdminExamController"]
-        DeptCtrl["AdminDepartmentController"]
-        QCtrl["AdminQuestionController"]
-        CandidateCtrl["CandidatePortalController"]
-        
-        ExamSvc["ExamService"]
-        QSvc["QuestionService"]
-        PDFSvc["InMemoryPdfService (PDFBox)"]
-        CandidateSvc["CandidateExamService"]
-        DocSvc["DocumentStorageService"]
-    end
-
-    subgraph Persistence Tier
-        Hikari["HikariCP Connection Pool (SSL)"]
-        Flyway["Flyway Migration Engine"]
-        Postgres[("Supabase PostgreSQL 17\n(Schema public)")]
-        DiskStorage["Private Document Storage\n(Encrypted SHA-256)"]
-    end
-
-    AdminUI -->|REST / HTTPS| CORS
-    CandidateUI -->|REST / HTTPS| CORS
-    CORS --> JWTAuth
-    JWTAuth --> AuthController
-    JWTAuth --> ExamCtrl
-    JWTAuth --> DeptCtrl
-    JWTAuth --> QCtrl
-    JWTAuth --> CandidateCtrl
-
-    ExamCtrl --> ExamSvc
-    DeptCtrl --> ExamSvc
-    QCtrl --> QSvc
-    QCtrl --> PDFSvc
-    QCtrl --> DocSvc
-    CandidateCtrl --> CandidateSvc
-
-    ExamSvc --> Hikari
-    QSvc --> Hikari
-    CandidateSvc --> Hikari
-    DocSvc --> DiskStorage
-    Flyway --> Postgres
-    Hikari --> Postgres
-```
+- **Application Tier**: High-concurrency RESTful micro-service built on **Python 3.11+**, **FastAPI**, **SQLAlchemy ORM**, **Pydantic v2**, and **Uvicorn ASGI**.
+- **Data Tier**: Cloud-managed PostgreSQL 17 (Supabase) accessed via SQLAlchemy connection pooling with SSL encryption.
 
 #### Technology Stack Summary
 | Layer | Technologies / Libraries |
 | :--- | :--- |
 | **Frontend Runtime** | React 18.3, TypeScript 5.5, Vite 8.3, Lucide React Icons |
 | **Styling & Design System** | Modern Vanilla CSS, Inter / Outfit Web Fonts, CSS Glassmorphism tokens |
-| **Backend Framework** | Java 21 / 23, Spring Boot 4.1.1, Spring Data JPA, Spring Security |
-| **PDF Extraction Engine** | Apache PDFBox 3.0.4 (In-Memory `Loader.loadPDF`, zero disk persistence) |
-| **Security & Cryptography** | JJWT (JSON Web Token), BCrypt (Cost Factor 10), MessageDigest SHA-256 |
-| **Database & Migrations** | PostgreSQL 17.11 (Supabase), Flyway Core 10.x, HikariCP |
-| **Build & Deployment** | Maven Wrapper (`mvnw`), Node.js / NPM, Docker-ready |
+| **Backend Framework** | **Python 3.11+, FastAPI 0.115+, SQLAlchemy 2.0+, Uvicorn** |
+| **PDF Extraction Engine** | **In-Memory PyPDF Extraction (`pypdf`, zero disk persistence)** |
+| **Security & Cryptography** | **BCrypt (Cost Factor 12), HttpOnly Session Cookies, Brute-Force Rate Limiter** |
+| **Database & Persistence** | PostgreSQL 17.11 (Supabase Cloud), psycopg2, Hikari/SQLAlchemy Pooling |
+| **Build & Run Tooling** | `python run.py`, `uvicorn`, Node.js / NPM, Vite |
 
 ---
 

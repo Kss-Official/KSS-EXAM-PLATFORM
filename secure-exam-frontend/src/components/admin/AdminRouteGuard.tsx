@@ -71,7 +71,7 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
             height: "44px",
             borderRadius: "50%",
             border: "3px solid #1e293b",
-            borderTopColor: "#365fe5",
+            borderTopColor: "#017846",
             animation: "spin 0.8s linear infinite"
           }} 
         />

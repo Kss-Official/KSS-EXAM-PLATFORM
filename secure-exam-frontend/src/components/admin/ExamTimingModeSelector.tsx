@@ -75,8 +75,8 @@ export default function ExamTimingModeSelector({
         <div 
           onClick={() => onChangeMode("SCHEDULED")}
           style={{
-            border: `1.5px solid ${timingMode === "SCHEDULED" ? "#365fe5" : "#cbd5e1"}`,
-            background: timingMode === "SCHEDULED" ? "#eff6ff" : "#ffffff",
+            border: `1.5px solid ${timingMode === "SCHEDULED" ? "#017846" : "#cbd5e1"}`,
+            background: timingMode === "SCHEDULED" ? "#EAF6EF" : "#ffffff",
             borderRadius: "10px",
             padding: "14px",
             cursor: "pointer",
@@ -86,7 +86,7 @@ export default function ExamTimingModeSelector({
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-              <Calendar size={16} color="#365fe5" /> Mode A: Scheduled Start
+              <Calendar size={16} color="#017846" /> Mode A: Scheduled Start
             </span>
             <input 
               type="radio" 
@@ -105,8 +105,8 @@ export default function ExamTimingModeSelector({
         <div 
           onClick={() => onChangeMode("DURATION_FROM_START")}
           style={{
-            border: `1.5px solid ${timingMode === "DURATION_FROM_START" ? "#365fe5" : "#cbd5e1"}`,
-            background: timingMode === "DURATION_FROM_START" ? "#eff6ff" : "#ffffff",
+            border: `1.5px solid ${timingMode === "DURATION_FROM_START" ? "#017846" : "#cbd5e1"}`,
+            background: timingMode === "DURATION_FROM_START" ? "#EAF6EF" : "#ffffff",
             borderRadius: "10px",
             padding: "14px",
             cursor: "pointer",
@@ -116,7 +116,7 @@ export default function ExamTimingModeSelector({
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-              <Clock size={16} color="#365fe5" /> Mode B: Candidate Starts Anytime
+              <Clock size={16} color="#017846" /> Mode B: Candidate Starts Anytime
             </span>
             <input 
               type="radio" 

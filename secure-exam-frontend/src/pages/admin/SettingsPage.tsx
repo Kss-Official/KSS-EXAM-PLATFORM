@@ -43,7 +43,7 @@ export default function SettingsPage() {
       <div className="panel-card">
         <div className="panel-card-header">
           <div className="panel-card-title">
-            <Server size={16} color="#365fe5" />
+            <Server size={16} color="#017846" />
             <span>Spring Boot REST API Configuration</span>
           </div>
           <span className="api-status-pill up">Vite Config</span>

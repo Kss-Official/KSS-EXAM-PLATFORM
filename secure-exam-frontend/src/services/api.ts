@@ -158,10 +158,17 @@ export interface CandidateDto {
   departmentName?: string;
   status: string;
   createdAt?: string;
+  currentAccessCode?: string;
+  accessCodeUses?: number;
+  accessCodeMaxUses?: number;
+  accessCodeActive?: boolean;
+  accessCodeSentAt?: string;
 }
 
 export interface CandidateVerifyRequest {
-  registrationNumber: string;
+  registrationNumber?: string;
+  uniqueId?: string;
+  accessCode?: string;
   departmentId?: number;
 }
 
@@ -184,6 +191,9 @@ export interface CandidateVerifyResponse {
   scheduledEndTime?: string;
   setCode?: string;
   questionSetCode?: string;
+  accessCode?: string;
+  accessCodeUses?: number;
+  accessCodeMaxUses?: number;
 }
 
 export interface CandidateOptionDto {
@@ -307,7 +317,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (err: unknown) {
     const error = err as Error;
     throw new ApiError(
-      `Cannot connect to backend at ${url}. Either the Spring Boot server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
+      `Cannot connect to backend at ${url}. Either the FastAPI server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
       0,
       { isCorsOrNetworkError: true }
     );
@@ -328,7 +338,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 401) {
       throw new ApiError(
-        errorDetail || "401 Unauthorized: Spring Security requires authentication for this endpoint.",
+        errorDetail || "401 Unauthorized: Authentication required for this endpoint.",
         401,
         { isAuthError: true, backendMessage: errorDetail }
       );
@@ -336,7 +346,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 403) {
       throw new ApiError(
-        errorDetail || "403 Forbidden: Spring Security denied access. SUPER_ADMIN role is required.",
+        errorDetail || "403 Forbidden: Access denied. SUPER_ADMIN role is required.",
         403,
         { isAuthError: true, backendMessage: errorDetail }
       );
@@ -344,7 +354,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 502 || response.status === 503 || response.status === 504) {
       throw new ApiError(
-        "Spring Boot server at http://localhost:8080 is offline. Please start the backend with './mvnw.cmd spring-boot:run'.",
+        "ExamSecure Backend server at http://localhost:8080 is offline. Please start the backend with 'python run.py' (or 'npm run backend').",
         response.status,
         { isCorsOrNetworkError: true, backendMessage: errorDetail }
       );
@@ -674,6 +684,36 @@ export async function assignCandidateToExam(candidateId: number, examId: number,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ examId, slotId, setCode })
+  });
+}
+
+export async function generateCandidateAccessCode(candidateId: number): Promise<{
+  id: number;
+  candidateId: number;
+  code: string;
+  usageCount: number;
+  maxUses: number;
+  isActive: boolean;
+  createdAt: string;
+}> {
+  return request<any>(`admin/candidates/${candidateId}/generate-access-code`, {
+    method: "POST"
+  });
+}
+
+export async function sendCandidateAccessCodeEmail(candidateId: number): Promise<{
+  success: boolean;
+  candidateId: number;
+  candidateName: string;
+  email: string;
+  accessCode: string;
+  usageCount: number;
+  maxUses: number;
+  provider: string;
+  message: string;
+}> {
+  return request<any>(`admin/candidates/${candidateId}/send-access-code`, {
+    method: "POST"
   });
 }
 
