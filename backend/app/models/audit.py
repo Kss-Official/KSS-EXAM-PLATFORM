@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, BigInteger, String, Text, DateTime
+from sqlalchemy import Column, BigInteger, String, Text, DateTime, Index
 from app.core.database import Base, ID_TYPE
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_entity", "entity_type", "entity_id"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     action = Column(String(100), nullable=False)

@@ -11,6 +11,8 @@ class ExamAttempt(Base):
     __table_args__ = (
         Index("ix_exam_attempts_candidate_exam", "candidate_id", "exam_id"),
         Index("ix_exam_attempts_status", "status"),
+        Index("ix_exam_attempts_exam_id", "exam_id"),
+        Index("ix_exam_attempts_receipt_id", "receipt_id"),
     )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
@@ -71,6 +73,7 @@ class AttemptRandomizedQuestion(Base):
 class AttemptRandomizedOption(Base):
     __tablename__ = "attempt_randomized_options"
     __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", "option_id", name="uq_aro_attempt_question_option"),
         Index("ix_aro_attempt_q_order", "attempt_id", "question_id", "display_order"),
     )
 

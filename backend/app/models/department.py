@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Table
+from sqlalchemy import Column, BigInteger, String, Text, Boolean, DateTime, ForeignKey, Table, Index
 from sqlalchemy.orm import relationship
 from app.core.database import Base, ID_TYPE
 
@@ -8,7 +8,8 @@ exam_departments = Table(
     "exam_departments",
     Base.metadata,
     Column("exam_id", BigInteger, ForeignKey("exams.id", ondelete="CASCADE"), primary_key=True),
-    Column("department_id", BigInteger, ForeignKey("departments.id", ondelete="CASCADE"), primary_key=True)
+    Column("department_id", BigInteger, ForeignKey("departments.id", ondelete="CASCADE"), primary_key=True),
+    Index("ix_exam_departments_dept_id", "department_id")
 )
 
 class Department(Base):

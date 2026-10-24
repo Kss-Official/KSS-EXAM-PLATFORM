@@ -1,13 +1,17 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, BigInteger, Integer, String, Text, Boolean, Numeric,
-    DateTime, ForeignKey
+    DateTime, ForeignKey, Index
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base, ID_TYPE
 
 class QuestionSet(Base):
     __tablename__ = "question_sets"
+    __table_args__ = (
+        Index("ix_question_sets_exam_id", "exam_id"),
+        Index("ix_question_sets_exam_dept", "exam_id", "department_id"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     exam_id = Column(BigInteger, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
@@ -25,6 +29,10 @@ class QuestionSet(Base):
 
 class Question(Base):
     __tablename__ = "questions"
+    __table_args__ = (
+        Index("ix_questions_question_set_id", "question_set_id"),
+        Index("ix_questions_set_display", "question_set_id", "display_order"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     question_set_id = Column(BigInteger, ForeignKey("question_sets.id", ondelete="CASCADE"), nullable=False)
@@ -43,6 +51,10 @@ class Question(Base):
 
 class QuestionOption(Base):
     __tablename__ = "question_options"
+    __table_args__ = (
+        Index("ix_question_options_question_id", "question_id"),
+        Index("ix_question_options_q_display", "question_id", "display_order"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     question_id = Column(BigInteger, ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)

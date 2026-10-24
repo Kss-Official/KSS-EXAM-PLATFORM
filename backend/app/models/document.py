@@ -1,9 +1,12 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, BigInteger, Integer, String, DateTime, ForeignKey, Index
 from app.core.database import Base, ID_TYPE
 
 class StoredDocument(Base):
     __tablename__ = "stored_documents"
+    __table_args__ = (
+        Index("ix_stored_documents_exam_id", "exam_id"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     exam_id = Column(BigInteger, ForeignKey("exams.id", ondelete="CASCADE"), nullable=True)

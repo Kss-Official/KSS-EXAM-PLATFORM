@@ -1,10 +1,14 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, BigInteger, Integer, Boolean, String, DateTime, ForeignKey
+from sqlalchemy import Column, BigInteger, Integer, Boolean, String, DateTime, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from app.core.database import Base, ID_TYPE
 
 class Candidate(Base):
     __tablename__ = "candidates"
+    __table_args__ = (
+        Index("ix_candidates_department_id", "department_id"),
+        Index("ix_candidates_assigned_set", "assigned_set"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     registration_number = Column(String(50), unique=True, nullable=False, index=True)

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, BigInteger, Integer, String, Text, Boolean, Numeric,
-    DateTime, ForeignKey
+    DateTime, ForeignKey, Index
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base, ID_TYPE
@@ -38,6 +38,9 @@ class Exam(Base):
 
 class ExamSlot(Base):
     __tablename__ = "exam_slots"
+    __table_args__ = (
+        Index("ix_exam_slots_exam_id", "exam_id"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     exam_id = Column(BigInteger, ForeignKey("exams.id", ondelete="CASCADE"), nullable=False)
