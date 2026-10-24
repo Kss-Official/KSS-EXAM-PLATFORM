@@ -15,6 +15,15 @@ cookies.txt
 *.cert
 *.p12
 
+# Databases & SQLite
+*.db
+*.sqlite
+*.sqlite3
+examsecure.db
+
+# Deprecated duplicate directories
+secure-exam-frontend/
+
 # Python
 __pycache__/
 *.py[cod]

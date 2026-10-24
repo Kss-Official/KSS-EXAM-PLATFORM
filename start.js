@@ -21,10 +21,9 @@ const backendProcess = spawn(pythonCmd, ['run.py'], {
 const fs = require('fs');
 
 // 2. Launch Vite Frontend Dev Server
-const frontendFolder = fs.existsSync(path.join(__dirname, 'Frontend')) ? 'Frontend' : 'secure-exam-frontend';
-console.log(`[STARTUP] Starting React Vite Frontend (${frontendFolder}) on port 5173...\n`);
+console.log('[STARTUP] Starting React Vite Frontend (Frontend) on port 5173...\n');
 const frontendProcess = spawn(npmCmd, ['run', 'dev'], {
-  cwd: path.join(__dirname, frontendFolder),
+  cwd: path.join(__dirname, 'Frontend'),
   stdio: 'inherit',
   shell: true
 });

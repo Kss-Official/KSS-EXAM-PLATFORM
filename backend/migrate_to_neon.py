@@ -8,7 +8,10 @@ from app.models import Base
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("MigrateToNeon")
 
-NEON_DIRECT_URL = "postgresql://neondb_owner:npg_LIkXjciq2e0s@ep-shy-tooth-b5gyc99a.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
+NEON_DIRECT_URL = os.getenv(
+    "DATABASE_URL_UNPOOLED",
+    os.getenv("DATABASE_URL", "postgresql://neondb_owner@localhost:5432/neondb")
+)
 SQLITE_URL = "sqlite:///./examsecure.db"
 
 TABLE_ORDER = [
