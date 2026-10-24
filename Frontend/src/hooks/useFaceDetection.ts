@@ -105,8 +105,8 @@ export function useFaceDetection(
           noCandidateStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Instantaneous response (< 180ms)
-          if (multiMovingStreak.current >= 1) {
+          // Responsive detection (2 consecutive frames ~360ms)
+          if (multiMovingStreak.current >= 2) {
             setScenario("SECOND_PERSON_MOVING");
             setSeverity("red");
             setBadgeLabel("PERSON IN MOTION");
@@ -125,14 +125,14 @@ export function useFaceDetection(
           noCandidateStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Instantaneous response (< 180ms)
-          if (multiPresentStreak.current >= 1) {
+          // Responsive detection (2 consecutive frames ~360ms)
+          if (multiPresentStreak.current >= 2) {
             setScenario("SECOND_PERSON_PRESENT");
             setSeverity("red");
             setBadgeLabel(`${result.count} PEOPLE IN VIEW`);
             setWarningTitle("2nd Person in Camera View");
             setWarningText(
-              `Multiple people detected (${result.count} visible). Please ensure you are alone.`
+              `Multiple people detected (${result.count} visible). Please ensure you are alone in the room.`
             );
           }
         }
@@ -145,8 +145,7 @@ export function useFaceDetection(
           noCandidateStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Instantaneous response (< 180ms) on background room activity
-          if (unwantedMotionStreak.current >= 1) {
+          if (unwantedMotionStreak.current >= 2) {
             setScenario("UNWANTED_ROOM_MOVEMENT");
             setSeverity("amber");
             setBadgeLabel("ROOM ACTIVITY");
@@ -165,8 +164,8 @@ export function useFaceDetection(
           unwantedMotionStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Require 6 consecutive frames (~1.08s) before raising missing candidate notice
-          if (noCandidateStreak.current >= 6) {
+          // Responsive missing candidate: 3 consecutive frames (~540ms)
+          if (noCandidateStreak.current >= 3) {
             setScenario("NO_CANDIDATE");
             setSeverity("amber");
             setBadgeLabel("FACE NOT DETECTED");
@@ -185,8 +184,9 @@ export function useFaceDetection(
           unwantedMotionStreak.current = 0;
           noCandidateStreak.current = 0;
 
-          // Immediately clear alerts once clean state is established
-          if (optimalStreak.current >= 1) {
+          // Require 6 consecutive clean frames (~1.1s) before clearing an active warning
+          // This prevents warnings from flickering or disappearing on a single frame glitch
+          if (optimalStreak.current >= 6) {
             setScenario("OPTIMAL_ALONE");
             setSeverity("normal");
             setBadgeLabel("REC · PROCTORED");

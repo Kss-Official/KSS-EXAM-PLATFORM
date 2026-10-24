@@ -47,9 +47,9 @@ class ParsedQuestionDto(CamelModel):
 
 class PdfParseResponseDto(CamelModel):
     success: bool
-    confidence_score: float
-    total_questions: int
-    mapped_answers_count: int
+    confidence_score: float = 0.0
+    total_questions: int = 0
+    mapped_answers_count: int = 0
     requires_ocr: bool = False
     ocr_reason: Optional[str] = None
     warnings: List[str] = []

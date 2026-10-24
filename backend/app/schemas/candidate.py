@@ -22,6 +22,7 @@ class CandidateDto(CamelModel):
     email: str
     department_id: Optional[int] = None
     department_name: Optional[str] = None
+    college_name: Optional[str] = None
     status: Optional[str] = "ACTIVE"
     created_at: Optional[datetime] = None
     current_access_code: Optional[str] = None

@@ -98,7 +98,7 @@ export default function CandidatesPage() {
         c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (c.departmentName && c.departmentName.toLowerCase().includes(searchTerm.toLowerCase()));
+        ((c.collegeName || c.departmentName) && (c.collegeName || c.departmentName)!.toLowerCase().includes(searchTerm.toLowerCase()));
 
       const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
       return matchesSearch && matchesStatus;
@@ -288,7 +288,7 @@ export default function CandidatesPage() {
           <Search size={16} className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search candidates by name, SL. No, or email..."
+            placeholder="Search candidates by name, SL. No / Register No., email, or college..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -313,7 +313,7 @@ export default function CandidatesPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>SL. No</th>
+                <th>SL. No / Register No.</th>
                 <th>Candidate Name</th>
                 <th>Email Address</th>
                 <th>College Name</th>
@@ -345,7 +345,7 @@ export default function CandidatesPage() {
                     <tr key={cand.id}>
                       <td>
                         <b style={{ color: "#017846", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
-                          {index + 1}
+                          {cand.registrationNumber || index + 1}
                         </b>
                       </td>
                       <td style={{ fontWeight: 600 }}>{cand.fullName}</td>
@@ -353,7 +353,7 @@ export default function CandidatesPage() {
                         <small style={{ color: "#64748b" }}>{cand.email}</small>
                       </td>
                       <td>
-                        {cand.departmentName ? (
+                        {(cand.collegeName || cand.departmentName) ? (
                           <span 
                             className="admin-dept-chip"
                             style={{
@@ -366,7 +366,7 @@ export default function CandidatesPage() {
                               borderRadius: "6px"
                             }}
                           >
-                            {cand.departmentName}
+                            {cand.collegeName || cand.departmentName}
                           </span>
                         ) : (
                           <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
@@ -395,6 +395,10 @@ export default function CandidatesPage() {
               <button type="button" onClick={() => setIsNewModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>✕</button>
             </div>
             <form onSubmit={handleCreateCandidate} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Register No. / SL. No. *</label>
+                <input type="text" placeholder="e.g. 1, 2, ... or REG-101" value={newRegNum} onChange={e => setNewRegNum(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
+              </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Full Name *</label>
                 <input type="text" placeholder="e.g. Aarav Sharma" value={newName} onChange={e => setNewName(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />

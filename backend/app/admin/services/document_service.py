@@ -9,7 +9,7 @@ from fastapi import HTTPException, UploadFile, status
 from app.core import settings
 from app.models import StoredDocument
 
-ALLOWED_EXTENSIONS: Set[str] = {"pdf", "txt", "csv", "doc", "docx"}
+ALLOWED_EXTENSIONS: Set[str] = {"pdf", "txt", "csv", "doc", "docx", "xlsx", "xls"}
 
 class DocumentStorageService:
     @staticmethod

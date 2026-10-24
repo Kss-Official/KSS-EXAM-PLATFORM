@@ -51,15 +51,24 @@ class CandidateExamService:
             resp.message = "Department selection is required. Please select your assigned department."
             return resp
 
-        # 2. Strict Database Validation: Look up Candidate by registered Email
-        candidate = db.query(Candidate).options(
-            joinedload(Candidate.department)
-        ).filter(
-            func.lower(Candidate.email) == input_email
-        ).first()
+        # 2. Strict Database Validation: Look up Candidate by registered Email or Registration Number (Sl. No.)
+        cand_query = db.query(Candidate).options(joinedload(Candidate.department))
+        candidate = None
+
+        if input_email:
+            candidate = cand_query.filter(func.lower(Candidate.email) == input_email).first()
+
+        # Fallback to registration number / Sl. No. if email didn't match or input was a registration number
+        if not candidate:
+            target_reg = (req.registration_number or "").strip().upper()
+            if not target_reg and input_email and (input_email.isdigit() or "@" not in input_email):
+                target_reg = input_email.strip().upper()
+            if target_reg:
+                candidate = cand_query.filter(func.upper(Candidate.registration_number) == target_reg).first()
 
         if not candidate:
-            resp.message = f"Access Denied: No candidate record found for email '{input_email}'. Please verify your registered email address or contact your administrator."
+            ident = input_email or req.registration_number or "provided identifier"
+            resp.message = f"Access Denied: No candidate record found for '{ident}'. Please verify your registered email address or contact your administrator."
             return resp
 
         if candidate.status and candidate.status.upper() != "ACTIVE":
@@ -236,19 +245,26 @@ class CandidateExamService:
                     resp.message = "No published examination is currently available for this department."
                 return resp
 
-            # Prioritize standard exams over scrap test exams
-            production_exams = [
+            # Prioritize exams specifically designated for the candidate's department
+            dept_specific = [
                 e for e in matched_exams
+                if dept_id and any(d.id == dept_id for d in e.departments)
+            ]
+            candidate_pool = dept_specific if dept_specific else matched_exams
+
+            # Filter scrap if standard exams exist within the chosen pool
+            production_exams = [
+                e for e in candidate_pool
                 if not (e.title and (e.title.startswith("Live E2E") or e.title.startswith("Access Limit")))
                 and (e.total_questions or 0) >= 10
             ]
-            candidate_pool = production_exams if production_exams else matched_exams
+            final_pool = production_exams if production_exams else candidate_pool
 
             # Sort matched exams:
             # 1. Department match
             # 2. Total question count (prefer complete 60-question exams over small scrap)
             # 3. Most recently published exam
-            candidate_pool.sort(
+            final_pool.sort(
                 key=lambda e: (
                     1 if dept_id and any(d.id == dept_id for d in e.departments) else 0,
                     e.total_questions or 0,
@@ -257,7 +273,7 @@ class CandidateExamService:
                 reverse=True
             )
 
-            exam = candidate_pool[0]
+            exam = final_pool[0]
 
             # Set allocation across A, B, C, D
             sets = []

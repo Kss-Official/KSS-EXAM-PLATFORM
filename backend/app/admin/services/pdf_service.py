@@ -1,10 +1,16 @@
 import io
 import re
 import gc
+import csv
 import asyncio
 from typing import Optional, List, Dict, Tuple
 from decimal import Decimal
-import pymupdf
+try:
+    import pymupdf
+except ImportError:
+    import fitz as pymupdf
+import openpyxl
+import docx
 from fastapi import UploadFile
 
 from app.schemas import (
@@ -15,7 +21,7 @@ PDF_MAGIC_BYTES = b"%PDF-"
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB bound to protect worker memory
 PARSE_TIMEOUT_SECONDS = 25.0  # 25s execution timeout bound
 
-# Bound concurrency: at most 2 PDF parsing jobs can run simultaneously across the API
+# Bound concurrency: at most 2 parsing jobs can run simultaneously across the API
 _pdf_semaphore = asyncio.Semaphore(2)
 
 
@@ -26,9 +32,9 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
     handles empty pages without crashing, and raises descriptive ValueErrors for invalid/encrypted/scanned files.
     """
     if not pdf_bytes:
-        raise ValueError("The uploaded PDF is empty.")
-    if len(pdf_bytes) < 5 or not pdf_bytes.startswith(PDF_MAGIC_BYTES):
-        raise ValueError("The uploaded file is not a valid PDF document (missing %PDF- header).")
+        raise ValueError("The uploaded document is empty.")
+    if len(pdf_bytes) < 5:
+        raise ValueError("The uploaded document is corrupted or too small.")
 
     try:
         with pymupdf.open(
@@ -44,7 +50,6 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
                 text = page.get_text("text", sort=True)
 
                 if text and text.strip():
-                    # Normalize Unicode spaces and quotes while preserving structure
                     cleaned = (
                         text.replace("\xa0", " ")
                         .replace("\u201c", '"')
@@ -76,11 +81,47 @@ class InMemoryPdfService:
     @staticmethod
     def extract_text_from_pdf_bytes(pdf_bytes: bytes, filename: str = "document.pdf") -> str:
         """
-        Service-level interface accepting pdf_bytes and filename.
-        Leverages PyMuPDF with descriptive filename-aware error handling.
+        Service-level interface accepting document bytes and filename.
+        Dynamically extracts selectable text from PDF, DOCX, TXT, CSV, or Excel documents.
         """
-        if not pdf_bytes or len(pdf_bytes) < 5:
+        if not pdf_bytes or len(pdf_bytes) < 2:
             raise ValueError(f"File '{filename}' is empty or corrupted.")
+
+        fname = (filename or "").lower()
+
+        # Word document
+        if fname.endswith(".docx"):
+            try:
+                doc = docx.Document(io.BytesIO(pdf_bytes))
+                paras = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+                return "\n\n".join(paras)
+            except Exception as e:
+                raise ValueError(f"Failed to read Word document '{filename}': {e}")
+
+        # Text / CSV
+        if fname.endswith((".txt", ".csv")):
+            for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+                try:
+                    return pdf_bytes.decode(enc)
+                except UnicodeDecodeError:
+                    continue
+            return pdf_bytes.decode("utf-8", errors="replace")
+
+        # Excel document
+        if fname.endswith((".xlsx", ".xls")):
+            try:
+                wb = openpyxl.load_workbook(io.BytesIO(pdf_bytes), data_only=True)
+                ws = wb.active
+                lines = []
+                for r in ws.iter_rows(values_only=True):
+                    cleaned = " ".join([str(c).strip() for c in r if c is not None and str(c).strip()])
+                    if cleaned:
+                        lines.append(cleaned)
+                return "\n\n".join(lines)
+            except Exception as e:
+                raise ValueError(f"Failed to read Excel document '{filename}': {e}")
+
+        # Standard PDF
         if not pdf_bytes.startswith(PDF_MAGIC_BYTES):
             raise ValueError(f"File '{filename}' is not a valid PDF document (missing %PDF- header).")
 
@@ -117,8 +158,299 @@ class InMemoryPdfService:
             raise
         except Exception as exc:
             raise ValueError(
-                f"In-memory PDF text extraction failed for '{filename}': {str(exc)}"
+                f"In-memory text extraction failed for '{filename}': {str(exc)}"
             ) from exc
+
+    @staticmethod
+    def _parse_tabular_questions(
+        rows: List[List[str]],
+        marks: Decimal,
+        negative_marks: Decimal
+    ) -> Tuple[List[ParsedQuestionDto], Dict[int, str]]:
+        """
+        Parses questions and multiple choice options from structured spreadsheet/table rows.
+        Identifies Question, Option A-D, and Correct Answer columns dynamically.
+        """
+        if not rows:
+            return [], {}
+
+        q_list: List[ParsedQuestionDto] = []
+        ans_map: Dict[int, str] = {}
+
+        header_row_idx = -1
+        q_col, a_col, b_col, c_col, d_col, ans_col = None, None, None, None, None, None
+
+        for idx, r in enumerate(rows[:5]):
+            r_lower = [str(c or "").lower().strip() for c in r]
+            for c_i, cell in enumerate(r_lower):
+                if any(k in cell for k in ["question", "problem", "q text", "statement"]) and q_col is None:
+                    q_col = c_i
+                elif ("opt" in cell and "a" in cell) or cell in ("a", "option a", "option 1"):
+                    a_col = c_i
+                elif ("opt" in cell and "b" in cell) or cell in ("b", "option b", "option 2"):
+                    b_col = c_i
+                elif ("opt" in cell and "c" in cell) or cell in ("c", "option c", "option 3"):
+                    c_col = c_i
+                elif ("opt" in cell and "d" in cell) or cell in ("d", "option d", "option 4"):
+                    d_col = c_i
+                elif any(k in cell for k in ["ans", "correct", "key"]) and ans_col is None:
+                    ans_col = c_i
+
+            if q_col is not None and a_col is not None and b_col is not None:
+                header_row_idx = idx
+                break
+
+        start_idx = 0
+        if header_row_idx >= 0:
+            start_idx = header_row_idx + 1
+        elif len(rows[0]) >= 4:
+            first_row_joined = " ".join([str(c).lower() for c in rows[0]])
+            if any(k in first_row_joined for k in ["question", "option", "ans", "correct"]):
+                start_idx = 1
+            q_col = 0 if q_col is None else q_col
+            a_col = 1 if a_col is None else a_col
+            b_col = 2 if b_col is None else b_col
+            c_col = 3 if c_col is None and len(rows[0]) > 3 else c_col
+            d_col = 4 if d_col is None and len(rows[0]) > 4 else d_col
+            ans_col = 5 if ans_col is None and len(rows[0]) > 5 else ans_col
+
+        if q_col is not None and a_col is not None and b_col is not None:
+            q_order = 1
+            for r in rows[start_idx:]:
+                if len(r) <= q_col or not str(r[q_col]).strip():
+                    continue
+
+                q_raw = str(r[q_col]).strip()
+                q_text = re.sub(r"(?i)^(?:Q(?:uestion)?[\s\.]*\d+[\s\.:\)-]*|\d+[\.\)]\s*)", "", q_raw).strip()
+                if not q_text:
+                    q_text = q_raw
+
+                correct_letter = None
+                if ans_col is not None and ans_col < len(r) and str(r[ans_col]).strip():
+                    raw_ans = str(r[ans_col]).strip().upper()
+                    m_letter = re.search(r'\b([A-D])\b', raw_ans)
+                    if m_letter:
+                        correct_letter = m_letter.group(1)
+                    else:
+                        for letter, col_i in [("A", a_col), ("B", b_col), ("C", c_col), ("D", d_col)]:
+                            if col_i is not None and col_i < len(r) and raw_ans.lower() == str(r[col_i]).strip().lower():
+                                correct_letter = letter
+                                break
+
+                if not correct_letter:
+                    correct_letter = "A"
+
+                options: List[ParsedOptionDto] = []
+                for letter, col_i in [("A", a_col), ("B", b_col), ("C", c_col), ("D", d_col)]:
+                    if col_i is not None and col_i < len(r) and str(r[col_i]).strip():
+                        opt_txt = str(r[col_i]).strip()
+                        opt_txt = re.sub(r"^(?:[A-Da-d][\.\)\:\-]\s*|\([A-Da-d]\)\s*)", "", opt_txt).strip()
+                        options.append(ParsedOptionDto(
+                            label=letter,
+                            option_text=opt_txt,
+                            correct=(letter == correct_letter)
+                        ))
+
+                if len(options) >= 2:
+                    q_list.append(ParsedQuestionDto(
+                        display_order=q_order,
+                        question_text=q_text,
+                        options=options,
+                        correct_option=correct_letter,
+                        marks=marks,
+                        negative_marks=negative_marks
+                    ))
+                    ans_map[q_order] = correct_letter
+                    q_order += 1
+
+        return q_list, ans_map
+
+    @classmethod
+    def _extract_multi_format_questions(
+        cls,
+        content: bytes,
+        filename: str,
+        q_pattern: Optional[str],
+        opt_pattern: Optional[str],
+        ans_pattern: Optional[str],
+        marks: Decimal,
+        negative_marks: Decimal
+    ) -> Tuple[List[ParsedQuestionDto], Dict[int, str], bool, Optional[str]]:
+        """
+        Multi-format question extraction engine supporting Excel (.xlsx, .xls), CSV, Word (.docx),
+        plain text (.txt), and PDF documents.
+        Returns (questions, extracted_keys, requires_ocr, ocr_reason).
+        """
+        fname = (filename or "").lower()
+
+        # Format 1: Excel (.xlsx, .xls)
+        if fname.endswith((".xlsx", ".xls")):
+            try:
+                wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                ws = wb.active
+                rows = []
+                for r in ws.iter_rows(values_only=True):
+                    if any(r):
+                        rows.append([str(c).strip() if c is not None else "" for c in r])
+
+                questions, ans_keys = cls._parse_tabular_questions(rows, marks, negative_marks)
+                if questions:
+                    return questions, ans_keys, False, None
+
+                combined_text = "\n\n".join([" ".join([c for c in r if c]) for r in rows])
+                q_list, ans_map = cls._extract_questions(combined_text, q_pattern, opt_pattern, ans_pattern, marks, negative_marks)
+                return q_list, ans_map, False, None
+            except Exception as e:
+                raise ValueError(f"Error extracting questions from Excel file '{filename}': {e}")
+
+        # Format 2: CSV (.csv)
+        if fname.endswith(".csv"):
+            try:
+                text = ""
+                for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+                    try:
+                        text = content.decode(enc)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                reader = csv.reader(io.StringIO(text))
+                rows = [[str(c).strip() for c in r] for r in reader if any(r)]
+                questions, ans_keys = cls._parse_tabular_questions(rows, marks, negative_marks)
+                if questions:
+                    return questions, ans_keys, False, None
+
+                q_list, ans_map = cls._extract_questions(text, q_pattern, opt_pattern, ans_pattern, marks, negative_marks)
+                return q_list, ans_map, False, None
+            except Exception as e:
+                raise ValueError(f"Error extracting questions from CSV file '{filename}': {e}")
+
+        # Format 3: Word Document (.docx)
+        if fname.endswith(".docx"):
+            try:
+                doc = docx.Document(io.BytesIO(content))
+                rows = []
+                for t in doc.tables:
+                    for r in t.rows:
+                        vals = [c.text.strip() for c in r.cells]
+                        if any(vals):
+                            rows.append(vals)
+                if rows:
+                    questions, ans_keys = cls._parse_tabular_questions(rows, marks, negative_marks)
+                    if questions:
+                        return questions, ans_keys, False, None
+
+                full_text = "\n\n".join([p.text.strip() for p in doc.paragraphs if p.text.strip()])
+                q_list, ans_map = cls._extract_questions(full_text, q_pattern, opt_pattern, ans_pattern, marks, negative_marks)
+                return q_list, ans_map, False, None
+            except Exception as e:
+                raise ValueError(f"Error extracting questions from Word document '{filename}': {e}")
+
+        # Format 4: Plain Text (.txt)
+        if fname.endswith(".txt"):
+            text = ""
+            for enc in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+                try:
+                    text = content.decode(enc)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            q_list, ans_map = cls._extract_questions(text, q_pattern, opt_pattern, ans_pattern, marks, negative_marks)
+            return q_list, ans_map, False, None
+
+        # Format 5: PDF (.pdf)
+        table_rows = []
+        try:
+            with pymupdf.open(stream=io.BytesIO(content), filetype="pdf") as doc:
+                if doc.is_encrypted:
+                    raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
+                for page in doc:
+                    tabs = page.find_tables()
+                    if tabs and tabs.tables:
+                        for t in tabs:
+                            for r in t.extract():
+                                if any(r):
+                                    table_rows.append([str(c or "").strip() for c in r])
+        except Exception:
+            pass
+
+        if table_rows:
+            questions, ans_keys = cls._parse_tabular_questions(table_rows, marks, negative_marks)
+            if questions:
+                return questions, ans_keys, False, None
+
+        qp_text = cls.extract_text_from_pdf_bytes(content, filename)
+        if not qp_text or len(qp_text.strip()) < 50 or len(re.sub(r"\s+", "", qp_text)) < 30:
+            ocr_reason = (
+                "The uploaded Question Paper appears to be a scanned image or raster PDF with "
+                "insufficient extractable text (fewer than 50 characters). Optical Character Recognition (OCR) is required."
+            )
+            return [], {}, True, ocr_reason
+
+        questions, ans_keys = cls._extract_questions(qp_text, q_pattern, opt_pattern, ans_pattern, marks, negative_marks)
+        return questions, ans_keys, False, None
+
+    @classmethod
+    def _extract_multi_format_answers(
+        cls,
+        content: bytes,
+        filename: str,
+        custom_pattern: Optional[str] = None
+    ) -> Dict[int, str]:
+        """
+        Extracts Answer Key mapping ({question_order: correct_letter}) from Excel, CSV, PDF, Word, or TXT.
+        """
+        fname = (filename or "").lower()
+        ans_map: Dict[int, str] = {}
+
+        if fname.endswith((".xlsx", ".xls")):
+            try:
+                wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                ws = wb.active
+                for r in ws.iter_rows(values_only=True):
+                    cleaned = [str(c).strip() for c in r if c is not None and str(c).strip()]
+                    if len(cleaned) >= 2:
+                        m_q = re.search(r'\b(\d+)\b', cleaned[0])
+                        m_a = re.search(r'\b([A-Da-d])\b', cleaned[1])
+                        if m_q and m_a:
+                            ans_map[int(m_q.group(1))] = m_a.group(1).upper()
+            except Exception:
+                pass
+            if ans_map:
+                return ans_map
+
+        if fname.endswith(".csv"):
+            try:
+                text = ""
+                for enc in ("utf-8-sig", "utf-8", "latin-1"):
+                    try:
+                        text = content.decode(enc)
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                if text:
+                    reader = csv.reader(io.StringIO(text))
+                    for r in reader:
+                        cleaned = [str(c).strip() for c in r if c]
+                        if len(cleaned) >= 2:
+                            m_q = re.search(r'\b(\d+)\b', cleaned[0])
+                            m_a = re.search(r'\b([A-Da-d])\b', cleaned[1])
+                            if m_q and m_a:
+                                ans_map[int(m_q.group(1))] = m_a.group(1).upper()
+            except Exception:
+                pass
+            if ans_map:
+                return ans_map
+
+        # Fallback to text regex extraction
+        text = ""
+        try:
+            text = cls.extract_text_from_pdf_bytes(content, filename)
+        except Exception:
+            text = ""
+
+        if text:
+            ans_map = cls._parse_answer_sheet_text(text, custom_pattern)
+        return ans_map
 
     @classmethod
     async def parse_pdf_in_mem(
@@ -133,6 +465,7 @@ class InMemoryPdfService:
     ) -> PdfParseResponseDto:
         response = PdfParseResponseDto(
             success=True,
+            confidence_score=0.0,
             total_questions=0,
             mapped_answers_count=0,
             requires_ocr=False,
@@ -143,10 +476,9 @@ class InMemoryPdfService:
         )
 
         try:
-            # Bound concurrency using semaphore (max 2 concurrent extractions) and 25s execution timeout
             async with asyncio.timeout(PARSE_TIMEOUT_SECONDS):
                 async with _pdf_semaphore:
-                    # 1. Read Question Paper strictly into volatile RAM
+                    # 1. Read Question Paper into RAM
                     qp_bytes = await question_paper_file.read()
                     if len(qp_bytes) > MAX_FILE_SIZE:
                         response.success = False
@@ -157,7 +489,21 @@ class InMemoryPdfService:
                     response.question_paper_size_bytes = len(qp_bytes)
 
                     try:
-                        qp_text = cls.extract_text_from_pdf_bytes(qp_bytes, question_paper_file.filename)
+                        questions, parsed_keys, requires_ocr, ocr_reason = cls._extract_multi_format_questions(
+                            qp_bytes,
+                            question_paper_file.filename,
+                            question_pattern_str,
+                            option_pattern_str,
+                            answer_key_pattern_str,
+                            Decimal(str(marks_per_question)),
+                            Decimal(str(negative_marks))
+                        )
+                        if requires_ocr:
+                            response.success = False
+                            response.requires_ocr = True
+                            response.ocr_reason = ocr_reason
+                            response.errors.append(ocr_reason)
+                            return response
                     except ValueError as e:
                         err_str = str(e)
                         response.success = False
@@ -170,17 +516,6 @@ class InMemoryPdfService:
                         del qp_bytes
                         gc.collect()
 
-                    # Check for scanned image PDF (< 50 printable characters)
-                    if not qp_text or len(qp_text.strip()) < 50 or len(re.sub(r"\s+", "", qp_text)) < 30:
-                        response.success = False
-                        response.requires_ocr = True
-                        response.ocr_reason = (
-                            "The uploaded Question Paper appears to be a scanned image or raster PDF with "
-                            "insufficient extractable text (fewer than 50 characters). Optical Character Recognition (OCR) is required."
-                        )
-                        response.errors.append(response.ocr_reason)
-                        return response
-
                     # 2. Process optional Answer Sheet
                     answer_key_map: Dict[int, str] = {}
                     if answer_sheet_file and answer_sheet_file.filename:
@@ -191,28 +526,18 @@ class InMemoryPdfService:
                             response.answer_sheet_file_name = answer_sheet_file.filename
                             response.answer_sheet_size_bytes = len(as_bytes)
                             try:
-                                as_text = cls.extract_text_from_pdf_bytes(as_bytes, answer_sheet_file.filename)
-                                if as_text and len(as_text.strip()) >= 10:
-                                    answer_key_map = cls._parse_answer_sheet_text(as_text, answer_key_pattern_str)
-                                else:
-                                    response.warnings.append("Answer Sheet has minimal text; verify answer key manually.")
+                                answer_key_map = cls._extract_multi_format_answers(
+                                    as_bytes, answer_sheet_file.filename, answer_key_pattern_str
+                                )
+                                if not answer_key_map:
+                                    response.warnings.append("Answer Sheet has minimal or unmapped answer text; verify answer keys.")
                             except Exception as e:
                                 response.warnings.append(f"Answer Sheet extraction warning: {str(e)}")
                             finally:
                                 del as_bytes
                                 gc.collect()
 
-                    # 3. Parse MCQs from Question Paper Text
-                    questions, parsed_keys = cls._extract_questions(
-                        qp_text,
-                        question_pattern_str,
-                        option_pattern_str,
-                        answer_key_pattern_str,
-                        Decimal(str(marks_per_question)),
-                        Decimal(str(negative_marks))
-                    )
-
-                    # Merge answer keys from answer sheet
+                    # 3. Merge Answer Keys
                     if answer_key_map:
                         for q in questions:
                             if q.display_order in answer_key_map:
@@ -221,7 +546,7 @@ class InMemoryPdfService:
                                 for opt in q.options:
                                     opt.correct = (opt.label.upper() == target_label.upper())
 
-                    # Collect final answer map
+                    # 4. Collect final mapped answers
                     final_answer_map: Dict[int, str] = {}
                     for q in questions:
                         if q.correct_option:
@@ -235,7 +560,7 @@ class InMemoryPdfService:
                     response.mapped_answers_count = len(final_answer_map)
 
                     if len(questions) == 0:
-                        response.warnings.append("No standard MCQs could be identified using default regex heuristics.")
+                        response.warnings.append("No standard questions could be identified from the uploaded document.")
                         response.confidence_score = 0.3
                     else:
                         mapped_ratio = len(final_answer_map) / len(questions) if questions else 0
@@ -244,11 +569,11 @@ class InMemoryPdfService:
                     return response
         except TimeoutError:
             response.success = False
-            response.errors.append("PDF parsing timed out after 25 seconds. Please ensure the document is not corrupted.")
+            response.errors.append("Document parsing timed out after 25 seconds. Please ensure the document is not corrupted.")
             return response
         except Exception as e:
             response.success = False
-            response.errors.append(f"PDF extraction error: {str(e)}")
+            response.errors.append(f"Extraction error: {str(e)}")
             return response
 
     @staticmethod

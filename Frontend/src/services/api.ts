@@ -12,6 +12,7 @@ export interface AuthResponseDto {
   success: boolean;
   message: string;
   user?: AuthUser;
+  token?: string;
 }
 
 export interface DepartmentDto {
@@ -156,6 +157,7 @@ export interface CandidateDto {
   email: string;
   departmentId?: number;
   departmentName?: string;
+  collegeName?: string;
   status: string;
   createdAt?: string;
 }
@@ -264,7 +266,10 @@ export interface ExamResultDto {
   qualificationThreshold?: number;
   qualificationStatus?: string;
   resultsPublished: boolean;
+  isPublished?: boolean;
   submittedAt?: string;
+  receiptId?: string;
+  candidateEmail?: string;
   totalQuestions?: number;
   questionsAnswered?: number;
   correctAnswers?: number;
@@ -320,6 +325,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   headers.set("Accept", "application/json");
   headers.set("X-Requested-With", "XMLHttpRequest");
 
+  const token = localStorage.getItem("examsecure_auth_token");
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   let response: Response;
   try {
     response = await fetch(url, {
@@ -330,7 +340,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (err: unknown) {
     const error = err as Error;
     throw new ApiError(
-      `Cannot connect to backend at ${url}. Either the Spring Boot server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
+      `Cannot connect to backend at ${url}. Either the backend server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
       0,
       { isCorsOrNetworkError: true }
     );
@@ -351,7 +361,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 401) {
       throw new ApiError(
-        errorDetail || "401 Unauthorized: Spring Security requires authentication for this endpoint.",
+        errorDetail || "401 Unauthorized: Authentication is required for this endpoint.",
         401,
         { isAuthError: true, backendMessage: errorDetail }
       );
@@ -359,7 +369,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 403) {
       throw new ApiError(
-        errorDetail || "403 Forbidden: Spring Security denied access. SUPER_ADMIN role is required.",
+        errorDetail || "403 Forbidden: Access denied. SUPER_ADMIN role is required.",
         403,
         { isAuthError: true, backendMessage: errorDetail }
       );
@@ -367,7 +377,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 502 || response.status === 503 || response.status === 504) {
       throw new ApiError(
-        "Spring Boot server at http://localhost:8080 is offline. Please start the backend with './mvnw.cmd spring-boot:run'.",
+        "Backend server is offline or restarting. Please verify the backend is running.",
         response.status,
         { isCorsOrNetworkError: true, backendMessage: errorDetail }
       );
@@ -388,11 +398,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
    ========================================================================= */
 
 export async function loginAdmin(email: string, password: string): Promise<AuthResponseDto> {
-  return request<AuthResponseDto>("auth/login", {
+  const res = await request<AuthResponseDto>("auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email: email.trim(), password })
   });
+  if (res.token) {
+    localStorage.setItem("examsecure_auth_token", res.token);
+  }
+  return res;
 }
 
 export async function getAuthMe(): Promise<AuthUser> {
@@ -400,6 +414,7 @@ export async function getAuthMe(): Promise<AuthUser> {
 }
 
 export async function logoutAdmin(): Promise<void> {
+  localStorage.removeItem("examsecure_auth_token");
   try {
     await request<AuthResponseDto>("auth/logout", { method: "POST" });
   } catch (err) {
@@ -599,9 +614,16 @@ export async function uploadDeptSetDocument(
   formData.append("documentType", documentType);
 
   const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/exams/${examId}/departments/${departmentId}/sets/${questionSetId}/upload-document`;
+  const headers = new Headers();
+  const token = localStorage.getItem("examsecure_auth_token");
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(url, {
     method: "POST",
     credentials: "include",
+    headers,
     body: formData
   });
 
@@ -639,9 +661,16 @@ export async function uploadSetDocument(
   formData.append("documentType", documentType);
 
   const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/exams/${examId}/sets/${questionSetId}/upload-document`;
+  const headers = new Headers();
+  const token = localStorage.getItem("examsecure_auth_token");
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(url, {
     method: "POST",
     credentials: "include",
+    headers,
     body: formData
   });
 
@@ -679,9 +708,16 @@ export async function uploadCandidatesCsv(file: File): Promise<{
   formData.append("file", file);
 
   const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch`;
+  const headers = new Headers();
+  const token = localStorage.getItem("examsecure_auth_token");
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(url, {
     method: "POST",
     credentials: "include",
+    headers,
     body: formData
   });
 

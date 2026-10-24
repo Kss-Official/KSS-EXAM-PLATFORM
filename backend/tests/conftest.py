@@ -10,7 +10,17 @@ import app.models  # ensure models are registered
 Base.metadata.create_all(bind=engine)
 
 from app.core.bootstrap import init_super_admin
-with SessionLocal() as db:
-    init_super_admin(db)
+with SessionLocal() as db_session:
+    init_super_admin(db_session)
+
+import pytest
+
+@pytest.fixture
+def db():
+    session = SessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
 
 

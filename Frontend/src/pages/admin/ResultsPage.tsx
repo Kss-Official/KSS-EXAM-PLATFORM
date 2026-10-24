@@ -50,6 +50,12 @@ export default function ResultsPage() {
 
   useEffect(() => {
     fetchResults();
+    const interval = setInterval(() => {
+      getAllResults(selectedExamId)
+        .then(data => setResults(data))
+        .catch(() => {});
+    }, 10000);
+    return () => clearInterval(interval);
   }, [selectedExamId]);
 
   const handleTogglePublish = async (examId: number, currentlyPublished: boolean) => {
@@ -554,6 +560,9 @@ export default function ResultsPage() {
                     <tr key={r.attemptId}>
                       <td>
                         <b style={{ color: "#0f172a" }}>{r.candidateName}</b>
+                        {r.candidateEmail && (
+                          <small style={{ display: "block", color: "#475569", fontSize: "11.5px" }}>{r.candidateEmail}</small>
+                        )}
                         <small style={{ display: "block", color: "#64748b", fontFamily: "JetBrains Mono, monospace" }}>{r.registrationNumber}</small>
                       </td>
                       <td>
@@ -578,9 +587,16 @@ export default function ResultsPage() {
                         </span>
                       </td>
                       <td>
-                        <small style={{ color: "#64748b" }}>
-                          {r.submittedAt ? new Date(r.submittedAt).toLocaleTimeString() : "-"}
+                        <small style={{ color: "#64748b", display: "block" }}>
+                          {r.submittedAt ? new Date(r.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (
+                            <span style={{ color: "#d97706", fontWeight: 600 }}>{r.attemptStatus === "IN_PROGRESS" ? "In Progress • Live" : (r.attemptStatus || "Pending")}</span>
+                          )}
                         </small>
+                        {r.receiptId && (
+                          <span style={{ fontSize: "10px", color: "#017846", fontFamily: "JetBrains Mono, monospace", display: "block", marginTop: "2px" }} title="Submission Receipt ID">
+                            {r.receiptId}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

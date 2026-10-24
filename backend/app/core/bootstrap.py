@@ -93,19 +93,17 @@ DEFAULT_CANDIDATES = [
 
 def init_default_candidates(db: Session) -> None:
     """
-    Idempotently provisions standard candidate records with valid department
-    associations and active Unique Access IDs (strictly 3 uses, Round 1 & Round 2)
-    ensuring zero-friction entry for student examination testing.
+    Candidate provisioning: if candidates are already present, preserve the imported roster
+    and do not re-create legacy demo candidates.
     """
     from datetime import datetime, timezone
     from app.models.candidate import Candidate
     from app.models.department import Department
     from app.admin.services.candidate_service import CandidateService
 
-    dept_cache = {d.code: d for d in db.query(Department).all()}
-
-    for item in DEFAULT_CANDIDATES:
-        c = db.query(Candidate).filter(Candidate.registration_number == item["reg"]).first()
+    if db.query(Candidate).count() > 0:
+        logger.info("Candidate roster already present in database. Skipping default demo candidate provisioning.")
+        return
         dept = dept_cache.get(item["dept_code"])
         if not c:
             c = Candidate(

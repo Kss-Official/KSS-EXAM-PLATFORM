@@ -834,7 +834,7 @@ export default function DepartmentTrackConfigView({
                     ) : (
                       <input
                         type="file"
-                        accept=".pdf,.docx,.txt,.csv"
+                        accept=".pdf,.docx,.txt,.csv,.xlsx,.xls"
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           if (e.target.files && e.target.files[0]) {
                             onSetFileChange(category, "A", "questionPaperFile", e.target.files[0]);
@@ -884,7 +884,7 @@ export default function DepartmentTrackConfigView({
                     ) : (
                       <input
                         type="file"
-                        accept=".pdf,.txt,.csv"
+                        accept=".pdf,.txt,.csv,.xlsx,.xls,.docx"
                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                           if (e.target.files && e.target.files[0]) {
                             onSetFileChange(category, "A", "answerKeyFile", e.target.files[0]);

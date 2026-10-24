@@ -260,7 +260,7 @@ export default function CreateExamPage() {
     try {
       const formData = new FormData();
       formData.append("questionPaper", qpFile);
-      if (akFile && akFile.name.toLowerCase().endsWith(".pdf")) {
+      if (akFile) {
         formData.append("answerSheet", akFile);
       }
       formData.append("marksPerQuestion", marksPerQuestion);
@@ -310,8 +310,8 @@ export default function CreateExamPage() {
   ) => {
     if (file) {
       const ext = file.name.split(".").pop()?.toLowerCase();
-      if (!["pdf", "docx", "txt", "csv"].includes(ext || "")) {
-        alert("Unsupported file format. Please upload a PDF, DOCX, TXT, or CSV document.");
+      if (!["pdf", "docx", "txt", "csv", "xlsx", "xls"].includes(ext || "")) {
+        alert("Unsupported file format. Please upload a PDF, DOCX, TXT, CSV, or Excel spreadsheet.");
         return;
       }
       if (file.size > 25 * 1024 * 1024) {

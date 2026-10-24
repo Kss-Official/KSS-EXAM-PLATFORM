@@ -3427,11 +3427,12 @@ select:focus-visible {
 }
 
 /* Live Proctor Feed Tile */
+/* Live Proctor Feed Tile */
 .proctor-tile {
   background: #0f172a;
   border-radius: 12px;
   overflow: hidden;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   border: 1px solid #1e293b;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
@@ -3442,6 +3443,8 @@ select:focus-visible {
   height: 155px;
   background: #0b1120;
   overflow: hidden;
+  border-radius: 10px;
+  transition: all 0.25s ease;
 }
 
 .proctor-video {
@@ -3449,6 +3452,7 @@ select:focus-visible {
   height: 100%;
   object-fit: cover;
   transform: scaleX(-1);
+  display: block;
 }
 
 .proctor-overlay-top {
@@ -3460,6 +3464,7 @@ select:focus-visible {
   justify-content: space-between;
   align-items: center;
   z-index: 5;
+  pointer-events: none;
 }
 
 .proctor-rec-pill {
@@ -3474,6 +3479,25 @@ select:focus-visible {
   padding: 3px 8px;
   border-radius: 5px;
   letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+
+.proctor-rec-pill.alert {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border: 1px solid #ef4444;
+  animation: pulseAlertPill 1.2s infinite;
+}
+
+.proctor-rec-pill.alert-amber {
+  background: #d97706 !important;
+  color: #ffffff !important;
+  border: 1px solid #f59e0b;
+}
+
+@keyframes pulseAlertPill {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.03); }
 }
 
 .proctor-rec-dot {
@@ -3484,9 +3508,11 @@ select:focus-visible {
   box-shadow: 0 0 6px #ef4444;
 }
 
-.proctor-expand-icon {
-  cursor: pointer;
-  opacity: 0.9;
+.proctor-shield-icon {
+  color: #22c55e;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 3px;
+  border-radius: 4px;
   display: flex;
   align-items: center;
 }
@@ -3500,6 +3526,7 @@ select:focus-visible {
   justify-content: space-between;
   align-items: center;
   z-index: 5;
+  pointer-events: none;
 }
 
 .proctor-mic-status {
@@ -3515,6 +3542,23 @@ select:focus-visible {
   border-radius: 4px;
 }
 
+.proctor-alert-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.4px;
+}
+
+.proctor-alert-tag.amber {
+  background: #f59e0b;
+}
+
 .proctor-feed-label {
   background: rgba(0, 0, 0, 0.72);
   color: #cbd5e1;
@@ -3528,13 +3572,106 @@ select:focus-visible {
 .proctor-error-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(15, 23, 42, 0.9);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: #94a3b8;
+  color: #f87171;
   font-size: 11px;
+  font-weight: 600;
+  z-index: 6;
+}
+
+/* Dynamic Proctor Warning Borders */
+.proctor-video-wrap.warning-second-person {
+  border: 2.5px solid #ef4444 !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.45) !important;
+  animation: pulseWrapRed 1.4s infinite;
+}
+
+.proctor-video-wrap.warning-room-activity {
+  border: 2.5px solid #f59e0b !important;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35) !important;
+}
+
+@keyframes pulseWrapRed {
+  0%, 100% { box-shadow: 0 0 10px rgba(239, 68, 68, 0.35); }
+  50% { box-shadow: 0 0 20px rgba(239, 68, 68, 0.65); }
+}
+
+/* Proctor Warning Banner below Video */
+.proctor-warning-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  margin-top: 8px;
+  line-height: 1.35;
+  box-sizing: border-box;
+  animation: slideBannerIn 0.2s ease-out;
+}
+
+@keyframes slideBannerIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.proctor-warning-banner.red {
+  background-color: #fef2f2;
+  border: 1.5px solid #fecaca;
+  color: #991b1b;
+}
+
+.proctor-warning-banner.amber {
+  background-color: #fffbeb;
+  border: 1.5px solid #fde68a;
+  color: #92400e;
+}
+
+.proctor-warning-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.proctor-warning-content strong {
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+/* System Check Real-time Face Verification Pill */
+.system-check-face-pill {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  margin-top: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.system-check-face-pill.normal {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+}
+
+.system-check-face-pill.amber {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+}
+
+.system-check-face-pill.red {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
 }
 
 /* Question Navigator Card */

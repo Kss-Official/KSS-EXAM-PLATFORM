@@ -635,9 +635,9 @@ function cleanAndDeduplicateFaces(
 ): DetectedFace[] {
   if (rawFaces.length === 0) return [];
 
-  // Minimum face size: Candidate face is at least 32px
-  const minValidSize = Math.max(32, Math.min(frameWidth, frameHeight) * 0.07);
-  const sizeFiltered = rawFaces.filter((f) => f.size >= minValidSize && f.score >= 0.40);
+  // Minimum face size: Candidate face is at least 26px
+  const minValidSize = Math.max(26, Math.min(frameWidth, frameHeight) * 0.05);
+  const sizeFiltered = rawFaces.filter((f) => f.size >= minValidSize && f.score >= 0.35);
   if (sizeFiltered.length === 0) return [];
 
   // Sort by prominence (size * score) descending so the primary candidate face is first
@@ -654,10 +654,11 @@ function cleanAndDeduplicateFaces(
 
     const primary = cleanFaces[0];
 
-    // Check 1: Candidate Head Sphere
-    // Head radius + hair + ears + chin spans 1.55x the face box.
+    // Check 1: Candidate Head Duplicate Filter
+    // Candidate's own duplicate detections (e.g. mouth vs face detected twice)
+    // Centers overlapping by > 75% of head size
     const centerDist = Math.hypot(face.col - primary.col, face.row - primary.row);
-    if (centerDist < primary.size * 1.55) {
+    if (centerDist < primary.size * 0.75) {
       continue;
     }
 
@@ -674,61 +675,49 @@ function cleanAndDeduplicateFaces(
     const areaB = face.size * face.size;
     const union = areaA + areaB - intersection;
     const iou = union > 0 ? intersection / union : 0;
-    if (iou > 0.04) {
+    if (iou > 0.15) {
       continue;
     }
 
-    // Check 3: Candidate Torso, Silhouette & Apparel Silo
-    // Candidate's torso, shoulders, arms, chest, collar, tie, buttons, t-shirt prints, and chair
-    // occupy the horizontal corridor ±2.20 * primary.size and everything below primary.row - primary.size * 0.35!
-    const inCandidateCorridor = Math.abs(face.col - primary.col) < primary.size * 2.20;
-    const isBelowCandidateBrow = face.row > primary.row - primary.size * 0.35;
-    if (inCandidateCorridor && isBelowCandidateBrow) {
-      // Inside candidate's body silhouette — impossible to be a second human face
+    // Check 3: Candidate Chest / T-shirt graphics directly under chin
+    // Avoid false detections on clothing prints directly centered below the chin:
+    const isDirectlyUnderChin =
+      Math.abs(face.col - primary.col) < primary.size * 0.55 &&
+      face.row > primary.row + primary.size * 0.85;
+    if (isDirectlyUnderChin) {
       continue;
     }
 
-    // Check 4: Candidate Hands / Arms / Lap / Desk
-    // Candidate hands typing on keyboard, holding mouse, or resting on desk in lower portion
-    const isCandidateLowerBody =
-      face.row > primary.row + primary.size * 0.40 &&
-      Math.abs(face.col - primary.col) < frameWidth * 0.6;
-    if (isCandidateLowerBody) {
-      continue;
-    }
-
-    // Check 5: Facial Anatomy Keypoints Validation (MediaPipe)
+    // Check 4: Facial Anatomy Keypoints Validation (MediaPipe)
     // If MediaPipe keypoints are present, ensure it forms a real human face
     if (face.keypoints && face.keypoints.length >= 4) {
       const rightEye = face.keypoints[0];
       const leftEye = face.keypoints[1];
       const nose = face.keypoints[2];
       const eyeDist = Math.hypot(leftEye.x - rightEye.x, leftEye.y - rightEye.y);
-      if (eyeDist < 8) {
+      if (eyeDist < 6) {
         // Not a real human face (eyes too close or missing)
         continue;
       }
-      if (nose.y < Math.min(rightEye.y, leftEye.y) - 4) {
+      if (nose.y < Math.min(rightEye.y, leftEye.y) - 6) {
         // Inverted or distorted geometry
         continue;
       }
     }
 
-    // Check 6: Secondary face must be confident and substantial enough to be an actual human exam intrusion
-    // Rejects faint background posters, wall calendars, book covers, and shadow noise:
-    // Must be >= 28px (covers person entering room in background) and confidence >= 0.58
-    const minSecondarySize = Math.max(28, primary.size * 0.22);
-    if (face.score < 0.58 || face.size < minSecondarySize) {
+    // Check 5: Secondary face must be confident and substantial
+    const minSecondarySize = Math.max(22, primary.size * 0.18);
+    if (face.score < 0.40 || face.size < minSecondarySize) {
       continue;
     }
 
-    // Check 7: Deduplicate against any other secondary face already confirmed
+    // Check 6: Deduplicate against any other secondary face already confirmed
     let overlapsOther = false;
     for (let i = 1; i < cleanFaces.length; i++) {
       const other = cleanFaces[i];
       if (
         Math.hypot(face.col - other.col, face.row - other.row) <
-        Math.min(face.size, other.size) * 0.75
+        Math.min(face.size, other.size) * 0.65
       ) {
         overlapsOther = true;
         break;

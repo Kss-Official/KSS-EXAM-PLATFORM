@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { 
   FileText, 
   Users, 
@@ -45,8 +45,19 @@ export default function OverviewPage({
       }
     };
     fetchRecentExams();
-    return () => { isCancelled = true; };
-  }, []);
+
+    const interval = setInterval(() => {
+      if (!isCancelled) {
+        fetchRecentExams();
+        if (onRetry) onRetry();
+      }
+    }, 10000);
+
+    return () => { 
+      isCancelled = true; 
+      clearInterval(interval);
+    };
+  }, [onRetry]);
 
   const totalExams = data?.totalExams ?? (loading ? "..." : 0);
   const totalCandidates = data?.totalCandidates ?? (loading ? "..." : 0);

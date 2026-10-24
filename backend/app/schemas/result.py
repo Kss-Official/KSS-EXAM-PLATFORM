@@ -44,7 +44,10 @@ class ExamResultDto(CamelModel):
     qualification_threshold: Optional[JsonDecimal] = None
     qualification_status: Optional[str] = None
     results_published: bool = False
+    is_published: bool = False
     submitted_at: Optional[datetime] = None
+    receipt_id: Optional[str] = None
+    candidate_email: Optional[str] = None
     total_questions: Optional[int] = None
     questions_answered: Optional[int] = None
     correct_answers: Optional[int] = None

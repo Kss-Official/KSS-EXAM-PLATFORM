@@ -17,13 +17,15 @@ from app.core import EmailService
 class CandidateService:
     @staticmethod
     def _to_dto(c: Candidate) -> CandidateDto:
+        dept_name = c.department.name if c.department else None
         return CandidateDto(
             id=c.id,
             registration_number=c.registration_number,
             full_name=c.full_name,
             email=c.email,
             department_id=c.department_id,
-            department_name=c.department.name if c.department else None,
+            department_name=dept_name,
+            college_name=dept_name,
             status=c.status or "ACTIVE",
             created_at=c.created_at,
             assigned_set=c.assigned_set
@@ -37,7 +39,13 @@ class CandidateService:
         cands = db.query(Candidate).options(
             joinedload(Candidate.department),
             joinedload(Candidate.access_codes)
-        ).order_by(Candidate.created_at.desc()).all()
+        ).all()
+        # Natural ordering: numerical Register No. (1, 2, ... 282) first, followed by others
+        cands.sort(key=lambda c: (
+            0 if c.registration_number and c.registration_number.isdigit() else 1,
+            int(c.registration_number) if c.registration_number and c.registration_number.isdigit() else 0,
+            c.id or 0
+        ))
         return [cls._to_dto(c) for c in cands]
 
     @classmethod
@@ -85,61 +93,233 @@ class CandidateService:
     @classmethod
     def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str) -> Dict[str, Any]:
         """
-        Imports candidates in bulk from uploaded CSV file.
-        Format: RegNumber, FullName, Email, [DepartmentCode]
+        Imports candidates in bulk from uploaded PDF, Excel (.xlsx/.xls), Word (.docx), or CSV file.
+        Dynamically resolves column mappings (RegNumber/Sl.No, FullName, Email, College/Department),
+        handles arbitrary column arrangements, and applies cell-level regex detection.
         """
         content = file.file.read()
         if not content:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty")
 
-        # Extract text based on file format
         filename = (file.filename or "").lower()
-        if filename.endswith(".pdf"):
-            try:
-                import pymupdf
-                doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
-                pages_text = [page.get_text("text") for page in doc]
-                doc.close()
-                text = "\n".join(pages_text)
-            except Exception as e:
-                text = content.decode("utf-8-sig", errors="replace")
-        else:
-            text = content.decode("utf-8-sig", errors="replace")
+        rows: List[List[str]] = []
 
-        reader = csv.reader(io.StringIO(text))
-        
+        if filename.endswith((".xlsx", ".xls")):
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                for ws in wb.worksheets:
+                    for r in ws.iter_rows(values_only=True):
+                        if any(r):
+                            rows.append([str(cell).replace('\n', ' ').strip() if cell is not None else "" for cell in r])
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Excel file: {e}")
+
+        elif filename.endswith(".docx"):
+            try:
+                import docx
+                doc = docx.Document(io.BytesIO(content))
+                for table in doc.tables:
+                    for row in table.rows:
+                        cell_vals = [cell.text.replace('\n', ' ').strip() for cell in row.cells]
+                        if any(cell_vals):
+                            rows.append(cell_vals)
+                if not rows:
+                    for p in doc.paragraphs:
+                        text_line = p.text.strip()
+                        if text_line:
+                            parts = [pt.strip() for pt in re.split(r'\t+|\s{2,}', text_line) if pt.strip()]
+                            if len(parts) >= 2:
+                                rows.append(parts)
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Word document: {e}")
+
+        elif filename.endswith(".pdf"):
+            try:
+                try:
+                    import pymupdf
+                except ImportError:
+                    import fitz as pymupdf
+                doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
+                for page in doc:
+                    tables = page.find_tables()
+                    if tables and tables.tables:
+                        for t in tables:
+                            for row in t.extract():
+                                if any(row):
+                                    rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
+                    else:
+                        # Fallback: cluster words by vertical y0 coordinate with 3.0pt tolerance
+                        words = page.get_text("words")
+                        if words:
+                            words.sort(key=lambda w: (w[1], w[0]))
+                            curr_line = []
+                            curr_y = None
+                            for w in words:
+                                y = w[1]
+                                if curr_y is None or abs(y - curr_y) > 3.0:
+                                    if curr_line:
+                                        rows.append([" ".join([x[4] for x in curr_line])])
+                                    curr_line = [w]
+                                    curr_y = y
+                                else:
+                                    curr_line.append(w)
+                            if curr_line:
+                                rows.append([" ".join([x[4] for x in curr_line])])
+                        else:
+                            for line in page.get_text("text").splitlines():
+                                if line.strip():
+                                    rows.append([line.strip()])
+                doc.close()
+            except Exception as e:
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse PDF document: {e}")
+        else:
+            text = ""
+            for encoding in ("utf-8-sig", "utf-8", "latin-1", "cp1252"):
+                try:
+                    text = content.decode(encoding)
+                    break
+                except UnicodeDecodeError:
+                    continue
+            if text:
+                reader = csv.reader(io.StringIO(text))
+                rows = [[str(c).replace('\n', ' ').strip() for c in r] for r in reader if any(r)]
+
         created_list: List[CandidateDto] = []
         errors: List[str] = []
-        line_num = 0
 
         # Pre-cache existing registration numbers, emails, and departments
-        existing_regs = {r[0].upper() for r in db.query(Candidate.registration_number).all()}
-        existing_emails = {e[0].lower() for e in db.query(Candidate.email).all()}
-        dept_map = {d.code.upper(): d.id for d in db.query(Department).all()}
+        existing_regs = {r[0].upper() for r in db.query(Candidate.registration_number).all() if r[0]}
+        existing_emails = {e[0].lower() for e in db.query(Candidate.email).all() if e[0]}
+        dept_map = {d.code.upper(): d.id for d in db.query(Department).all() if d.code}
+
+        # Detect Header Row in top 15 rows
+        reg_idx, name_idx, email_idx, college_idx = None, None, None, None
+        header_row_idx = -1
+
+        for idx, r in enumerate(rows[:15]):
+            if len(r) < 3:
+                continue
+            r_clean = [re.sub(r'\s+', ' ', cell.lower().strip()) for cell in r]
+            has_email = any("email" in c or "e-mail" in c or "mail" in c for c in r_clean)
+            has_name = any("name" in c and "institute" not in c and "college" not in c for c in r_clean)
+            has_reg = any("reg" in c or "sl" in c or "s.no" in c or "roll" in c or "id" in c for c in r_clean)
+
+            if has_email or (has_name and has_reg):
+                header_row_idx = idx
+                for c_idx, cell in enumerate(r_clean):
+                    if ("email" in cell or "e-mail" in cell or "mail" in cell) and email_idx is None:
+                        email_idx = c_idx
+                    elif ("candidate name" in cell or "full name" in cell or "student name" in cell or ("name" in cell and "institute" not in cell and "college" not in cell)) and name_idx is None:
+                        name_idx = c_idx
+                    elif ("sl" in cell or "s.no" in cell or "reg" in cell or "roll" in cell or "serial" in cell) and reg_idx is None:
+                        reg_idx = c_idx
+                    elif ("institute" in cell or "college" in cell or "dept" in cell or "department" in cell or "branch" in cell) and college_idx is None:
+                        college_idx = c_idx
+                if email_idx is not None:
+                    break
+
+        email_regex = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
+        college_keywords = ["COLLEGE", "INSTITUTE", "ENGINEERING", "TECHNOLOGY", "UNIVERSITY", "POLYTECHNIC"]
+        start_idx = header_row_idx + 1 if header_row_idx >= 0 else 0
 
         new_candidates = []
+        line_num = 0
 
-        for row in reader:
+        for r in rows[start_idx:]:
             line_num += 1
-            if not row or all(col.strip() == "" for col in row):
-                continue
-            
-            # Skip header line if detected
-            if line_num == 1 and ("registration" in row[0].lower() or "reg" in row[0].lower()):
+            if not r or all(not str(col).strip() for col in r):
                 continue
 
-            if len(row) < 3:
-                errors.append(f"Line {line_num}: Expected at least 3 columns (RegNumber, FullName, Email)")
-                continue
+            # Case A: Single concatenated line from word clustering or OCR text
+            if len(r) == 1 or (len(r) < 3 and "@" in r[0]):
+                line = r[0]
+                m = email_regex.search(line)
+                if not m:
+                    continue
+                email = m.group(0).lower()
 
-            reg_num = row[0].strip().upper()
-            full_name = row[1].strip()
-            email = row[2].strip().lower()
-            dept_code = row[3].strip().upper() if len(row) > 3 else None
+                # Extract college if keyword present
+                college_or_dept = None
+                upper_line = line.upper()
+                for kw in college_keywords:
+                    if kw in upper_line:
+                        col_match = re.search(r'\b[A-Z\s&]+(?:COLLEGE|INSTITUTE|UNIVERSITY|TECHNOLOGY)[A-Z\s&]*', upper_line)
+                        if col_match:
+                            raw_col = col_match.group(0).strip()
+                            college_or_dept = re.sub(r'\s+(NO|YES|FEMALE|MALE|\d+.*)$', '', raw_col, flags=re.I).strip()
+                        break
 
-            if not reg_num or not full_name or not email:
-                errors.append(f"Line {line_num}: Registration number, Full Name, and Email are required.")
-                continue
+                # Extract Registration / Serial No.
+                reg_match = re.search(r'\b(\d{1,5})\b', line)
+                reg_num = reg_match.group(1) if reg_match else str(len(new_candidates) + 1)
+
+                # Extract Name (capitalized words before keywords)
+                name_match = re.match(r'^(?:\d+\s+)?([A-Z\s\.\'\-]+?)(?:\s+(?:SOFTWARE|DEVELOPER|TESTER|FEMALE|MALE|B\.E|B\.TECH|CSE|ISE)\b)', line, re.I)
+                if name_match:
+                    full_name = name_match.group(1).strip()
+                else:
+                    full_name = email.split("@")[0].replace(".", " ").title()
+
+            # Case B: Multi-column row (from Excel, CSV, or PDF table)
+            else:
+                email = None
+                if email_idx is not None and email_idx < len(r) and "@" in r[email_idx]:
+                    m = email_regex.search(r[email_idx])
+                    if m:
+                        email = m.group(0).lower()
+                if not email:
+                    for cell in r:
+                        if "@" in cell:
+                            m = email_regex.search(cell)
+                            if m:
+                                email = m.group(0).lower()
+                                break
+
+                if not email:
+                    continue
+
+                # Extract Name
+                full_name = None
+                if name_idx is not None and name_idx < len(r) and r[name_idx]:
+                    val = r[name_idx].strip()
+                    if "@" not in val and not val.isdigit() and len(val) >= 2:
+                        full_name = val
+                if not full_name:
+                    for cell in r:
+                        c_clean = cell.strip()
+                        if c_clean and "@" not in c_clean and not c_clean.isdigit() and len(c_clean) >= 2:
+                            c_up = c_clean.upper()
+                            if not any(kw in c_up for kw in college_keywords + ["MALE", "FEMALE"]):
+                                full_name = c_clean
+                                break
+                if not full_name:
+                    full_name = email.split("@")[0].replace(".", " ").title()
+
+                # Extract Reg / Sl. No
+                reg_num = None
+                if reg_idx is not None and reg_idx < len(r) and r[reg_idx]:
+                    reg_num = r[reg_idx].strip().upper()
+                if not reg_num:
+                    for cell in r:
+                        c_clean = cell.strip()
+                        if c_clean and (c_clean.isdigit() or c_clean.upper().startswith("REG")):
+                            reg_num = c_clean.upper()
+                            break
+                if not reg_num:
+                    reg_num = str(len(new_candidates) + 1)
+
+                # Extract College / Department
+                college_or_dept = None
+                if college_idx is not None and college_idx < len(r) and r[college_idx]:
+                    college_or_dept = r[college_idx].strip()
+                if not college_or_dept:
+                    for cell in r:
+                        c_clean = cell.strip()
+                        c_up = c_clean.upper()
+                        if any(kw in c_up for kw in college_keywords):
+                            college_or_dept = c_clean
+                            break
 
             if reg_num in existing_regs:
                 errors.append(f"Line {line_num}: Registration number '{reg_num}' is already in use.")
@@ -149,7 +329,28 @@ class CandidateService:
                 errors.append(f"Line {line_num}: Email '{email}' is already in use.")
                 continue
 
-            dept_id = dept_map.get(dept_code) if dept_code else None
+            # Resolve Department or College Name
+            dept_id = None
+            if college_or_dept:
+                clean_cd = college_or_dept.strip()
+                if clean_cd.upper() in dept_map:
+                    dept_id = dept_map[clean_cd.upper()]
+                else:
+                    existing_dept = db.query(Department).filter(func.lower(Department.name) == clean_cd.lower()).first()
+                    if existing_dept:
+                        dept_id = existing_dept.id
+                    else:
+                        new_dept = Department(
+                            name=clean_cd,
+                            code=re.sub(r'[^A-Z0-9]', '', clean_cd.upper())[:10] or "COLLEGE",
+                            description=f"College: {clean_cd}",
+                            active=True
+                        )
+                        db.add(new_dept)
+                        db.commit()
+                        db.refresh(new_dept)
+                        dept_id = new_dept.id
+                        dept_map[new_dept.code.upper()] = dept_id
 
             c = Candidate(
                 registration_number=reg_num,

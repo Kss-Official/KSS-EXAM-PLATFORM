@@ -18,10 +18,12 @@ import {
   ArrowLeft,
   Video,
   Menu,
-  Mail
+  Mail,
+  UserX
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
+import { useFaceDetection } from "../../hooks/useFaceDetection";
 
 interface SystemCheckPageProps {
   profile: CandidateProfile;
@@ -125,20 +127,41 @@ export default function SystemCheckPage({
     }
     setCameraStatus("requesting");
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
-        audio: false
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+          audio: false
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+      }
+
       cameraStreamRef.current = stream;
       setCameraStatus("granted");
+
       if (videoRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current.defaultMuted = true;
+        videoRef.current.playsInline = true;
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(e => console.warn(e));
+        videoRef.current.play().catch(e => {
+          if (e.name !== "AbortError") console.warn(e);
+        });
       }
     } catch (e: unknown) {
       setCameraStatus("denied");
       const err = e as Error;
-      setCameraError(err.message || "Camera access was denied or device not found.");
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setCameraError("Camera access was blocked or denied. Please click the camera icon in your browser address bar to allow access.");
+      } else if (err.name === "NotFoundError") {
+        setCameraError("No webcam found. Please connect a camera and try again.");
+      } else {
+        setCameraError(err.message || "Camera access was denied or device not found.");
+      }
     }
   };
 
@@ -146,8 +169,13 @@ export default function SystemCheckPage({
   useEffect(() => {
     if (cameraStatus === "granted" && videoRef.current && cameraStreamRef.current) {
       if (videoRef.current.srcObject !== cameraStreamRef.current) {
+        videoRef.current.muted = true;
+        videoRef.current.defaultMuted = true;
+        videoRef.current.playsInline = true;
         videoRef.current.srcObject = cameraStreamRef.current;
-        videoRef.current.play().catch(e => console.warn(e));
+        videoRef.current.play().catch(e => {
+          if (e.name !== "AbortError") console.warn(e);
+        });
       }
     }
   }, [cameraStatus]);
@@ -198,6 +226,16 @@ export default function SystemCheckPage({
   const isCameraGranted = cameraStatus === "granted";
   const isMicrophoneGranted = microphoneStatus === "granted";
   const canContinueToExam = isCameraGranted && isMicrophoneGranted && rulesAgreed;
+
+  // Real-time proctor verification preview on SystemCheckPage
+  const {
+    severity: faceSeverity,
+    warningTitle: faceWarningTitle,
+    warningText: faceWarningText,
+  } = useFaceDetection(videoRef, {
+    enabled: isCameraGranted,
+    intervalMs: 200,
+  });
 
   return (
     <main className="welcome system-check-view">
@@ -360,6 +398,25 @@ export default function SystemCheckPage({
                       <video ref={videoRef} autoPlay playsInline muted className="compat-video-feed" />
                       <div className="compat-live-status-tag">
                         <span className="compat-dot-pulse" /> Camera Active
+                      </div>
+
+                      <div className={`system-check-face-pill ${faceSeverity}`}>
+                        {faceSeverity === "red" ? (
+                          <>
+                            <AlertTriangle size={13} color="#dc2626" style={{ flexShrink: 0 }} />
+                            <span><strong>{faceWarningTitle}:</strong> {faceWarningText}</span>
+                          </>
+                        ) : faceSeverity === "amber" ? (
+                          <>
+                            <AlertTriangle size={13} color="#d97706" style={{ flexShrink: 0 }} />
+                            <span><strong>{faceWarningTitle}:</strong> {faceWarningText}</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={13} color="#16a34a" style={{ flexShrink: 0 }} />
+                            <span>1 Candidate face visible — Optimal framing verified</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   ) : (
