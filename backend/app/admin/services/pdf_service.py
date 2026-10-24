@@ -4,7 +4,7 @@ import gc
 import asyncio
 from typing import Optional, List, Dict, Tuple
 from decimal import Decimal
-import pypdf
+import pymupdf
 from fastapi import UploadFile
 
 from app.schemas import (
@@ -18,31 +18,107 @@ PARSE_TIMEOUT_SECONDS = 25.0  # 25s execution timeout bound
 # Bound concurrency: at most 2 PDF parsing jobs can run simultaneously across the API
 _pdf_semaphore = asyncio.Semaphore(2)
 
-class InMemoryPdfService:
-    @staticmethod
-    def extract_text_from_pdf_bytes(pdf_bytes: bytes, filename: str) -> str:
-        if not pdf_bytes or len(pdf_bytes) < 5:
-            raise ValueError(f"File '{filename}' is empty or corrupted.")
-        if not pdf_bytes.startswith(PDF_MAGIC_BYTES):
-            raise ValueError(f"File '{filename}' is not a valid PDF document (missing %PDF- header).")
-        
-        try:
-            reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-            text_parts = []
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    # Normalize Unicode spaces and quotes
+
+def extract_pdf_text(pdf_bytes: bytes) -> str:
+    """
+    Core extraction function using PyMuPDF.
+    Extracts text from every page in the correct order, preserves meaningful line breaks,
+    handles empty pages without crashing, and raises descriptive ValueErrors for invalid/encrypted/scanned files.
+    """
+    if not pdf_bytes:
+        raise ValueError("The uploaded PDF is empty.")
+    if len(pdf_bytes) < 5 or not pdf_bytes.startswith(PDF_MAGIC_BYTES):
+        raise ValueError("The uploaded file is not a valid PDF document (missing %PDF- header).")
+
+    try:
+        with pymupdf.open(
+            stream=io.BytesIO(pdf_bytes),
+            filetype="pdf",
+        ) as document:
+            if document.is_encrypted:
+                raise ValueError("Password-protected PDFs are not supported.")
+
+            page_texts = []
+
+            for page_number, page in enumerate(document, start=1):
+                text = page.get_text("text", sort=True)
+
+                if text and text.strip():
+                    # Normalize Unicode spaces and quotes while preserving structure
                     cleaned = (
-                        page_text.replace("\xa0", " ")
+                        text.replace("\xa0", " ")
                         .replace("\u201c", '"')
                         .replace("\u201d", '"')
                         .replace("\u2019", "'")
                     )
-                    text_parts.append(cleaned)
-            return "\n".join(text_parts)
-        except Exception as e:
-            raise ValueError(f"In-memory PDF text extraction failed: {str(e)}")
+                    if cleaned.strip():
+                        page_texts.append(cleaned.strip())
+
+            extracted_text = "\n\n".join(page_texts).strip()
+
+            if not extracted_text:
+                raise ValueError(
+                    "No selectable text was found in the PDF. "
+                    "The file may contain scanned images or require OCR preprocessing."
+                )
+
+            return extracted_text
+
+    except ValueError:
+        raise
+    except Exception as exc:
+        raise ValueError(
+            f"Unable to extract text from the uploaded PDF: {str(exc)}"
+        ) from exc
+
+
+class InMemoryPdfService:
+    @staticmethod
+    def extract_text_from_pdf_bytes(pdf_bytes: bytes, filename: str = "document.pdf") -> str:
+        """
+        Service-level interface accepting pdf_bytes and filename.
+        Leverages PyMuPDF with descriptive filename-aware error handling.
+        """
+        if not pdf_bytes or len(pdf_bytes) < 5:
+            raise ValueError(f"File '{filename}' is empty or corrupted.")
+        if not pdf_bytes.startswith(PDF_MAGIC_BYTES):
+            raise ValueError(f"File '{filename}' is not a valid PDF document (missing %PDF- header).")
+
+        try:
+            with pymupdf.open(
+                stream=io.BytesIO(pdf_bytes),
+                filetype="pdf",
+            ) as document:
+                if document.is_encrypted:
+                    raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
+
+                page_texts = []
+                for page in document:
+                    text = page.get_text("text", sort=True)
+                    if text and text.strip():
+                        cleaned = (
+                            text.replace("\xa0", " ")
+                            .replace("\u201c", '"')
+                            .replace("\u201d", '"')
+                            .replace("\u2019", "'")
+                        )
+                        if cleaned.strip():
+                            page_texts.append(cleaned.strip())
+
+                extracted_text = "\n\n".join(page_texts).strip()
+                if not extracted_text:
+                    raise ValueError(
+                        f"No selectable text was found in '{filename}'. "
+                        "The file may contain scanned images or require OCR preprocessing."
+                    )
+
+                return extracted_text
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError(
+                f"In-memory PDF text extraction failed for '{filename}': {str(exc)}"
+            ) from exc
 
     @classmethod
     async def parse_pdf_in_mem(
@@ -83,8 +159,12 @@ class InMemoryPdfService:
                     try:
                         qp_text = cls.extract_text_from_pdf_bytes(qp_bytes, question_paper_file.filename)
                     except ValueError as e:
+                        err_str = str(e)
                         response.success = False
-                        response.errors.append(str(e))
+                        if "scanned" in err_str.lower() or "selectable text" in err_str.lower() or "ocr" in err_str.lower():
+                            response.requires_ocr = True
+                            response.ocr_reason = err_str
+                        response.errors.append(err_str)
                         return response
                     finally:
                         del qp_bytes

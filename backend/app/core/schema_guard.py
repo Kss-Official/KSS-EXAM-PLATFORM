@@ -36,6 +36,24 @@ def ensure_indexes_and_constraints():
         except Exception as e:
             logger.debug(f"Cleanup notice (non-fatal): {e}")
 
+    column_statements = [
+        "ALTER TABLE exam_attempts ADD COLUMN candidate_code VARCHAR(64);",
+        "ALTER TABLE exam_attempts ADD COLUMN question_set_code VARCHAR(20);",
+        "ALTER TABLE exam_attempts ADD COLUMN total_questions INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN questions_answered INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN correct_answers INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN incorrect_answers INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN unanswered_questions INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN duration_seconds INTEGER DEFAULT 0;",
+    ]
+
+    for col_stmt in column_statements:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(col_stmt))
+        except Exception as e:
+            logger.debug(f"Column addition notice (non-fatal): {e}")
+
     ddl_statements = [
         # Risk 2: Unique constraint and index for attempt answers to guarantee idempotent upserts
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_attempt_answer_attempt_question ON attempt_answers (attempt_id, question_id);",

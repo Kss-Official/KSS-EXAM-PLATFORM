@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
   Briefcase, 
   Search, 
@@ -21,16 +21,17 @@ interface RoleApplicationPageProps {
   onContinue: (updatedProfile: CandidateProfile) => void;
 }
 
-const JOB_ROLES = [
-  "Software Development Engineer",
-  "Frontend Developer",
-  "Backend Developer",
-  "Full Stack Developer",
-  "DevOps & Cloud Engineer",
-  "Data Analyst / Data Engineer",
-  "Quality Assurance Engineer",
-  "UI/UX Designer",
-  "Technical Consultant"
+const TECHNICAL_JOB_ROLES = [
+  "AIML developer",
+  "Software developer",
+  "UIUX designer",
+  "Software Tester",
+  "DevOps"
+];
+
+const NON_TECHNICAL_JOB_ROLES = [
+  "HR",
+  "Sales & Marketing"
 ];
 
 const SUGGESTED_SKILLS = [
@@ -48,6 +49,13 @@ export default function RoleApplicationPage({
   onBack,
   onContinue
 }: RoleApplicationPageProps) {
+  const isNonTechnical = Boolean(
+    profile.department && 
+    (profile.department.toLowerCase().includes("non") || profile.department.toUpperCase() === "NON_TECHNICAL")
+  );
+
+  const availableJobRoles = isNonTechnical ? NON_TECHNICAL_JOB_ROLES : TECHNICAL_JOB_ROLES;
+
   const [jobRole, setJobRole] = useState(profile.jobRole || "");
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   
@@ -220,7 +228,7 @@ export default function RoleApplicationPage({
 
                   {isRoleDropdownOpen && (
                     <div className="role-app-dropdown-menu" role="listbox">
-                      {JOB_ROLES.map(role => (
+                      {availableJobRoles.map(role => (
                         <div
                           key={role}
                           role="option"
