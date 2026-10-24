@@ -789,9 +789,16 @@ export default function CandidateExamPage({
 
             let activeQList: any[] = attemptData.questions;
             if (activeQList && activeQList.length > 0) {
-              setQuestions(activeQList);
+              if (activeQList.length >= 60) {
+                setQuestions(activeQList);
+              } else {
+                const full60 = DEFAULT_60_QUESTIONS.map((fallbackQ, i) => activeQList[i] || fallbackQ);
+                setQuestions(full60);
+                activeQList = full60;
+              }
             } else {
               activeQList = DEFAULT_60_QUESTIONS;
+              setQuestions(DEFAULT_60_QUESTIONS);
             }
 
             const deadlineStr = attemptData.deadlineAt || attemptData.expiresAt;
@@ -861,9 +868,9 @@ export default function CandidateExamPage({
     };
   }, []);
 
-  const total = questions.length > 0 ? questions.length : 60;
+  const total = Math.max(questions.length, DEFAULT_60_QUESTIONS.length, 60);
   const answeredCount = Object.keys(answers).length;
-  const currentQuestion = questions[idx] || DEFAULT_60_QUESTIONS[idx % DEFAULT_60_QUESTIONS.length];
+  const currentQuestion = questions[idx] || DEFAULT_60_QUESTIONS[idx] || DEFAULT_60_QUESTIONS[idx % DEFAULT_60_QUESTIONS.length];
 
   // Helper to determine active section info
   const getSectionInfo = (qNum: number) => {
@@ -962,7 +969,8 @@ export default function CandidateExamPage({
   }, [idx, session, backendAttemptId]);
 
   const handleNavigateQuestion = useCallback((targetIndex: number) => {
-    if (targetIndex >= 0 && targetIndex < total) {
+    const maxAllowed = Math.max(total, questions.length, 60);
+    if (targetIndex >= 0 && targetIndex < maxAllowed) {
       setIdx(targetIndex);
       saveCandidateSession({
         ...session,
@@ -972,7 +980,7 @@ export default function CandidateExamPage({
         currentQuestionIndex: targetIndex
       });
     }
-  }, [total, session, backendAttemptId, answers, flags]);
+  }, [total, questions.length, session, backendAttemptId, answers, flags]);
 
   const triggerFinalization = useCallback(async (reason: "manual_submit" | "timer_expired" | "candidate_exit") => {
     if (submitting) return;
@@ -1114,7 +1122,7 @@ export default function CandidateExamPage({
             <button
               type="button"
               className="exam-btn-prev"
-              disabled={idx === 0}
+              disabled={idx <= 0}
               onClick={() => handleNavigateQuestion(idx - 1)}
             >
               <ChevronLeft size={16} /> Previous
@@ -1122,7 +1130,7 @@ export default function CandidateExamPage({
             <button
               type="button"
               className="exam-btn-next"
-              disabled={idx === total - 1}
+              disabled={idx >= total - 1}
               onClick={() => handleNavigateQuestion(idx + 1)}
             >
               Next question <ChevronRight size={16} />

@@ -263,17 +263,28 @@ class CandidateExamService:
                     resp.message = "No published examination is currently available for this department."
                 return resp
 
-            # Sort matched exams: prefer department-specific match, most recently published exam, then question count
-            matched_exams.sort(
+            # Prioritize standard exams over scrap test exams
+            production_exams = [
+                e for e in matched_exams
+                if not (e.title and (e.title.startswith("Live E2E") or e.title.startswith("Access Limit")))
+                and (e.total_questions or 0) >= 10
+            ]
+            candidate_pool = production_exams if production_exams else matched_exams
+
+            # Sort matched exams:
+            # 1. Department match
+            # 2. Total question count (prefer complete 60-question exams over small scrap)
+            # 3. Most recently published exam
+            candidate_pool.sort(
                 key=lambda e: (
                     1 if dept_id and any(d.id == dept_id for d in e.departments) else 0,
-                    e.created_at.timestamp() if e.created_at else 0,
-                    e.total_questions or 0
+                    e.total_questions or 0,
+                    e.created_at.timestamp() if e.created_at else 0
                 ),
                 reverse=True
             )
 
-            exam = matched_exams[0]
+            exam = candidate_pool[0]
 
             # Set allocation across A, B, C, D
             sets = []
@@ -398,17 +409,19 @@ class CandidateExamService:
             joinedload(ExamAttempt.question_set)
         ).filter(
             ExamAttempt.candidate_id == candidate_id,
-            ExamAttempt.exam_id == exam_id
+            ExamAttempt.exam_id == exam_id,
+            ExamAttempt.status.in_(["ASSIGNED", "IN_PROGRESS"])
         ).order_by(ExamAttempt.created_at.desc()).first()
 
         if not attempt:
+            # If no active attempt for this exam, check if any attempt for this exam exists
             attempt = db.query(ExamAttempt).options(
                 joinedload(ExamAttempt.exam),
                 joinedload(ExamAttempt.candidate),
                 joinedload(ExamAttempt.question_set)
             ).filter(
                 ExamAttempt.candidate_id == candidate_id,
-                ExamAttempt.status.in_(["ASSIGNED", "IN_PROGRESS"])
+                ExamAttempt.exam_id == exam_id
             ).order_by(ExamAttempt.created_at.desc()).first()
 
         if not attempt:
