@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+﻿import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   FileText,
   User, 
@@ -8,7 +8,6 @@ import {
   RotateCw,
   Monitor,
   Globe,
-  SlidersHorizontal,
   Wifi,
   Camera,
   Mic,
@@ -19,14 +18,10 @@ import {
   CheckCircle2,
   LockKeyhole,
   Video,
-  Menu,
-  UserCheck,
-  UserX,
-  Activity
+  Menu
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
-import { useFaceDetection } from "../../hooks/useFaceDetection";
 
 interface SystemCheckPageProps {
   profile: CandidateProfile;
@@ -42,9 +37,10 @@ export default function SystemCheckPage({
   // System detection states
   const [osName, setOsName] = useState("Windows 11 / 10 (64-bit)");
   const [browserName, setBrowserName] = useState("Google Chrome");
-  const [screenRes, setScreenRes] = useState("1920 × 1080 px");
+  const [screenRes, setScreenRes] = useState("1920 ├ù 1080 px");
   const [netStatus, setNetStatus] = useState("High Speed Broadband");
   const [isRechecking, setIsRechecking] = useState(false);
+  void osName; void browserName; void screenRes; void netStatus;
 
   // Media permission states
   const [cameraStatus, setCameraStatus] = useState<"idle" | "requesting" | "granted" | "denied">("idle");
@@ -82,7 +78,7 @@ export default function SystemCheckPage({
       // Resolution
       const w = window.screen.width || window.innerWidth;
       const h = window.screen.height || window.innerHeight;
-      setScreenRes(`${w} × ${h} px`);
+      setScreenRes(`${w} ├ù ${h} px`);
 
       // Network
       setNetStatus(navigator.onLine ? "High Speed Broadband" : "Offline");
@@ -135,11 +131,9 @@ export default function SystemCheckPage({
       });
       cameraStreamRef.current = stream;
       setCameraStatus("granted");
-      if (videoRef.current && videoRef.current.srcObject !== stream) {
+      if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play().catch(e => {
-          if ((e as Error).name !== "AbortError") console.warn(e);
-        });
+        videoRef.current.play().catch(e => console.warn(e));
       }
     } catch (e: unknown) {
       setCameraStatus("denied");
@@ -153,9 +147,7 @@ export default function SystemCheckPage({
     if (cameraStatus === "granted" && videoRef.current && cameraStreamRef.current) {
       if (videoRef.current.srcObject !== cameraStreamRef.current) {
         videoRef.current.srcObject = cameraStreamRef.current;
-        videoRef.current.play().catch(e => {
-          if ((e as Error).name !== "AbortError") console.warn(e);
-        });
+        videoRef.current.play().catch(e => console.warn(e));
       }
     }
   }, [cameraStatus]);
@@ -180,31 +172,19 @@ export default function SystemCheckPage({
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const ctx = new AudioCtx();
       audioContextRef.current = ctx;
-
-      // Crucial: Resume context if browser created it in 'suspended' state
-      if (ctx.state === "suspended") {
-        await ctx.resume();
-      }
-
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.fftSize = 64;
       source.connect(analyser);
 
-      const bufferLength = analyser.fftSize;
-      const dataArray = new Uint8Array(bufferLength);
+      const dataArray = new Uint8Array(analyser.frequencyBinCount);
       const updateMeter = () => {
         if (!analyser) return;
-        analyser.getByteTimeDomainData(dataArray);
-        let sumSquares = 0;
-        for (let i = 0; i < bufferLength; i++) {
-          const norm = (dataArray[i] - 128) / 128;
-          sumSquares += norm * norm;
-        }
-        const rms = Math.sqrt(sumSquares / bufferLength);
-        const normalized = Math.min(100, Math.round(Math.pow(rms, 0.65) * 180));
-        setAudioLevel(normalized);
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        const avg = sum / dataArray.length;
+        setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
         animationFrameRef.current = requestAnimationFrame(updateMeter);
       };
       updateMeter();
@@ -217,17 +197,6 @@ export default function SystemCheckPage({
 
   const isCameraGranted = cameraStatus === "granted";
   const isMicrophoneGranted = microphoneStatus === "granted";
-
-  // Real-time proctor verification during system compatibility check
-  const {
-    severity: faceSeverity,
-    warningTitle: faceWarningTitle,
-    warningText: faceWarningText,
-  } = useFaceDetection(videoRef, {
-    enabled: isCameraGranted,
-    intervalMs: 180,
-  });
-
   const canContinueToExam = isCameraGranted && isMicrophoneGranted && rulesAgreed;
 
   return (
@@ -302,7 +271,7 @@ export default function SystemCheckPage({
               </span>
               <div>
                 <small>Candidate ID</small>
-                <strong>{profile.candidateId || "MCQ-REG001"}</strong>
+                <strong>{profile.candidateId || "CAND-012-09"}</strong>
               </div>
             </div>
           </div>
@@ -392,28 +361,6 @@ export default function SystemCheckPage({
                       <div className="compat-live-status-tag">
                         <span className="compat-dot-pulse" /> Camera Active
                       </div>
-                      <div className={`compat-proctor-pill ${faceSeverity}`}>
-                        {faceSeverity === "red" ? (
-                          <>
-                            <AlertTriangle size={12} color="#ef4444" style={{ flexShrink: 0 }} />
-                            <span><strong>Warning ({faceWarningTitle}):</strong> {faceWarningText}</span>
-                          </>
-                        ) : faceSeverity === "amber" ? (
-                          <>
-                            {faceWarningTitle.includes("Missing") ? (
-                              <UserX size={12} color="#f59e0b" style={{ flexShrink: 0 }} />
-                            ) : (
-                              <Activity size={12} color="#f59e0b" style={{ flexShrink: 0 }} />
-                            )}
-                            <span><strong>Notice ({faceWarningTitle}):</strong> {faceWarningText}</span>
-                          </>
-                        ) : (
-                          <>
-                            <UserCheck size={12} color="#10b981" style={{ flexShrink: 0 }} />
-                            <span>1 Candidate face visible (Optimal framing)</span>
-                          </>
-                        )}
-                      </div>
                     </div>
                   ) : (
                     <div className="compat-perm-empty-state">
@@ -436,9 +383,6 @@ export default function SystemCheckPage({
                         <Video size={15} /> 
                         {cameraStatus === "requesting" ? "Requesting..." : "Enable Camera"}
                       </button>
-                      <span className="compat-state-label">
-                        <span className="compat-hollow-dot" /> Camera not enabled yet
-                      </span>
                     </div>
                   )}
                 </div>
@@ -535,9 +479,6 @@ export default function SystemCheckPage({
                         <Mic size={15} /> 
                         {microphoneStatus === "requesting" ? "Requesting..." : "Enable Microphone"}
                       </button>
-                      <span className="compat-state-label">
-                        <span className="compat-hollow-dot" /> Microphone not enabled yet
-                      </span>
                     </div>
                   )}
                 </div>

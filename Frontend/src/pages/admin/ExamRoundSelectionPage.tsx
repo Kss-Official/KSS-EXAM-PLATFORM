@@ -1,15 +1,9 @@
-import { 
+﻿import { 
   CheckSquare, 
   Code2, 
   ArrowRight, 
   Layers, 
-  Clock, 
-  FileText, 
-  Building2, 
-  Terminal, 
-  ShieldCheck, 
   HelpCircle,
-  Sparkles,
   GitBranch,
   BookOpen
 } from "lucide-react";
@@ -33,7 +27,7 @@ export default function ExamRoundSelectionPage() {
               fontFamily: "Plus Jakarta Sans, sans-serif" 
             }}
           >
-            Create Examination — Select Assessment Round
+            Create Examination ΓÇö Select Assessment Round
           </h1>
         </div>
         <p style={{ margin: 0, fontSize: "13.5px", color: "#64748b" }}>
@@ -90,7 +84,7 @@ export default function ExamRoundSelectionPage() {
           alignItems: "stretch"
         }}
       >
-        {/* Card 1: Round 1 — MCQ Assessment */}
+        {/* Card 1: Round 1 ΓÇö MCQ Assessment */}
         <div
           style={{
             background: "#ffffff",
@@ -221,7 +215,7 @@ export default function ExamRoundSelectionPage() {
           </button>
         </div>
 
-        {/* Card 2: Round 2 — Coding Assessment */}
+        {/* Card 2: Round 2 ΓÇö Coding Assessment */}
         <div
           style={{
             background: "#ffffff",
@@ -388,7 +382,7 @@ export default function ExamRoundSelectionPage() {
               Standard Candidate Flow
             </strong>
             <span style={{ fontSize: "12px", color: "#64748b" }}>
-              Round 1 (MCQ Assessment) ➔ Round 2 (Coding Assessment, when enabled for department) ➔ Final Submission
+              Round 1 (MCQ Assessment) Γ₧ö Round 2 (Coding Assessment, when enabled for department) Γ₧ö Final Submission
             </span>
           </div>
         </div>

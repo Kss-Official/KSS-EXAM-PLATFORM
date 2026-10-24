@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { LogOut, AlertOctagon } from "lucide-react";
 
 interface ExitConfirmationDialogProps {

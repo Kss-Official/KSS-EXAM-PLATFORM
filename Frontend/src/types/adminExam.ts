@@ -1,4 +1,4 @@
-import type { ExamStatus } from "./index";
+﻿import type { ExamStatus } from "./index";
 
 export type ExamTimingMode = "SCHEDULED" | "DURATION_FROM_START";
 

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ExamSecure — Round 2 Coding Assessment Page Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg-color: #0b1120;
+      --card-bg: #131c31;
+      --border-color: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --accent: #10b981;
+      --accent-hover: #059669;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.7;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 50px 60px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 24px;
+      margin-bottom: 36px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(2, 132, 199, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(2, 132, 199, 0.3);
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--accent);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent);
+    }
+    .actions-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .btn-action {
+      background: var(--primary);
+      color: #ffffff;
+      border: none;
+      padding: 9px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25);
+      text-decoration: none;
+    }
+    .btn-action:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    .btn-action.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #e2e8f0;
+      box-shadow: none;
+    }
+    .btn-action.secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+    }
+    .btn-action.accent {
+      background: var(--accent);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+    }
+    .btn-action.accent:hover {
+      background: var(--accent-hover);
+    }
+    h1, h2, h3, h4, h5 {
+      color: #ffffff;
+      font-weight: 700;
+      margin-top: 1.8em;
+      margin-bottom: 0.6em;
+      letter-spacing: -0.02em;
+    }
+    h1 {
+      font-size: 2.25rem;
+      border-bottom: 2px solid rgba(2, 132, 199, 0.4);
+      padding-bottom: 12px;
+      margin-top: 0;
+    }
+    h2 {
+      font-size: 1.55rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 8px;
+      color: #7dd3fc;
+    }
+    h3 {
+      font-size: 1.22rem;
+      color: #e2e8f0;
+    }
+    p, li {
+      color: #cbd5e1;
+      font-size: 1.02rem;
+      margin-bottom: 1em;
+    }
+    ul, ol {
+      padding-left: 28px;
+      margin-bottom: 1.5em;
+    }
+    li {
+      margin-bottom: 6px;
+    }
+    a {
+      color: #38bdf8;
+      text-decoration: none;
+      border-bottom: 1px dashed rgba(56, 189, 248, 0.5);
+    }
+    a:hover {
+      color: #7dd3fc;
+      border-bottom-style: solid;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0;
+      background: #0b1120;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.94rem;
+    }
+    th, td {
+      padding: 12px 18px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    th {
+      background: rgba(2, 132, 199, 0.12);
+      color: #7dd3fc;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    code {
+      font-family: "JetBrains Mono", monospace;
+      background: rgba(11, 17, 32, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 0.88em;
+      color: #38bdf8;
+    }
+    pre {
+      background: #070d19;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 20px;
+      overflow-x: auto;
+      margin: 20px 0;
+    }
+    pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #e2e8f0;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+    blockquote {
+      border-left: 4px solid #0284c7;
+      background: rgba(2, 132, 199, 0.08);
+      padding: 14px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 20px 0;
+      color: #cbd5e1;
+    }
+    .mermaid {
+      background: #070d19;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 24px 0;
+      text-align: center;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      margin: 36px 0;
+    }
+    @media print {
+      body { background: #ffffff !important; color: #000000 !important; padding: 0; }
+      .container { max-width: 100%; border: none; box-shadow: none; padding: 20px; background: #ffffff !important; color: #000000 !important; }
+      .header-bar, .actions-group { display: none !important; }
+      h1, h2, h3, h4 { color: #000000 !important; border-color: #e2e8f0 !important; }
+      p, li { color: #333333 !important; }
+      table { background: #ffffff !important; border-color: #cccccc !important; }
+      th { background: #f1f5f9 !important; color: #000000 !important; }
+      td { border-color: #e2e8f0 !important; color: #333333 !important; }
+      pre, code { background: #f8fafc !important; color: #000000 !important; border-color: #cccccc !important; }
+      .mermaid { background: #ffffff !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-bar">
+      <div class="badge"><div class="badge-dot"></div>ExamSecure — Round 2 Specification</div>
+      <div class="actions-group">
+        <button class="btn-action secondary" onclick="downloadMarkdownFile()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download .MD
+        </button>
+        <button class="btn-action accent" onclick="downloadHtmlFile()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          Download .HTML
+        </button>
+        <button class="btn-action" onclick="window.print()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          Print / Save as PDF
+        </button>
+      </div>
+    </div>
+    <div id="content"></div>
+  </div>
+
+  <script id="md-source" type="text/markdown"># Round 2: Technical Coding Assessment Page — Technical & Architectural Documentation
+
+> **Document Version:** 1.0.0  
+> **Platform:** ExamSecure Enterprise Examination & Proctoring Platform  
+> **Target Component:** `CandidateCodingExamPage.tsx`  
+> **Stylesheet:** `candidateCodingExam.css`  
+> **Service Layer:** `codingExamService.ts` & `candidateRoundIdService.ts`
+
+---
+
+## 1. Executive Summary & Purpose
+
+The **Round 2 Page** (`CandidateCodingExamPage`) is the dedicated **Live Technical Coding Assessment IDE** of the ExamSecure platform. 
+
+While Round 1 evaluates candidates on objective Multiple Choice Questions (MCQs), **Round 2** is reserved for technical roles (e.g., *Developer*, *Tester*, *Computer Science & Engineering*), providing a browser-based integrated development environment (IDE) where shortlisted candidates solve algorithmic and system programming challenges under real-time constraints.
+
+### Core Objectives:
+- **Zero-Friction In-Browser IDE**: Multi-language support (Java, C++, Python, JavaScript, TypeScript, C#, C) without requiring local compiler setup.
+- **Real-Time Code Execution**: On-demand test-case evaluation against public and hidden test cases, with custom input execution.
+- **Fail-Safe Crash Resilience**: Continuous per-character draft autosaving across question switching, language switching, or accidental browser reloads.
+- **Proctored Countdown & Automated Submission**: Non-tamperable timer with automated submission upon expiration and exit safeguards.
+
+---
+
+## 2. Candidate Journey & Access Control
+
+Access to Round 2 is strictly controlled via candidate credentials and nomination status:
+
+```mermaid
+flowchart LR
+    A["Round 1 MCQ Assessment"] --> B["Admin Evaluates Results in ResultsPage"]
+    B --> C["Admin Selects Candidate for Round 2"]
+    C --> D["Unique ID Generated (CODE-XXXX)"]
+    D --> E["Email Invitation Dispatched"]
+    E --> F["Candidate Enters Portal (CandidateEntryPage)"]
+    F --> G["Eligibility Verified via isCandidateSelectedForRound2()"]
+    G --> H["Device Compatibility Check (SystemCheckPage)"]
+    H --> I["Round 2 IDE (CandidateCodingExamPage)"]
+```
+
+1. **Nomination & ID Generation**: The administrator selects top-performing Round 1 candidates from `ResultsPage.tsx`. The `candidateRoundIdService.ts` assigns a unique ID formatted as `CODE-XXXX` (e.g., `CODE-8492`).
+2. **Access Verification**: On `CandidateEntryPage.tsx`, candidates input their credentials. If the ID is flagged for Round 2 or matches the `CODE-` prefix:
+   - System calls `isCandidateSelectedForRound2()`.
+   - If unauthorized, access is denied with a descriptive security banner.
+   - If verified, the candidate profile is provisioned with `assessmentRound: "ROUND_2"`.
+3. **Direct Routing**: In `CandidatePortal.tsx`, Round 2 bypasses the MCQ role-application questionnaire and navigates directly to the system compatibility check, entering the coding IDE at route `/candidate/coding`.
+
+---
+
+## 3. UI/UX Layout Architecture
+
+The Round 2 page is structured into a full-viewport, distraction-free **3-Column Workspace** designed to match modern competitive programming environments (LeetCode, HackerRank):
+
+```
++--------------------------------------------------------------------------------------------------+
+|  BRAND LOGO (Kalpanaa)   |    PROGRESS BAR (Progress: 1 / 3)    |   TIMER   |  AVATAR  |  EXIT   |
++--------------------------------------------------------------------------------------------------+
+|  LEFT NAV (300px)        |  MIDDLE PANEL (Problem Spec)          |  RIGHT PANEL (IDE & Console)   |
+|  ----------------------  |  -----------------------------------  |  ----------------------------  |
+|  Questions (0/3)         |  Q1 • Easy • Flag for Review          |  [Lang: Java] [Theme] [Screen] |
+|  [●] Q1 IP Validation    |  Title: IP Address Validation Regex   |  1 | import java.util.regex.*; |
+|  [○] Q2 Target Pair Sum  |  Problem Description & Callout Box    |  2 | class MyRegex { ... }     |
+|  [○] Q3 Palindrome Linked|  Example 1: Valid IPs                 |  [ Run Code ]    [ Submit ]   |
+|                          |  Example 2: Invalid IPs               |  ----------------------------  |
+|                          |  Constraints: Memory / Time           |  Test Output Console           |
+|                          |                                       |  ✓ Passed: 3/3 Cases (0.12s)   |
++--------------------------------------------------------------------------------------------------+
+```
+
+### 3.1. Top Navigation & Monitoring Header
+- **Branding**: Official corporate logo (`kalpanaaLogo`).
+- **Progress Gauge**: Visual linear progress bar and textual counter (`Progress: X / Total`) displaying completion status.
+- **Countdown Timer Pill**: Monospace digital timer displaying remaining time formatted as `MM : SS`. Automatically turns critical red (`urgent` CSS class with pulse animation) when less than 5 minutes remain.
+- **Candidate Identifier Chip**: Displays candidate initials avatar badge, full candidate name, and the registered Unique ID (`CODE-XXXX`).
+- **Proctored Exit Safeguard**: Triggers an alert modal warning candidates of unsubmitted work before terminating their session.
+
+### 3.2. Left Column: Question Navigator
+- Displays the complete list of assigned programming problems with difficulty indicators (`Easy` in green, `Medium` in amber, `Hard` in red).
+- Interactive navigation: Clicking any card switches the active problem without losing written code.
+- **Visual Status Tracking**:
+  - `Attempted vs. Unattempted` state indicator dot.
+  - `Flagged for Review` status badge with amber flag icon.
+  - Live fraction counter (`Attempted / Total Questions`).
+
+### 3.3. Middle Column: Problem Specification
+- **Top Row**: Problem sequence number, difficulty badge, and "Flag for review" toggle button.
+- **Title & Description**: High-visibility problem title and detailed problem statement.
+- **Callout Highlight**: Distinct mint-tinted callout container emphasizing formal problem definitions and mathematical rules.
+- **Test Case Examples**: Split containers contrasting valid and invalid inputs with expected behavior.
+- **Resource Constraints**: Formatted constraints listing character lengths, array bounds, time execution limits (e.g. `2.0 seconds`), and memory quotas (e.g. `256 MB`).
+
+### 3.4. Right Column: Cloud Code Editor & Test Console
+- **Language Switcher Toolbar**:
+  - Dropdown offering 8 execution targets: Java 17, C++20 (GCC), Python 3.11, Python 2.7, JavaScript (Node.js 20 LTS), TypeScript, C# (.NET 8), and C (GCC 11).
+  - Theme switcher button: Toggles between Dark Mode (`#0b0f19` slate background) and Light Mode (`#ffffff`).
+  - Fullscreen toggle: Maximizes the workspace for proctoring lockdown.
+- **Editor Body**:
+  - Synchronized line gutter tracking line counts dynamically based on newline characters (`\n`).
+  - Native `Tab` key interception injecting 4-space auto-indentation and maintaining cursor position.
+  - Disabled spellcheck and auto-capitalization for coding ergonomics.
+- **Action Controls**:
+  - **`Run Code`**: Compiles and executes code against sample test cases or custom input.
+  - **`Submit Code`**: Displays confirmation modal and records the candidate's final submission.
+- **Collapsible Test Output Panel**:
+  - Expand/collapse drawer toggle.
+  - **Custom Input Sandbox**: Checkbox revealing custom stdin text area for manual debugging.
+  - Clear output button.
+  - Execution summary chip showing success status, execution time in seconds, and memory consumption.
+  - Line-by-line standard output viewer with boolean formatting (`true` in emerald green, `false` in crimson red).
+
+---
+
+## 4. State Management & Lifecycle
+
+The state flow of `CandidateCodingExamPage.tsx` is managed locally with persistence hooks to prevent data loss:
+
+```mermaid
+sequenceDiagram
+    participant Candidate
+    participant UI as CandidateCodingExamPage
+    participant LocalStorage as Browser LocalStorage
+    participant Engine as codingExamService
+
+    Candidate->>UI: Selects Question / Switches Language
+    UI->>LocalStorage: getCandidateCodeDraft(candidateId, examId, qId, lang)
+    LocalStorage-->>UI: Restores draft code or boilerplate
+    Candidate->>UI: Types code snippet
+    UI->>LocalStorage: saveCandidateCodeDraft(candidateId, examId, qId, lang, code)
+    Candidate->>UI: Clicks "Run Code"
+    UI->>Engine: executeCodeSnippet(code, lang, customInput, question)
+    Engine-->>UI: Returns CodeExecutionResult (stdout, runtimeMs, passedCases)
+    UI->>UI: Render Output Console
+    Candidate->>UI: Clicks "Submit Code"
+    UI->>LocalStorage: saveCandidateCodingSubmission(payload)
+    UI->>Candidate: Navigate to SubmissionConfirmationPage
+```
+
+### Key State Hooks:
+
+| State Variable | Type | Description |
+| :--- | :--- | :--- |
+| `questions` | `CodingQuestionDto[]` | Array of coding problems initialized from `DEFAULT_ROUND2_CODING_QUESTIONS`. |
+| `currentQIndex` | `number` | Index of the actively viewed question (0-indexed). |
+| `selectedLanguage` | `SupportedLanguage` | Current compiler language identifier (`"java"`, `"cpp"`, etc.). |
+| `code` | `string` | The live text content in the editor textarea. |
+| `flaggedMap` | `Record<string, boolean>` | Map of question IDs marked for subsequent candidate review. |
+| `submittedQuestions` | `Record<string, boolean>` | Map tracking questions that have been attempted or submitted. |
+| `outputResult` | `CodeExecutionResult | null` | Stores standard output, runtime telemetry, and pass/fail statistics. |
+| `timeLeft` | `number` | Active countdown in seconds (defaults to `3600` seconds / 60 minutes). |
+| `useCustomInput` | `boolean` | Flag enabling the custom stdin debugging box. |
+| `customInputText` | `string` | Custom stdin string passed to the execution engine. |
+
+---
+
+## 5. Persistence & Autosave Mechanics
+
+To ensure zero work loss in case of hardware crash, power disruption, or accidental browser closure:
+
+1. **Storage Namespace**: Keyed deterministically per candidate, exam, problem, and language:
+   ```typescript
+   const key = `examsecure_code_draft_${candidateId}_${examId}_${questionId}_${language}`;
+   ```
+2. **Boilerplate Fallback**: If no draft exists in `localStorage`, `getCandidateCodeDraft()` automatically generates a language-specific starter template (e.g. `class MyRegex { ... }` for Java, `class Solution { ... }` for C++, `def solve():` for Python).
+3. **Instant Autosave**: On every keystroke, `handleCodeChange()` updates React state and executes `saveCandidateCodeDraft()`.
+
+---
+
+## 6. Code Execution & Testing Engine
+
+The execution subsystem is encapsulated in `codingExamService.ts`:
+
+### 6.1. Data Contracts
+
+#### `CodingQuestionDto`:
+Represents a complete problem definition including difficulty, constraints, allowed languages, time/memory quotas, and test cases.
+
+#### `TestCaseDto`:
+```typescript
+export interface TestCaseDto {
+  id: string;
+  label: string;
+  input: string;
+  expectedOutput: string;
+  isHidden: boolean; // false = sample public test case; true = evaluation testcase
+  marks: number;     // Weightage score
+  explanation?: string;
+}
+```
+
+#### `CodeExecutionResult`:
+```typescript
+export interface CodeExecutionResult {
+  stdout: string[];
+  stderr?: string;
+  isSuccess: boolean;
+  statusText: string;
+  runtimeMs: number;
+  memoryMb: number;
+  passedCases: number;
+  totalCases: number;
+}
+```
+
+### 6.2. Execution Simulation & Test Case Matching
+When `handleRunCode()` is triggered:
+- The function invokes `executeCodeSnippet()`.
+- If `useCustomInput` is active, the engine compiles the custom input lines and computes standard output.
+- Otherwise, the engine executes the candidate's code against the problem's sample test cases, compares actual output against expected output, calculates runtime in milliseconds, and returns a verified result object.
+
+---
+
+## 7. Submission & Results Pipeline
+
+When a candidate finishes their assessment:
+
+1. **Triggering Finalization**:
+   - **Manual**: Clicking **"Submit Code"** opens a confirmation modal detailing total problems attempted.
+   - **Automatic**: If the countdown timer hits `0`, `handleAutoSubmit()` triggers automatically.
+2. **Payload Construction**:
+   A `CandidateCodingSubmission` record is built:
+   ```typescript
+   {
+     id: "SUB-894120",
+     candidateId: profile.candidateId,
+     candidateName: profile.name,
+     registrationNumber: profile.candidateId,
+     departmentName: profile.department,
+     examId: profile.codingExamId || "CODE-101",
+     submittedAt: "2026-10-24T07:15:00.000Z",
+     questions: [
+       {
+         questionId: "q-ip-regex-1",
+         questionTitle: "IP Address Validation using Regular Expression",
+         language: "java",
+         sourceCode: "... candidate code ...",
+         passedCases: 4,
+         totalCases: 4,
+         score: 20,
+         maxMarks: 20,
+         status: "ACCEPTED",
+         runtimeMs: 120
+       }
+     ],
+     totalScore: 75,
+     maxScore: 75,
+     qualificationStatus: "QUALIFIED"
+   }
+   ```
+3. **Persistence**:
+   - Persisted to `localStorage` under `examsecure_coding_submissions_v1`.
+   - Forwarded via `onFinalize` callback to `CandidatePortal.tsx`.
+   - Candidate is routed to `SubmissionConfirmationPage.tsx`, which outputs an immutable cryptographic submission receipt.
+4. **Admin Inspection**:
+   - Submissions appear live in `ResultsPage.tsx` under the **"Round 2 — Coding Submissions"** tab.
+   - Administrators can review scores, runtime metrics, test case pass rates, and open the full code inspector modal.
+
+---
+
+## 8. Backend Integration Roadmap
+
+When migrating from frontend mock execution to a cloud code sandbox (e.g., Judge0, Piston, or custom Spring Boot Docker sandbox), map the following REST endpoints:
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/candidate/coding/exam/:id` | Fetch Round 2 questions, constraints, and sample test cases. |
+| `POST` | `/api/candidate/coding/run` | Execute code snippet in isolated container with stdin and return stdout. |
+| `POST` | `/api/candidate/coding/submit` | Evaluate code against all hidden test cases and record final marks. |
+| `GET` | `/api/admin/exams/coding/submissions` | Retrieve candidate submissions and source code for admin review. |
+
+---
+
+## 9. Summary File Reference
+
+- **Page Component**: `src/pages/candidate/CandidateCodingExamPage.tsx`
+- **Styling**: `src/styles/candidateCodingExam.css`
+- **Coding Service**: `src/services/codingExamService.ts`
+- **Eligibility Service**: `src/services/candidateRoundIdService.ts`
+- **Portal Router**: `src/pages/candidate/CandidatePortal.tsx`
+- **Entry Gate**: `src/pages/candidate/CandidateEntryPage.tsx`
+- **Admin Review**: `src/pages/admin/ResultsPage.tsx`
+</script>
+
+  <script>
+    const rawMarkdown = document.getElementById("md-source").textContent;
+    marked.setOptions({ gfm: true, breaks: true });
+    const contentDiv = document.getElementById("content");
+    contentDiv.innerHTML = marked.parse(rawMarkdown);
+    document.querySelectorAll("pre code.language-mermaid").forEach((block) => {
+      const pre = block.parentElement;
+      const mermaidDiv = document.createElement("div");
+      mermaidDiv.className = "mermaid";
+      mermaidDiv.textContent = block.textContent;
+      pre.parentElement.replaceChild(mermaidDiv, pre);
+    });
+    mermaid.initialize({ startOnLoad: true, theme: "dark" });
+
+    function downloadMarkdownFile() {
+      const blob = new Blob([rawMarkdown], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ROUND2_PAGE_DOCUMENTATION.md";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function downloadHtmlFile() {
+      const htmlContent = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
+      const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "ExamSecure_Round2_Documentation.html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

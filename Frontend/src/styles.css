@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -62,7 +62,9 @@ button {
   cursor: pointer;
 }
 
-button:focus-visible, input:focus-visible, select:focus-visible {
+button:focus-visible, 
+input:not(.role-app-text-input):not(.role-app-skills-input):focus-visible, 
+select:focus-visible {
   outline: 2px solid #017846;
   outline-offset: 2px;
 }
@@ -3761,117 +3763,5 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   }
 }
 
-/* High-precision Proctoring Warning and Alert Styles */
-.proctor-video-wrap.warning-second-person {
-  border: 2px solid #ef4444 !important;
-  box-shadow: 0 0 12px rgba(239, 68, 68, 0.4) !important;
-}
-.proctor-video-wrap.warning-room-activity {
-  border: 2px solid #f59e0b !important;
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.35) !important;
-}
-.proctor-warning-banner {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  margin-top: 6px;
-  line-height: 1.3;
-}
-.proctor-warning-banner.red {
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
-}
-.proctor-warning-banner.amber {
-  background-color: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #92400e;
-}
-.proctor-rec-pill.alert {
-  background: #dc2626 !important;
-  color: #ffffff !important;
-}
-.proctor-rec-pill.alert-amber {
-  background: #d97706 !important;
-  color: #ffffff !important;
-}
-.proctor-alert-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 4px;
-}
-.proctor-alert-tag.amber {
-  background: #f59e0b;
-}
 
-/* Proctor Verification Status Pill Styles */
-.compat-proctor-pill {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  right: 8px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  border-radius: 6px;
-  font-size: 10.5px;
-  line-height: 1.25;
-  background: rgba(15, 23, 42, 0.90);
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(34, 197, 94, 0.45);
-  color: #86efac;
-  z-index: 2;
-}
 
-.compat-proctor-pill.normal {
-  border-color: rgba(34, 197, 94, 0.45);
-  color: #86efac;
-}
-
-.compat-proctor-pill.red,
-.compat-proctor-pill.alert {
-  border-color: rgba(239, 68, 68, 0.75);
-  background: rgba(127, 29, 29, 0.94);
-  color: #fecaca;
-}
-
-.compat-proctor-pill.amber {
-  border-color: rgba(245, 158, 11, 0.75);
-  background: rgba(120, 53, 15, 0.94);
-  color: #fde68a;
-}
-
-.face-detector-pill-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 11px;
-  margin-top: 8px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #166534;
-}
-
-.face-detector-pill-bar.alert {
-  background: #fef2f2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
-
-.face-detector-pill-bar.amber {
-  background: #fffbeb;
-  border-color: #fde68a;
-  color: #92400e;
-}

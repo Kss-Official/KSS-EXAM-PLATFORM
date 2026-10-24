@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+﻿import { useState, useEffect, useCallback } from "react";
 import { 
   BookOpen, 
   ChevronLeft, 
   ChevronRight, 
   Flag, 
   LogOut,
-  Loader2,
   Menu
 } from "lucide-react";
 import type { 
@@ -16,10 +15,8 @@ import {
   saveCandidateSession
 } from "../../services/candidateSessionStorage";
 import {
-  verifyCandidateEligibility,
   startCandidateAttempt,
   saveCandidateAnswer,
-  submitCandidateAttempt,
   type SubmissionResponse
 } from "../../services/api";
 import ExamTimer from "../../components/candidate/ExamTimer";
@@ -67,23 +64,23 @@ const DEFAULT_60_QUESTIONS = [
   {
     id: 4,
     section: "Section A: Quantitative Aptitude",
-    questionText: "A shopkeeper sells an article for ₹840 gaining a profit of 20%. What was the original cost price?",
+    questionText: "A shopkeeper sells an article for Γé╣840 gaining a profit of 20%. What was the original cost price?",
     options: [
-      { id: 113, optionLabel: "A", optionText: "₹700" },
-      { id: 114, optionLabel: "B", optionText: "₹680" },
-      { id: 115, optionLabel: "C", optionText: "₹720" },
-      { id: 116, optionLabel: "D", optionText: "₹750" }
+      { id: 113, optionLabel: "A", optionText: "Γé╣700" },
+      { id: 114, optionLabel: "B", optionText: "Γé╣680" },
+      { id: 115, optionLabel: "C", optionText: "Γé╣720" },
+      { id: 116, optionLabel: "D", optionText: "Γé╣750" }
     ]
   },
   {
     id: 5,
     section: "Section A: Quantitative Aptitude",
-    questionText: "What is the compound interest on ₹10,000 for 2 years at an annual interest rate of 10% compounded annually?",
+    questionText: "What is the compound interest on Γé╣10,000 for 2 years at an annual interest rate of 10% compounded annually?",
     options: [
-      { id: 117, optionLabel: "A", optionText: "₹2,000" },
-      { id: 118, optionLabel: "B", optionText: "₹2,100" },
-      { id: 119, optionLabel: "C", optionText: "₹2,050" },
-      { id: 120, optionLabel: "D", optionText: "₹2,200" }
+      { id: 117, optionLabel: "A", optionText: "Γé╣2,000" },
+      { id: 118, optionLabel: "B", optionText: "Γé╣2,100" },
+      { id: 119, optionLabel: "C", optionText: "Γé╣2,050" },
+      { id: 120, optionLabel: "D", optionText: "Γé╣2,200" }
     ]
   },
   {
@@ -188,7 +185,7 @@ const DEFAULT_60_QUESTIONS = [
   {
     id: 15,
     section: "Section A: Quantitative Aptitude",
-    questionText: "Evaluate the precedence expression: 48 ÷ (6 × 2) + 3 × (8 - 5):",
+    questionText: "Evaluate the precedence expression: 48 ├╖ (6 ├ù 2) + 3 ├ù (8 - 5):",
     options: [
       { id: 157, optionLabel: "A", optionText: "13" },
       { id: 158, optionLabel: "B", optionText: "11" },
@@ -267,7 +264,7 @@ const DEFAULT_60_QUESTIONS = [
   {
     id: 22,
     section: "Section B: Logical Reasoning",
-    questionText: "If '+' means multiply, '-' means divide, '×' means add, and '÷' means subtract, calculate: 15 × 5 + 4 - 2 ÷ 3:",
+    questionText: "If '+' means multiply, '-' means divide, '├ù' means add, and '├╖' means subtract, calculate: 15 ├ù 5 + 4 - 2 ├╖ 3:",
     options: [
       { id: 185, optionLabel: "A", optionText: "22" },
       { id: 186, optionLabel: "B", optionText: "25" },
@@ -716,69 +713,32 @@ export default function CandidateExamPage({
   const [answers, setAnswers] = useState<Record<number, number>>(
     initialSession?.answers && Object.keys(initialSession.answers).length > 0
       ? initialSession.answers
-      : {}
+      : { 1: 2, 4: 0 }
   );
   const [flags, setFlags] = useState<number[]>(
     initialSession?.flags && initialSession.flags.length > 0
       ? initialSession.flags
-      : []
+      : [3]
   );
 
   const [backendAttemptId, setBackendAttemptId] = useState<number | undefined>(initialSession?.backendAttemptId);
   const [assignedSet, setAssignedSet] = useState<string>(initialSession?.profile?.questionSetCode || "A");
   const [questions, setQuestions] = useState<any[]>(DEFAULT_60_QUESTIONS);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [loadingQuestions] = useState(false);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showExitModal, setShowExitModal] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
-  const [submitting, setSubmitting] = useState(false);
+  void assignedSet; void loadingQuestions; void autosaveStatus;
 
   // Load questions from backend attempt on mount
   useEffect(() => {
     let isCancelled = false;
 
     const initializeAttempt = async () => {
-      let dbCandId = session?.profile?.dbCandidateId;
-      let assignedExamId = session?.profile?.assignedExamId;
-
-      // Auto-recover candidate profile if dbCandidateId is missing
-      if (!dbCandId && session?.profile?.candidateId) {
-        try {
-          const code = session.profile.candidateId.trim().toUpperCase();
-          const verifyRes = await verifyCandidateEligibility({
-            registrationNumber: code,
-            accessCode: code,
-            uniqueId: code,
-            fullName: session.profile.name,
-            name: session.profile.name,
-            departmentId: session.profile.departmentId,
-            departmentName: session.profile.department,
-            department: session.profile.department
-          });
-          if (verifyRes.eligible && verifyRes.candidateId && (verifyRes.assignedExamId || verifyRes.examId)) {
-            dbCandId = verifyRes.candidateId;
-            assignedExamId = verifyRes.assignedExamId || verifyRes.examId;
-            setSession(prev => {
-              const updated = {
-                ...prev,
-                profile: {
-                  ...prev.profile,
-                  dbCandidateId: dbCandId,
-                  assignedExamId: assignedExamId,
-                  examTitle: verifyRes.examTitle || prev.profile.examTitle,
-                  questionSetCode: verifyRes.questionSetCode || prev.profile.questionSetCode
-                }
-              };
-              saveCandidateSession(updated);
-              return updated;
-            });
-          }
-        } catch (recoveryErr) {
-          console.warn("[CandidateExamPage] Profile recovery notice:", recoveryErr);
-        }
-      }
+      const dbCandId = session?.profile?.dbCandidateId;
+      const assignedExamId = session?.profile?.assignedExamId;
 
       if (dbCandId && assignedExamId) {
         try {
@@ -787,65 +747,36 @@ export default function CandidateExamPage({
             setBackendAttemptId(attemptData.attemptId);
             setAssignedSet(attemptData.questionSetCode || "A");
 
-            let activeQList: any[] = attemptData.questions;
-            if (activeQList && activeQList.length > 0) {
-              setQuestions(activeQList);
-            } else {
-              activeQList = DEFAULT_60_QUESTIONS;
+            if (attemptData.questions && attemptData.questions.length > 0) {
+              setQuestions(attemptData.questions);
             }
 
             const deadlineStr = attemptData.deadlineAt || attemptData.expiresAt;
-            const serverDeadline = deadlineStr ? new Date(deadlineStr).getTime() : session.deadline;
-
-            setSession(prev => {
-              const updated = {
+            if (deadlineStr) {
+              const serverDeadline = new Date(deadlineStr).getTime();
+              setSession(prev => ({
                 ...prev,
                 backendAttemptId: attemptData.attemptId,
-                deadline: serverDeadline || prev.deadline
-              };
-              saveCandidateSession(updated);
-              return updated;
-            });
+                deadline: serverDeadline
+              }));
+            }
 
-            // Map server answers or sync local answers
-            if (attemptData.answers && Object.keys(attemptData.answers).length > 0) {
+            if (attemptData.answers) {
               const answersMap = attemptData.answers;
               const restoredAnswers: Record<number, number> = {};
-              activeQList.forEach((q, qIndex) => {
+              attemptData.questions.forEach((q, qIndex) => {
                 const qKey = q.id ?? q.questionId;
-                const selectedOptId = qKey !== undefined ? (answersMap[qKey] ?? answersMap[String(qKey)]) : undefined;
+                const selectedOptId = qKey !== undefined ? answersMap[qKey] : undefined;
                 if (selectedOptId !== undefined && selectedOptId !== null) {
-                  const optIdx = q.options.findIndex((o: any) => (o.id ?? o.optionId) === selectedOptId);
+                  const optIdx = q.options.findIndex(o => (o.id ?? o.optionId) === selectedOptId);
                   if (optIdx !== -1) {
                     restoredAnswers[qIndex + 1] = optIdx;
                   }
                 }
               });
-              setAnswers(restoredAnswers);
-              saveCandidateSession({
-                ...session,
-                backendAttemptId: attemptData.attemptId,
-                answers: restoredAnswers,
-                deadline: serverDeadline || session.deadline
-              });
-            } else if (initialSession?.answers && Object.keys(initialSession.answers).length > 0) {
-              // Only sync if initialSession had explicitly saved answers for this candidate
-              Object.entries(initialSession.answers).forEach(async ([qNumStr, optIdx]) => {
-                const qNum = parseInt(qNumStr, 10);
-                const q = activeQList[qNum - 1];
-                if (q && q.options && q.options[optIdx]) {
-                  const qId = q.id ?? q.questionId ?? qNum;
-                  const chosenOpt = q.options[optIdx];
-                  const optId = chosenOpt.id ?? chosenOpt.optionId ?? optIdx;
-                  try {
-                    await saveCandidateAnswer(attemptData.attemptId, qId, optId);
-                  } catch (syncErr) {
-                    console.warn("[CandidateExamPage] Initial answer sync notice:", syncErr);
-                  }
-                }
-              });
-            } else {
-              setAnswers({});
+              if (Object.keys(restoredAnswers).length > 0) {
+                setAnswers(restoredAnswers);
+              }
             }
           }
         } catch (err) {
@@ -880,49 +811,18 @@ export default function CandidateExamPage({
 
   const handleSelectAnswer = useCallback(async (optionIndex: number) => {
     const questionNum = idx + 1;
-    let activeAid = backendAttemptId || session?.backendAttemptId;
+    const updatedAnswers = { ...answers, [questionNum]: optionIndex };
+    setAnswers(updatedAnswers);
 
-    setAnswers(prevAnswers => {
-      const updatedAnswers = { ...prevAnswers, [questionNum]: optionIndex };
-      saveCandidateSession({
-        ...session,
-        backendAttemptId: activeAid,
-        answers: updatedAnswers,
-        flags,
-        currentQuestionIndex: idx
-      });
-      return updatedAnswers;
+    saveCandidateSession({
+      ...session,
+      backendAttemptId,
+      answers: updatedAnswers,
+      flags,
+      currentQuestionIndex: idx
     });
 
-    // Auto-recover active attempt if aid not set yet
-    if (!activeAid && (session?.profile?.dbCandidateId || session?.profile?.candidateId)) {
-      try {
-        let cId = session.profile.dbCandidateId;
-        let eId = session.profile.assignedExamId;
-        if (!cId && session.profile.candidateId) {
-          const v = await verifyCandidateEligibility({ 
-            registrationNumber: session.profile.candidateId,
-            uniqueId: session.profile.candidateId,
-            fullName: session.profile.name,
-            name: session.profile.name,
-            departmentId: session.profile.departmentId,
-            departmentName: session.profile.department,
-            department: session.profile.department
-          });
-          cId = v.candidateId;
-          eId = v.assignedExamId || v.examId;
-        }
-        if (cId && eId) {
-          const res = await startCandidateAttempt(cId, eId);
-          activeAid = res.attemptId;
-          setBackendAttemptId(activeAid);
-        }
-      } catch (startErr) {
-        console.warn("[CandidateExamPage] On-the-fly attempt start notice:", startErr);
-      }
-    }
-
-    if (activeAid && currentQuestion) {
+    if (backendAttemptId && currentQuestion) {
       const qId = currentQuestion.id ?? currentQuestion.questionId ?? questionNum;
       const chosenOpt = currentQuestion.options?.[optionIndex];
       const optId = chosenOpt?.id ?? chosenOpt?.optionId ?? optionIndex;
@@ -930,36 +830,33 @@ export default function CandidateExamPage({
       if (qId !== undefined && optId !== undefined) {
         setAutosaveStatus("saving");
         try {
-          await saveCandidateAnswer(activeAid, qId, optId);
+          await saveCandidateAnswer(backendAttemptId, qId, optId);
           setAutosaveStatus("saved");
         } catch {
           setAutosaveStatus("error");
         }
       }
     }
-  }, [idx, session, backendAttemptId, flags, currentQuestion]);
+  }, [idx, answers, session, backendAttemptId, flags, currentQuestion]);
 
   const handleToggleFlag = useCallback(() => {
     const questionNum = idx + 1;
-    setFlags(prevFlags => {
-      const updatedFlags = prevFlags.includes(questionNum)
-        ? prevFlags.filter(f => f !== questionNum)
-        : [...prevFlags, questionNum];
+    let updatedFlags: number[];
+    if (flags.includes(questionNum)) {
+      updatedFlags = flags.filter(f => f !== questionNum);
+    } else {
+      updatedFlags = [...flags, questionNum];
+    }
+    setFlags(updatedFlags);
 
-      setAnswers(currentAnswers => {
-        saveCandidateSession({
-          ...session,
-          backendAttemptId,
-          answers: currentAnswers,
-          flags: updatedFlags,
-          currentQuestionIndex: idx
-        });
-        return currentAnswers;
-      });
-
-      return updatedFlags;
+    saveCandidateSession({
+      ...session,
+      backendAttemptId,
+      answers,
+      flags: updatedFlags,
+      currentQuestionIndex: idx
     });
-  }, [idx, session, backendAttemptId]);
+  }, [idx, flags, session, backendAttemptId, answers]);
 
   const handleNavigateQuestion = useCallback((targetIndex: number) => {
     if (targetIndex >= 0 && targetIndex < total) {
@@ -974,20 +871,9 @@ export default function CandidateExamPage({
     }
   }, [total, session, backendAttemptId, answers, flags]);
 
-  const triggerFinalization = useCallback(async (reason: "manual_submit" | "timer_expired" | "candidate_exit") => {
-    if (submitting) return;
-    setSubmitting(true);
-    let backendResult: SubmissionResponse | undefined;
-    const aid = backendAttemptId || session?.backendAttemptId;
-    if (aid) {
-      try {
-        backendResult = await submitCandidateAttempt(aid);
-      } catch (err) {
-        console.warn("[CandidateExamPage] Live backend submit attempt error:", err);
-      }
-    }
-    onFinalize(reason, backendResult);
-  }, [submitting, backendAttemptId, session, onFinalize]);
+  const triggerFinalization = useCallback((reason: "manual_submit" | "timer_expired" | "candidate_exit") => {
+    onFinalize(reason);
+  }, [onFinalize]);
 
   return (
     <main className="exam-fullscreen-view">
@@ -1001,7 +887,7 @@ export default function CandidateExamPage({
           />
           <div className="exam-dept-pill">
             <BookOpen size={13} />
-            <span>{session.profile.department || "Development"} — Assessment</span>
+            <span>{session.profile.department || "Development"} ΓÇö Assessment</span>
           </div>
         </div>
 
@@ -1032,7 +918,7 @@ export default function CandidateExamPage({
             </span>
             <div className="exam-user-info">
               <strong className="exam-user-name">{session?.profile?.name || "Jingyasa Priyadarsini"}</strong>
-              <small className="exam-user-id">{session?.profile?.candidateId || "MCQ-REG001"}</small>
+              <small className="exam-user-id">{session?.profile?.candidateId || "CAND-012-09"}</small>
             </div>
           </div>
 

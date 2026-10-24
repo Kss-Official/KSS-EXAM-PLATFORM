@@ -1,35 +1,15 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Camera,
-  CheckCircle2,
-  AlertTriangle,
-  VideoOff,
-  RefreshCw,
-  Eye,
-  UserCheck,
-  Activity,
-  UserX,
-} from "lucide-react";
-import { useFaceDetection } from "../../hooks/useFaceDetection";
+﻿import { useState, useRef, useEffect, useCallback } from "react";
+import { Camera, CheckCircle2, AlertTriangle, VideoOff, RefreshCw, Eye } from "lucide-react";
 
 interface CameraCheckProps {
   onPermissionChange: (granted: boolean) => void;
 }
 
 export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
-  const [status, setStatus] = useState<
-    "idle" | "requesting" | "granted" | "denied" | "unsupported"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "requesting" | "granted" | "denied" | "unsupported">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
-  // Real-time multi-scenario face & room monitoring
-  const { severity, warningTitle, warningText } =
-    useFaceDetection(videoRef, {
-      enabled: status === "granted",
-      intervalMs: 180,
-    });
 
   const stopCameraStream = useCallback(() => {
     if (streamRef.current) {
@@ -65,12 +45,10 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
   // Callback ref guarantees immediate attachment as soon as the <video> node is mounted into DOM
   const handleVideoRef = useCallback((videoElement: HTMLVideoElement | null) => {
     videoRef.current = videoElement;
-    if (videoElement && streamRef.current && videoElement.srcObject !== streamRef.current) {
+    if (videoElement && streamRef.current) {
       videoElement.srcObject = streamRef.current;
       videoElement.play().catch((err) => {
-        if (err.name !== "AbortError") {
-          console.warn("[CameraCheck] Callback ref video play:", err);
-        }
+        console.warn("[CameraCheck] Callback ref video play:", err);
       });
     }
   }, []);
@@ -80,9 +58,7 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setStatus("unsupported");
-      setErrorMessage(
-        "Your browser or device does not support camera capture (getUserMedia API)."
-      );
+      setErrorMessage("Your browser does not support media device APIs (getUserMedia).");
       onPermissionChange(false);
       return;
     }
@@ -90,13 +66,14 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
     setStatus("requesting");
 
     try {
+      // Strictly request video stream locally without recording or persisting
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: "user",
           width: { ideal: 640 },
           height: { ideal: 480 },
+          facingMode: "user"
         },
-        audio: false,
+        audio: false
       });
 
       streamRef.current = stream;
@@ -109,27 +86,12 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
       setStatus("denied");
 
       const error = err as Error;
-      if (
-        error.name === "NotAllowedError" ||
-        error.name === "PermissionDeniedError"
-      ) {
-        setErrorMessage(
-          "Camera access was blocked or denied. Please grant permission in your browser address bar."
-        );
-      } else if (
-        error.name === "NotFoundError" ||
-        error.name === "DevicesNotFoundError"
-      ) {
-        setErrorMessage(
-          "No video input device found on your system. Please connect a webcam."
-        );
-      } else if (
-        error.name === "NotReadableError" ||
-        error.name === "TrackStartError"
-      ) {
-        setErrorMessage(
-          "Camera is currently in use by another application. Please close other software using the camera."
-        );
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        setErrorMessage("Camera access was blocked or denied. Please grant permission in your browser address bar.");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        setErrorMessage("No video input device found on your system. Please connect a webcam.");
+      } else if (error.name === "NotReadableError" || error.name === "TrackStartError") {
+        setErrorMessage("Camera is currently in use by another application. Please close other software using the camera.");
       } else {
         setErrorMessage(error.message || "Failed to initialize camera device.");
       }
@@ -144,13 +106,6 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
     onPermissionChange(false);
   };
 
-  const viewportBorderClass =
-    severity === "red"
-      ? "warning-second-person"
-      : severity === "amber"
-      ? "warning-room-activity"
-      : "";
-
   return (
     <div className="check-card card">
       <div className="check-card-header">
@@ -159,7 +114,7 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
         </div>
         <div>
           <h3 className="check-title">Camera Permission & Visual Check</h3>
-          <p className="check-subtitle">Local hardware readiness & proctor verification</p>
+          <p className="check-subtitle">Local hardware readiness verification</p>
         </div>
       </div>
 
@@ -192,7 +147,7 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
 
         {status === "granted" && (
           <div className="camera-preview-container">
-            <div className={`video-viewport ${viewportBorderClass}`}>
+            <div className="video-viewport">
               <video
                 ref={handleVideoRef}
                 autoPlay
@@ -203,51 +158,6 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
               <span className="live-indicator">
                 <span className="live-dot" /> LIVE PREVIEW
               </span>
-            </div>
-
-            {/* Real-time Multi-Scenario Status Indicator */}
-            <div
-              className={`face-detector-pill-bar ${
-                severity === "red"
-                  ? "alert"
-                  : severity === "amber"
-                  ? "amber"
-                  : "normal"
-              }`}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                {severity === "red" ? (
-                  <>
-                    <AlertTriangle size={14} color="#dc2626" />
-                    <span>
-                      <strong>Warning ({warningTitle}):</strong> {warningText}
-                    </span>
-                  </>
-                ) : severity === "amber" ? (
-                  <>
-                    {warningTitle.includes("Missing") ? (
-                      <UserX size={14} color="#d97706" />
-                    ) : (
-                      <Activity size={14} color="#d97706" />
-                    )}
-                    <span>
-                      <strong>Notice ({warningTitle}):</strong> {warningText}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <UserCheck size={14} color="#16a34a" />
-                    <span>1 Candidate face visible (Optimal framing).</span>
-                  </>
-                )}
-              </div>
-              <small style={{ opacity: 0.85, fontSize: "10px" }}>
-                {severity === "red"
-                  ? "Ensure you are alone"
-                  : severity === "amber"
-                  ? "Environment Check"
-                  : "Proctor Guard Active"}
-              </small>
             </div>
 
             <div className="media-success-bar">
@@ -284,9 +194,9 @@ export default function CameraCheck({ onPermissionChange }: CameraCheckProps) {
 
         <div className="privacy-badge">
           <small>
-            <strong>Privacy & Integrity Guarantee:</strong> Camera verification runs
-            locally in your browser to verify device availability and single-occupant
-            room integrity.
+            <strong>Privacy Guarantee:</strong> Camera access is used exclusively for this local
+            device readiness check. Video is never recorded, captured, or transmitted to any server.
+            All streams are terminated when moving to the examination.
           </small>
         </div>
       </div>

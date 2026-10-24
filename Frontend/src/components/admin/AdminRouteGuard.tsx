@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+﻿import { useState, useEffect, type ReactNode } from "react";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { useRouter } from "../../router";
 import { getAuthMe, type AuthUser } from "../../services/api";
@@ -71,7 +71,7 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
             height: "44px",
             borderRadius: "50%",
             border: "3px solid #1e293b",
-            borderTopColor: "#365fe5",
+            borderTopColor: "#017846",
             animation: "spin 0.8s linear infinite"
           }} 
         />

@@ -1,25 +1,14 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  Mic,
-  MicOff,
-  CheckCircle2,
-  AlertTriangle,
-  RefreshCw,
-  Volume2,
-  Activity,
-} from "lucide-react";
+﻿import { useState, useRef, useEffect, useCallback } from "react";
+import { Mic, MicOff, CheckCircle2, AlertTriangle, RefreshCw, Volume2 } from "lucide-react";
 
 interface MicrophoneCheckProps {
   onPermissionChange: (granted: boolean) => void;
 }
 
 export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckProps) {
-  const [status, setStatus] = useState<
-    "idle" | "requesting" | "granted" | "denied" | "unsupported"
-  >("idle");
+  const [status, setStatus] = useState<"idle" | "requesting" | "granted" | "denied" | "unsupported">("idle");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState<number>(0);
-  const [hasDetectedVoice, setHasDetectedVoice] = useState<boolean>(false);
 
   const streamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -53,7 +42,6 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
 
   const requestMicrophone = async () => {
     setErrorMessage(null);
-    setHasDetectedVoice(false);
 
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       setStatus("unsupported");
@@ -65,59 +53,42 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
     setStatus("requesting");
 
     try {
-      // Audio stream with standard noise suppression and echo cancellation
+      // Strictly audio-only stream for volume meter; no recording
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          noiseSuppression: true
         },
-        video: false,
+        video: false
       });
 
       streamRef.current = stream;
 
-      // Initialize Web Audio API Analyser
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      // Initialize Web Audio API Analyser for local visual meter only
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
 
-      // Crucial browser fix: Resume context if browser created it in 'suspended' state
-      if (audioCtx.state === "suspended") {
-        await audioCtx.resume();
-      }
-
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 512;
-      analyser.smoothingTimeConstant = 0.3;
+      analyser.fftSize = 64;
       source.connect(analyser);
 
-      const bufferLength = analyser.fftSize;
+      const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
 
       const updateMeter = () => {
         if (!analyser) return;
+        analyser.getByteFrequencyData(dataArray);
 
-        // Use RMS (Root Mean Square) time-domain sound pressure
-        analyser.getByteTimeDomainData(dataArray);
-
-        let sumSquares = 0;
+        // Calculate average amplitude
+        let sum = 0;
         for (let i = 0; i < bufferLength; i++) {
-          const norm = (dataArray[i] - 128) / 128;
-          sumSquares += norm * norm;
+          sum += dataArray[i];
         }
-        const rms = Math.sqrt(sumSquares / bufferLength);
-
-        // Perceptually weighted volume level (0 to 100%)
-        const normalized = Math.min(100, Math.round(Math.pow(rms, 0.65) * 180));
+        const avg = sum / bufferLength;
+        const normalized = Math.min(100, Math.round((avg / 128) * 100));
         setAudioLevel(normalized);
-
-        if (normalized >= 15) {
-          setHasDetectedVoice(true);
-        }
 
         animationFrameRef.current = requestAnimationFrame(updateMeter);
       };
@@ -131,27 +102,10 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
       setStatus("denied");
 
       const error = err as Error;
-      if (
-        error.name === "NotAllowedError" ||
-        error.name === "PermissionDeniedError"
-      ) {
-        setErrorMessage(
-          "Microphone access was denied. Please allow microphone permissions in browser settings."
-        );
-      } else if (
-        error.name === "NotFoundError" ||
-        error.name === "DevicesNotFoundError"
-      ) {
-        setErrorMessage(
-          "No microphone hardware was detected on your computer. Please connect an audio input device."
-        );
-      } else if (
-        error.name === "NotReadableError" ||
-        error.name === "TrackStartError"
-      ) {
-        setErrorMessage(
-          "Microphone is currently locked or in use by another application."
-        );
+      if (error.name === "NotAllowedError" || error.name === "PermissionDeniedError") {
+        setErrorMessage("Microphone access was denied. Please allow microphone permissions in browser settings.");
+      } else if (error.name === "NotFoundError" || error.name === "DevicesNotFoundError") {
+        setErrorMessage("No microphone device was detected on your computer.");
       } else {
         setErrorMessage(error.message || "Failed to initialize microphone device.");
       }
@@ -163,7 +117,6 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
   const handleManualStop = () => {
     stopMicrophoneStream();
     setStatus("idle");
-    setHasDetectedVoice(false);
     onPermissionChange(false);
   };
 
@@ -181,8 +134,8 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
 
       <div className="check-card-content">
         <p className="check-explainer">
-          Verify that your microphone is functioning. Click <strong>Enable Microphone</strong>{" "}
-          and speak briefly to test the live indicator.
+          Verify that your microphone is functioning.
+          Click <strong>Enable Microphone</strong> and speak briefly to test the live indicator.
         </p>
 
         {status === "idle" && (
@@ -213,58 +166,20 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
                 <span className="mic-label">
                   <Mic size={16} /> Live Voice Activity
                 </span>
-                <span
-                  className="mic-level-percent"
-                  style={{
-                    color: audioLevel > 15 ? "#22c55e" : "#94a3b8",
-                  }}
-                >
-                  {audioLevel}%
-                </span>
+                <span className="mic-level-percent">{audioLevel}%</span>
               </div>
-
               <div className="mic-track">
                 <div
                   className="mic-fill"
-                  style={{
-                    width: `${Math.max(4, audioLevel)}%`,
-                    background:
-                      audioLevel > 60
-                        ? "linear-gradient(90deg, #38bdf8, #22c55e, #eab308)"
-                        : "linear-gradient(90deg, #38bdf8, #22c55e)",
-                  }}
+                  style={{ width: `${Math.max(4, audioLevel)}%` }}
                 />
               </div>
-
-              {/* Dynamic Voice Feedback Pill */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  marginTop: "8px",
-                  fontSize: "10.5px",
-                  fontWeight: 600,
-                  color: hasDetectedVoice ? "#15803d" : "#64748b",
-                }}
-              >
-                {hasDetectedVoice ? (
-                  <>
-                    <Activity size={13} color="#22c55e" />
-                    <span>Voice activity confirmed · Microphone is working clearly</span>
-                  </>
-                ) : (
-                  <>
-                    <Mic size={13} color="#94a3b8" />
-                    <span>Waiting for speech... Speak a few words into your mic</span>
-                  </>
-                )}
-              </div>
+              <small className="mic-hint">Speak a few words to confirm microphone pickup</small>
             </div>
 
             <div className="media-success-bar">
               <span className="success-text">
-                <CheckCircle2 size={16} /> Microphone permission granted & active
+                <CheckCircle2 size={16} /> Microphone permission granted
               </span>
               <button
                 type="button"
@@ -296,9 +211,9 @@ export default function MicrophoneCheck({ onPermissionChange }: MicrophoneCheckP
 
         <div className="privacy-badge">
           <small>
-            <strong>Privacy Guarantee:</strong> Audio data is analyzed purely in local volatile
-            memory to render the visual meter. No voice audio is recorded, stored, or streamed to
-            any server.
+            <strong>Privacy Guarantee:</strong> Audio data is analyzed purely in local volatile memory
+            to render the visual meter. No voice audio is recorded, stored, or streamed to any server.
+            All audio tracks are disconnected when starting the exam.
           </small>
         </div>
       </div>

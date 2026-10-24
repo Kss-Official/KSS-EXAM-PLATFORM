@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { X, Send, ChevronDown, ChevronRight } from "lucide-react";
 import LiveProctorFeed from "./LiveProctorFeed";
 
@@ -23,6 +23,7 @@ export default function QuestionNavigator({
   onSelectQuestion,
   onRequestSubmit
 }: QuestionNavigatorProps) {
+  void total;
   // 4 Sections: A (1-15), B (16-30), C (31-45), D (46-60)
   const sections = [
     { id: "A", name: "Section A", start: 1, end: 15, title: "Quantitative Aptitude" },
@@ -40,27 +41,18 @@ export default function QuestionNavigator({
     return "D";
   };
 
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
-    A: true,
-    B: false,
-    C: false,
-    D: false
-  });
+  // Only one section can be open at a time (single-open accordion)
+  const [activeSection, setActiveSection] = useState<string>("A");
 
-  // Auto-expand section when user navigates into it
+  // Auto-switch active section when candidate navigates to a question in a different section
   useEffect(() => {
     const secId = getSectionIdForIndex(currentIndex);
-    setOpenSections(prev => ({
-      ...prev,
-      [secId]: true
-    }));
+    setActiveSection(secId);
   }, [currentIndex]);
 
   const toggleSection = (secId: string) => {
-    setOpenSections(prev => ({
-      ...prev,
-      [secId]: !prev[secId]
-    }));
+    // If the clicked section is already open, toggle it closed; otherwise open it and close all others
+    setActiveSection(prev => (prev === secId ? "" : secId));
   };
 
   // Count answered in each section
@@ -115,7 +107,7 @@ export default function QuestionNavigator({
         {/* 4 Accordion Sections */}
         <div className="qnav-sections-accordion">
           {sections.map(sec => {
-            const isOpen = openSections[sec.id];
+            const isSectionOpen = activeSection === sec.id;
             const answeredInSec = getAnsweredCountForSection(sec.start, sec.end);
             const totalInSec = sec.end - sec.start + 1;
 
@@ -127,7 +119,7 @@ export default function QuestionNavigator({
                   onClick={() => toggleSection(sec.id)}
                 >
                   <div className="qnav-sec-left">
-                    {isOpen ? (
+                    {isSectionOpen ? (
                       <ChevronDown size={15} color="#475569" />
                     ) : (
                       <ChevronRight size={15} color="#475569" />
@@ -140,7 +132,7 @@ export default function QuestionNavigator({
                   </span>
                 </button>
 
-                {isOpen && (
+                {isSectionOpen && (
                   <div className="qnav-numbers-grid">
                     {Array.from({ length: totalInSec }, (_, i) => {
                       const qNum = sec.start + i;

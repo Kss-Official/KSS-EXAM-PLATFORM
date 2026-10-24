@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { AlertTriangle, ChevronRight } from "lucide-react";
 
 interface SubmitConfirmationDialogProps {
@@ -53,7 +53,7 @@ export default function SubmitConfirmationDialog({
             Confirm submission <ChevronRight size={16} />
           </button>
         </div>
-        <small>DEMO SESSION · Saved to local session storage only</small>
+        <small>DEMO SESSION ┬╖ Saved to local session storage only</small>
       </section>
     </div>
   );

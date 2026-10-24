@@ -1,4 +1,4 @@
-import { Clock, Calendar, CheckCircle2, Info } from "lucide-react";
+﻿import { Clock, Calendar, CheckCircle2, Info } from "lucide-react";
 import type { ExamTimingMode } from "../../types/adminExam";
 
 interface ExamTimingModeSelectorProps {
@@ -28,14 +28,14 @@ export default function ExamTimingModeSelector({
 }: ExamTimingModeSelectorProps) {
   // Compute calculated end time preview for Scheduled mode
   const getCalculatedEndTime = () => {
-    if (!startTime || !durationMinutes) return "—";
+    if (!startTime || !durationMinutes) return "ΓÇö";
     try {
       const [hoursStr, minutesStr] = startTime.split(":");
       const hours = parseInt(hoursStr, 10);
       const minutes = parseInt(minutesStr, 10);
       const duration = parseInt(durationMinutes, 10);
 
-      if (isNaN(hours) || isNaN(minutes) || isNaN(duration)) return "—";
+      if (isNaN(hours) || isNaN(minutes) || isNaN(duration)) return "ΓÇö";
 
       const startDate = new Date();
       startDate.setHours(hours, minutes, 0, 0);
@@ -47,12 +47,12 @@ export default function ExamTimingModeSelector({
         hour12: true
       });
     } catch {
-      return "—";
+      return "ΓÇö";
     }
   };
 
   const formatStartTimePreview = () => {
-    if (!startTime) return "—";
+    if (!startTime) return "ΓÇö";
     try {
       const [h, m] = startTime.split(":");
       const d = new Date();
@@ -75,8 +75,8 @@ export default function ExamTimingModeSelector({
         <div 
           onClick={() => onChangeMode("SCHEDULED")}
           style={{
-            border: `1.5px solid ${timingMode === "SCHEDULED" ? "#365fe5" : "#cbd5e1"}`,
-            background: timingMode === "SCHEDULED" ? "#eff6ff" : "#ffffff",
+            border: `1.5px solid ${timingMode === "SCHEDULED" ? "#017846" : "#cbd5e1"}`,
+            background: timingMode === "SCHEDULED" ? "#EAF6EF" : "#ffffff",
             borderRadius: "10px",
             padding: "14px",
             cursor: "pointer",
@@ -86,7 +86,7 @@ export default function ExamTimingModeSelector({
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-              <Calendar size={16} color="#365fe5" /> Mode A: Scheduled Start
+              <Calendar size={16} color="#017846" /> Mode A: Scheduled Start
             </span>
             <input 
               type="radio" 
@@ -105,8 +105,8 @@ export default function ExamTimingModeSelector({
         <div 
           onClick={() => onChangeMode("DURATION_FROM_START")}
           style={{
-            border: `1.5px solid ${timingMode === "DURATION_FROM_START" ? "#365fe5" : "#cbd5e1"}`,
-            background: timingMode === "DURATION_FROM_START" ? "#eff6ff" : "#ffffff",
+            border: `1.5px solid ${timingMode === "DURATION_FROM_START" ? "#017846" : "#cbd5e1"}`,
+            background: timingMode === "DURATION_FROM_START" ? "#EAF6EF" : "#ffffff",
             borderRadius: "10px",
             padding: "14px",
             cursor: "pointer",
@@ -116,7 +116,7 @@ export default function ExamTimingModeSelector({
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-              <Clock size={16} color="#365fe5" /> Mode B: Candidate Starts Anytime
+              <Clock size={16} color="#017846" /> Mode B: Candidate Starts Anytime
             </span>
             <input 
               type="radio" 
@@ -181,7 +181,7 @@ export default function ExamTimingModeSelector({
                 fontSize: "11px", 
                 color: "#64748b" 
               }}>
-                <Info size={14} style={{ marginRight: "6px", flexShrink: 0 }} /> Not required — starts on candidate entry
+                <Info size={14} style={{ marginRight: "6px", flexShrink: 0 }} /> Not required ΓÇö starts on candidate entry
               </div>
             </div>
           )}
@@ -220,7 +220,7 @@ export default function ExamTimingModeSelector({
           {timingMode === "SCHEDULED" ? (
             <>
               <div style={{ fontSize: "11px", color: "#334155" }}>
-                <strong>Calculated Cohort Schedule:</strong> Start: <b>{formatStartTimePreview()}</b> · Duration: <b>{durationMinutes || 0} mins</b>
+                <strong>Calculated Cohort Schedule:</strong> Start: <b>{formatStartTimePreview()}</b> ┬╖ Duration: <b>{durationMinutes || 0} mins</b>
               </div>
               <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "#166534", background: "#dcfce7", padding: "3px 8px", borderRadius: "6px" }}>
                 <CheckCircle2 size={13} /> Expected End Time: {getCalculatedEndTime()}

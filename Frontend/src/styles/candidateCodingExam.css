@@ -1,0 +1,746 @@
+﻿/* ========================================================
+   CANDIDATE CODING ASSESSMENT STYLES
+   Pixel-perfect match to reference screenshot & Kalpanaa branding
+   ======================================================== */
+
+.coding-exam-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: #f1f5f9;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* --------------------------------------------------------
+   Top Header Bar
+   -------------------------------------------------------- */
+.coding-exam-header {
+  height: 64px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  z-index: 20;
+}
+
+.coding-exam-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.coding-exam-logo {
+  height: 38px;
+  object-fit: contain;
+}
+
+/* Center Progress */
+.coding-exam-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 280px;
+}
+
+.coding-exam-progress-bar {
+  width: 100%;
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.coding-exam-progress-fill {
+  height: 100%;
+  background: #017846;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.coding-exam-progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+/* Right Header Cluster */
+.coding-exam-header-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.coding-exam-timer-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1.5px solid #a7f3d0;
+  background: #ecfdf5;
+  color: #065f46;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13.5px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.5px;
+}
+
+.coding-exam-timer-pill.urgent {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  animation: pulse 1s infinite;
+}
+
+.coding-exam-candidate-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.coding-exam-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #166534;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.coding-exam-candidate-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.coding-exam-candidate-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.coding-exam-candidate-id {
+  font-size: 11px;
+  color: #64748b;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.coding-exam-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.coding-exam-exit-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* --------------------------------------------------------
+   3-Column Workspace Layout
+   -------------------------------------------------------- */
+.coding-exam-workspace {
+  display: grid;
+  grid-template-columns: 105px minmax(360px, 1.15fr) minmax(460px, 1.35fr);
+  gap: 14px;
+  padding: 14px 18px;
+  flex: 1;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------
+   Left Column: Questions Navigator
+   -------------------------------------------------------- */
+.coding-exam-left-nav {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 16px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  overflow-y: auto;
+}
+
+.coding-exam-nav-header {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.coding-exam-nav-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+}
+
+.coding-exam-nav-subtitle {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 600;
+  margin-top: 2px;
+  display: block;
+}
+
+.coding-exam-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.coding-exam-nav-item {
+  width: 100%;
+  border: 1.5px solid #e2e8f0;
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 12px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+
+.coding-exam-nav-item:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.coding-exam-nav-item.active {
+  border-color: #017846;
+  background: #f0fdf4;
+  box-shadow: 0 2px 8px rgba(1, 120, 70, 0.15);
+}
+
+.coding-exam-nav-q-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.coding-exam-nav-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #017846;
+}
+
+.coding-exam-nav-dot.unattempted {
+  background: transparent;
+  border: 1.5px solid #94a3b8;
+}
+
+.coding-exam-difficulty-pill {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.3px;
+}
+
+.coding-exam-difficulty-pill.easy {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.coding-exam-difficulty-pill.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.coding-exam-difficulty-pill.hard {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* --------------------------------------------------------
+   Middle Column: Main Question View
+   -------------------------------------------------------- */
+.coding-exam-middle-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  box-sizing: border-box;
+}
+
+.coding-exam-q-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.coding-exam-q-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.coding-exam-q-number {
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.coding-exam-q-number strong {
+  color: #017846;
+  font-weight: 800;
+}
+
+.coding-exam-flag-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.coding-exam-flag-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.coding-exam-flag-btn.flagged {
+  background: #fef3c7;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.coding-exam-q-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 14px;
+  line-height: 1.35;
+}
+
+.coding-exam-q-statement {
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.6;
+  margin: 0 0 18px;
+}
+
+/* Definition Callout Box */
+.coding-exam-callout {
+  background: #f0fdf4;
+  border-left: 3.5px solid #10b981;
+  border-radius: 0 8px 8px 0;
+  padding: 14px 18px;
+  font-size: 13px;
+  color: #166534;
+  line-height: 1.55;
+  margin-bottom: 20px;
+}
+
+/* Example Sections */
+.coding-exam-example-section {
+  margin-bottom: 18px;
+}
+
+.coding-exam-example-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 8px;
+}
+
+.coding-exam-code-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12.5px;
+  color: #1e293b;
+  line-height: 1.5;
+  white-space: pre;
+  margin: 0;
+  overflow-x: auto;
+}
+
+/* Constraints */
+.coding-exam-constraints {
+  margin-top: 10px;
+  padding-top: 14px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.coding-exam-constraints h4 {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.coding-exam-constraints ul {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+/* --------------------------------------------------------
+   Right Column: Code Editor & Test Output
+   -------------------------------------------------------- */
+.coding-exam-right-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 12px;
+  overflow: hidden;
+}
+
+/* Editor Card */
+.coding-exam-editor-card {
+  background: #0f172a;
+  border-radius: 14px;
+  border: 1px solid #1e293b;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 280px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* Editor Toolbar */
+.coding-exam-editor-toolbar {
+  height: 44px;
+  background: #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+
+.coding-exam-lang-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coding-exam-lang-select {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.coding-exam-editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.coding-exam-control-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  padding: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: color 0.15s ease;
+}
+
+.coding-exam-control-btn:hover {
+  color: #ffffff;
+}
+
+/* Editor Body with Gutter */
+.coding-exam-editor-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  background: #0b0f19;
+}
+
+.coding-exam-gutter {
+  width: 44px;
+  padding: 14px 8px 14px 0;
+  text-align: right;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  line-height: 20px;
+  color: #475569;
+  user-select: none;
+  background: #0b0f19;
+  border-right: 1px solid #1e293b;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.coding-exam-textarea {
+  flex: 1;
+  background: transparent;
+  color: #e2e8f0;
+  border: none;
+  outline: none;
+  padding: 14px 16px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  line-height: 20px;
+  resize: none;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  tab-size: 4;
+  box-sizing: border-box;
+}
+
+/* Editor Action Bar (Bottom of Editor) */
+.coding-exam-editor-footer {
+  height: 52px;
+  background: #0f172a;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 16px;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.coding-exam-btn-run {
+  background: #017846;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.3);
+}
+
+.coding-exam-btn-run:hover:not(:disabled) {
+  background: #01663c;
+}
+
+.coding-exam-btn-run:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.coding-exam-btn-submit {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.coding-exam-btn-submit:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.coding-exam-btn-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------
+   Test Output Panel
+   -------------------------------------------------------- */
+.coding-exam-output-card {
+  background: #0b0f19;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  max-height: 200px;
+}
+
+.coding-exam-output-header {
+  height: 38px;
+  background: #111827;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+}
+
+.coding-exam-output-toggle-btn {
+  background: none;
+  border: none;
+  color: #e2e8f0;
+  font-size: 12px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.coding-exam-output-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.coding-exam-custom-input-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.coding-exam-clear-output-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.coding-exam-clear-output-btn:hover {
+  color: #ffffff;
+}
+
+.coding-exam-output-body {
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  overflow-y: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.coding-exam-output-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.coding-exam-output-line {
+  display: flex;
+  gap: 12px;
+}
+
+.coding-exam-output-line-num {
+  color: #4b5563;
+  width: 14px;
+}
+
+.coding-exam-output-line-val.true {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.coding-exam-output-line-val.false {
+  color: #ef4444;
+  font-weight: 600;
+}
+
+.coding-exam-status-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  flex-shrink: 0;
+}
+
+.coding-exam-status-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.coding-exam-status-title {
+  color: #10b981;
+  font-weight: 700;
+  font-size: 11.5px;
+}
+
+.coding-exam-status-runtime {
+  color: #94a3b8;
+  font-size: 10.5px;
+  margin-top: 2px;
+}

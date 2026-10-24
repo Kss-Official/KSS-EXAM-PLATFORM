@@ -1,4 +1,4 @@
-import { Trash2, AlertTriangle, X } from "lucide-react";
+﻿import { Trash2, AlertTriangle, X } from "lucide-react";
 import type { Exam } from "../../types";
 
 interface DeleteExamDialogProps {
@@ -59,9 +59,11 @@ export default function DeleteExamDialog({
         <div className="pending-impl-notice" style={{ margin: "0 0 16px 0", background: "#fff7ed", borderColor: "#fed7aa" }}>
           <AlertTriangle size={16} color="#ea580c" style={{ flexShrink: 0, marginTop: "2px" }} />
           <div style={{ fontSize: "11px", color: "#9a3412" }}>
-            <strong>Database Deletion Notice:</strong>
+            <strong>Backend API & Preservation Notice:</strong>
             <br />
-            This will permanently remove the exam blueprint, all associated question sets, and all randomized questions from the PostgreSQL database.
+            The endpoint <code>DELETE /api/admin/exams/{exam.id}</code> is not yet active on the Spring Boot backend. 
+            Confirming this action will remove the record <strong>exclusively from local demonstration state</strong>. 
+            No persistent PostgreSQL database rows are altered.
           </div>
         </div>
 

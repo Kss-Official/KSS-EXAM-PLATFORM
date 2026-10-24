@@ -1,4 +1,4 @@
-import type { 
+﻿import type { 
   AdminQuestion, 
   AnswerKeyDraft, 
   LocalScoringRule, 
@@ -20,7 +20,7 @@ export interface CandidateAttemptSubmission {
  * Pure TypeScript client-side scoring engine.
  * Computes scores deterministically using stable option IDs.
  * Note: Client scoring is for local preview/demo verification only.
- * Production scoring must be computed by FastAPI server-side to prevent tampering.
+ * Production scoring must be computed by Spring Boot server-side to prevent tampering.
  */
 export function calculateLocalScore(
   attempt: CandidateAttemptSubmission,
@@ -50,7 +50,7 @@ export function calculateLocalScore(
       percentage: 0,
       status: "Pending Review",
       isDemoScore: true,
-      notes: "Scoring unavailable — official answer key requires validation."
+      notes: "Scoring unavailable ΓÇö official answer key requires validation."
     };
   }
 
@@ -122,6 +122,6 @@ export function calculateLocalScore(
     percentage,
     status: "Scored",
     isDemoScore: true,
-    notes: `Local scoring preview — not server verified. (+${rule.marksPerCorrect} / -${rule.negativeMarking})`
+    notes: `Local scoring preview ΓÇö not server verified. (+${rule.marksPerCorrect} / -${rule.negativeMarking})`
   };
 }

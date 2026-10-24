@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   PlusCircle, 
   Search, 
@@ -12,70 +12,52 @@ import {
   Clock,
   RotateCcw,
   Code2,
-  Terminal,
+  CheckSquare,
   FileCode2,
-  CheckCircle2,
-  ShieldCheck
+  Terminal
 } from "lucide-react";
 import { useRouter } from "../../router";
+import { getAllExams, publishExam, closeExam, deleteExam, ApiError, type ExamDto } from "../../services/api";
 import { 
-  getAllExams, 
-  publishExam, 
-  closeExam, 
-  deleteExam, 
-  getAllCodingExams,
-  publishCodingExam,
-  deleteCodingExam,
-  ApiError, 
-  type ExamDto,
-  type CodingExamDto
-} from "../../services/api";
-import { getSavedCodingExams } from "../../services/codingExamService";
+  getSavedCodingExams, 
+  deleteCodingExam, 
+  publishCodingExam, 
+  closeCodingExam, 
+  type CodingExamDto 
+} from "../../services/codingExamService";
 
 export default function ExamsPage() {
   const { navigate } = useRouter();
+
+  // Round Switcher State: "ROUND_1" (MCQ Assessment) vs "ROUND_2" (Coding Assessment)
   const [selectedRound, setSelectedRound] = useState<"ROUND_1" | "ROUND_2">("ROUND_1");
 
-  // Round 1 (MCQ) Exams
+  // Round 1 (MCQ) State
   const [exams, setExams] = useState<ExamDto[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedExam, setSelectedExam] = useState<ExamDto | null>(null);
   const [examToDelete, setExamToDelete] = useState<ExamDto | null>(null);
   const [deleteNeedsForce, setDeleteNeedsForce] = useState(false);
   const [deleteWarningMsg, setDeleteWarningMsg] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  // Round 2 (Coding) Exams
+  // Round 2 (Coding) State
   const [codingExams, setCodingExams] = useState<CodingExamDto[]>([]);
   const [selectedCodingExam, setSelectedCodingExam] = useState<CodingExamDto | null>(null);
   const [codingExamToDelete, setCodingExamToDelete] = useState<CodingExamDto | null>(null);
 
-  // Shared UI state
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // Shared Search & Status Filter
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [actionNotice, setActionNotice] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchAllExamsData = async () => {
+  const fetchExams = async () => {
     setLoading(true);
     setError(null);
     try {
-      const [mcqData, codingData] = await Promise.allSettled([
-        getAllExams(),
-        getAllCodingExams()
-      ]);
-
-      if (mcqData.status === "fulfilled") {
-        setExams(mcqData.value);
-      } else {
-        setError(mcqData.reason?.message || "Failed to load examinations from backend");
-      }
-
-      if (codingData.status === "fulfilled" && codingData.value.length > 0) {
-        setCodingExams(codingData.value);
-      } else {
-        setCodingExams(getSavedCodingExams());
-      }
+      const data = await getAllExams();
+      setExams(data);
     } catch (err: unknown) {
       const errorObj = err as Error;
       setError(errorObj.message || "Failed to load examinations from backend");
@@ -84,10 +66,17 @@ export default function ExamsPage() {
     }
   };
 
+  const fetchCodingExams = () => {
+    const list = getSavedCodingExams();
+    setCodingExams(list);
+  };
+
   useEffect(() => {
-    fetchAllExamsData();
+    fetchExams();
+    fetchCodingExams();
   }, []);
 
+  // Round 1 (MCQ) Actions
   const handlePublish = async (examId: number) => {
     setActionNotice(null);
     try {
@@ -143,41 +132,32 @@ export default function ExamsPage() {
     }
   };
 
-  const handlePublishCoding = async (examId: number | string) => {
-    setActionNotice(null);
-    try {
-      const updated = await publishCodingExam(examId);
-      setCodingExams(prev => prev.map(e => String(e.id) === String(examId) ? { ...e, status: "PUBLISHED" } : e));
-      setActionNotice(`Coding Assessment "${updated.title}" successfully published! Active for candidate entrance.`);
-    } catch (err: any) {
-      setActionNotice(`Publication failed: ${err.message || "Server error"}`);
+  // Round 2 (Coding) Actions
+  const handlePublishCoding = (id: string | number) => {
+    const updated = publishCodingExam(id);
+    if (updated) {
+      fetchCodingExams();
+      setActionNotice(`Coding assessment "${updated.title}" is now LIVE and PUBLISHED.`);
     }
   };
 
-  const handleDeleteCodingConfirm = async () => {
-    if (!codingExamToDelete || isDeleting) return;
-    setIsDeleting(true);
-    setActionNotice(null);
-    const idToDelete = codingExamToDelete.id;
-    try {
-      if (idToDelete) {
-        await deleteCodingExam(idToDelete);
-      }
-      setCodingExams(prev => prev.filter(e => String(e.id) !== String(idToDelete)));
-      setActionNotice(`Coding Assessment "${codingExamToDelete.title}" deleted.`);
-    } catch (err: any) {
-      const updated = codingExams.filter(e => String(e.id) !== String(idToDelete));
-      setCodingExams(updated);
-      try {
-        localStorage.setItem("examsecure_coding_exams_drafts_v1", JSON.stringify(updated));
-      } catch {}
-      setActionNotice(`Coding Assessment removed (${err.message})`);
-    } finally {
-      setIsDeleting(false);
-      setCodingExamToDelete(null);
+  const handleCloseCoding = (id: string | number) => {
+    const updated = closeCodingExam(id);
+    if (updated) {
+      fetchCodingExams();
+      setActionNotice(`Coding assessment "${updated.title}" closed.`);
     }
   };
 
+  const handleDeleteCodingConfirm = () => {
+    if (!codingExamToDelete) return;
+    deleteCodingExam(codingExamToDelete.id || "");
+    fetchCodingExams();
+    setActionNotice(`Coding assessment "${codingExamToDelete.title}" was removed.`);
+    setCodingExamToDelete(null);
+  };
+
+  // Filter Round 1 MCQ Exams
   const filteredExams = exams.filter(e => {
     const matchesSearch = 
       e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -188,13 +168,19 @@ export default function ExamsPage() {
     return matchesSearch && matchesStatus;
   });
 
-  const filteredCodingExams = codingExams.filter(e => {
+  // Filter Round 2 Coding Exams
+  const filteredCodingExams = codingExams.filter(c => {
     const matchesSearch = 
-      e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (e.description && e.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      String(e.id || "").includes(searchQuery);
+      c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      String(c.id || "").toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus = statusFilter === "ALL" || e.status === statusFilter;
+    const isArchived = c.status === "ARCHIVED";
+    const matchesStatus = 
+      statusFilter === "ALL" || 
+      c.status === statusFilter || 
+      (statusFilter === "COMPLETED" && isArchived);
+
     return matchesSearch && matchesStatus;
   });
 
@@ -210,83 +196,46 @@ export default function ExamsPage() {
             </strong>
           </div>
           <p style={{ margin: "3px 0 0", fontSize: "12.5px", color: "#64748b" }}>
-            Manage database examinations, 4-set question collections (A–D), and Round 2 Coding assessments
+            Manage Round 1 (MCQ Assessment) and Round 2 (Coding Assessment) examination lifecycles
           </p>
         </div>
-        <div className="admin-page-actions">
+        <div className="admin-page-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button 
             type="button"
             className="admin-btn secondary" 
-            onClick={fetchAllExamsData}
-            title="Refresh from Database"
+            onClick={() => {
+              fetchExams();
+              fetchCodingExams();
+            }}
+            title="Refresh examinations"
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
           >
             <RotateCcw size={14} /> Refresh
           </button>
+          
           {selectedRound === "ROUND_1" ? (
             <button 
               type="button"
               className="admin-btn primary" 
-              onClick={() => navigate("/admin/exams/new")}
+              onClick={() => navigate("/admin/exams/new/mcq")}
               style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #017846, #01663C)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(1, 120, 70, 0.25)" }}
             >
-              <PlusCircle size={15} /> Create MCQ Examination
+              <PlusCircle size={15} /> Create MCQ Exam
             </button>
           ) : (
             <button 
               type="button"
               className="admin-btn primary" 
               onClick={() => navigate("/admin/exams/new/coding")}
-              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #017846, #01663C)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(1, 120, 70, 0.25)" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #0284c7, #0369a1)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(2, 132, 199, 0.25)" }}
             >
-              <Code2 size={15} /> Create Coding Assessment
+              <PlusCircle size={15} /> Create Coding Exam
             </button>
           )}
         </div>
       </div>
 
-      {/* Round Selection Tabs */}
-      <div style={{ display: "flex", gap: "10px", margin: "16px 0" }}>
-        <button
-          type="button"
-          onClick={() => setSelectedRound("ROUND_1")}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "8px",
-            fontSize: "13px",
-            fontWeight: 700,
-            cursor: "pointer",
-            border: selectedRound === "ROUND_1" ? "2px solid #017846" : "1px solid #cbd5e1",
-            background: selectedRound === "ROUND_1" ? "#eaf6ef" : "#ffffff",
-            color: selectedRound === "ROUND_1" ? "#017846" : "#475569",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "7px"
-          }}
-        >
-          <BookOpen size={15} /> Round 1: MCQ Assessments ({exams.length})
-        </button>
-        <button
-          type="button"
-          onClick={() => setSelectedRound("ROUND_2")}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "8px",
-            fontSize: "13px",
-            fontWeight: 700,
-            cursor: "pointer",
-            border: selectedRound === "ROUND_2" ? "2px solid #017846" : "1px solid #cbd5e1",
-            background: selectedRound === "ROUND_2" ? "#eaf6ef" : "#ffffff",
-            color: selectedRound === "ROUND_2" ? "#017846" : "#475569",
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "7px"
-          }}
-        >
-          <Code2 size={15} /> Round 2: Coding Assessments ({codingExams.length})
-        </button>
-      </div>
-
+      {/* Action Notification Alert */}
       {actionNotice && (
         <div 
           style={{
@@ -309,10 +258,91 @@ export default function ExamsPage() {
             onClick={() => setActionNotice(null)} 
             style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", fontWeight: 700, fontSize: "14px" }}
           >
-            ✕
+            Γ£ò
           </button>
         </div>
       )}
+
+      {/* ========================================================
+          ROUND SELECTION TABS (ROUND 1 MCQ vs ROUND 2 CODING)
+          ======================================================== */}
+      <div className="candidate-round-tabs" style={{ marginBottom: "16px" }}>
+        <button
+          type="button"
+          className={`candidate-round-tab ${selectedRound === "ROUND_1" ? "active" : ""}`}
+          onClick={() => setSelectedRound("ROUND_1")}
+        >
+          <CheckSquare size={16} />
+          <span>Round 1 ΓÇö MCQ Assessment</span>
+          <span className="candidate-round-count">{exams.length}</span>
+        </button>
+
+        <button
+          type="button"
+          className={`candidate-round-tab round2 ${selectedRound === "ROUND_2" ? "active round2" : ""}`}
+          onClick={() => setSelectedRound("ROUND_2")}
+        >
+          <Code2 size={16} />
+          <span>Round 2 ΓÇö Coding Assessment</span>
+          <span className="candidate-round-count">{codingExams.length}</span>
+        </button>
+      </div>
+
+      {/* Round Overview Banner */}
+      <div
+        style={{
+          background: selectedRound === "ROUND_1" ? "#f0fdf4" : "#eff6ff",
+          border: `1px solid ${selectedRound === "ROUND_1" ? "#bbf7d0" : "#bfdbfe"}`,
+          borderRadius: "12px",
+          padding: "12px 18px",
+          marginBottom: "16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 800,
+              padding: "3px 8px",
+              borderRadius: "6px",
+              background: selectedRound === "ROUND_1" ? "#017846" : "#0284c7",
+              color: "#ffffff",
+              letterSpacing: "0.4px"
+            }}
+          >
+            {selectedRound === "ROUND_1" ? "ROUND 1: MCQ ASSESSMENT" : "ROUND 2: CODING ASSESSMENT"}
+          </span>
+          <span style={{ fontSize: "13px", color: selectedRound === "ROUND_1" ? "#166534" : "#1e40af", fontWeight: 600 }}>
+            {selectedRound === "ROUND_1" 
+              ? "Multiple-choice assessment with 4-set question shuffling (Sets AΓÇôD), section timing & automated grading."
+              : "Technical programming evaluation with multi-language runtime execution, custom testcases & memory limits."}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => navigate(selectedRound === "ROUND_1" ? "/admin/exams/new/mcq" : "/admin/exams/new/coding")}
+          style={{
+            background: "none",
+            border: "none",
+            color: selectedRound === "ROUND_1" ? "#017846" : "#0284c7",
+            fontSize: "12.5px",
+            fontWeight: 700,
+            cursor: "pointer",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px"
+          }}
+        >
+          <PlusCircle size={14} />
+          {selectedRound === "ROUND_1" ? "Configure New MCQ Exam" : "Configure New Coding Exam"}
+        </button>
+      </div>
 
       {/* Filter and Search Bar */}
       <div className="filter-search-row">
@@ -320,7 +350,7 @@ export default function ExamsPage() {
           <Search size={16} className="search-icon" />
           <input 
             type="text" 
-            placeholder={selectedRound === "ROUND_1" ? "Search MCQ examinations..." : "Search coding assessments..."} 
+            placeholder={`Search ${selectedRound === "ROUND_1" ? "MCQ" : "coding"} examinations by title, description or ID...`} 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -339,10 +369,12 @@ export default function ExamsPage() {
         </div>
       </div>
 
-      {/* Examinations Table */}
-      <div className="admin-table-card">
-        <div className="table-responsive">
-          {selectedRound === "ROUND_1" ? (
+      {/* ========================================================
+          TABLE 1: ROUND 1 (MCQ) EXAMINATIONS
+          ======================================================== */}
+      {selectedRound === "ROUND_1" && (
+        <div className="admin-table-card">
+          <div className="table-responsive">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -359,7 +391,7 @@ export default function ExamsPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-                      Loading examinations from database...
+                      Loading MCQ examinations from PostgreSQL database...
                     </td>
                   </tr>
                 ) : error ? (
@@ -373,9 +405,9 @@ export default function ExamsPage() {
                   <tr>
                     <td colSpan={7} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                       <BookOpen size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
-                      <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>No examinations found</p>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>No MCQ examinations found</p>
                       <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                        Create an examination using the button above to begin configuring question sets A–D.
+                        Create a Round 1 MCQ examination using the button above to begin configuring question sets AΓÇôD.
                       </small>
                     </td>
                   </tr>
@@ -468,12 +500,12 @@ export default function ExamsPage() {
                             type="button"
                             className="btn-results" 
                             title="View Results"
-                            onClick={() => navigate(`/admin/results?examId=${exam.id}`)}
+                            onClick={() => navigate("/admin/results")}
                           >
                             <BarChart2 size={12} /> Results
                           </button>
 
-                          {/* Delete Exam */}
+                          {/* Delete Exam Action */}
                           <button 
                             type="button"
                             className="btn-delete" 
@@ -493,132 +525,194 @@ export default function ExamsPage() {
                 )}
               </tbody>
             </table>
-          ) : (
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          TABLE 2: ROUND 2 (CODING) EXAMINATIONS
+          ======================================================== */}
+      {selectedRound === "ROUND_2" && (
+        <div className="admin-table-card">
+          <div className="table-responsive">
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Assessment ID & Title</th>
-                  <th>Departments</th>
+                  <th>Coding Exam & ID</th>
+                  <th>Target Departments</th>
                   <th>Duration & Problems</th>
-                  <th>Marks & Threshold</th>
-                  <th>Languages</th>
+                  <th>Marks & Evaluation</th>
+                  <th>Allowed Languages</th>
                   <th>Status</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-                      Loading coding assessments...
-                    </td>
-                  </tr>
-                ) : filteredCodingExams.length === 0 ? (
+                {filteredCodingExams.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                       <Code2 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                       <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>No Coding Assessments Found</p>
                       <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                        Create a Round 2 coding assessment with test cases and sandbox execution using the button above.
+                        Click "+ Create Coding Exam" above to configure problems, test cases, and multi-language evaluation.
                       </small>
                     </td>
                   </tr>
                 ) : (
-                  filteredCodingExams.map(exam => (
-                    <tr key={String(exam.id || exam.title)}>
-                      <td>
-                        <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13.5px" }}>{exam.title}</div>
-                        <small style={{ color: "#64748b", fontFamily: "JetBrains Mono, monospace" }}>ID: #{exam.id || "DRAFT"}</small>
-                      </td>
-                      <td>
-                        {exam.selectedDepartments && exam.selectedDepartments.length > 0 ? (
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
-                            {exam.selectedDepartments.map((d: string, i: number) => (
-                              <span key={i} className="admin-dept-chip">
-                                {d}
+                  filteredCodingExams.map(cExam => {
+                    const statusClass = cExam.status === "PUBLISHED" ? "published" : cExam.status === "ARCHIVED" ? "completed" : "draft";
+                    return (
+                      <tr key={String(cExam.id)}>
+                        <td>
+                          <div style={{ fontWeight: 700, color: "#0f172a", fontSize: "13.5px", display: "flex", alignItems: "center", gap: "6px" }}>
+                            <FileCode2 size={15} color="#0284c7" />
+                            {cExam.title}
+                          </div>
+                          <small style={{ color: "#64748b", fontFamily: "JetBrains Mono, monospace" }}>
+                            ID: {String(cExam.id)}
+                          </small>
+                        </td>
+                        <td>
+                          {cExam.selectedDepartments && cExam.selectedDepartments.length > 0 ? (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "5px" }}>
+                              {cExam.selectedDepartments.map((dept, i) => (
+                                <span 
+                                  key={i} 
+                                  className="admin-dept-chip"
+                                  style={{ background: "#eff6ff", color: "#1e40af", borderColor: "#bfdbfe" }}
+                                >
+                                  {dept}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: "11px", color: "#94a3b8" }}>All Departments</span>
+                          )}
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{cExam.durationMinutes} mins</div>
+                          <small style={{ color: "#0284c7", fontWeight: 600 }}>
+                            {cExam.questions?.length || 0} Coding Problem{(cExam.questions?.length || 0) === 1 ? "" : "s"}
+                          </small>
+                        </td>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{cExam.totalMarks} Marks</div>
+                          <small style={{ color: "#16a34a", fontWeight: 600 }}>
+                            Pass: {cExam.qualificationPercentage}% ΓÇó {cExam.evaluationMode === "PARTIAL_PER_TESTCASE" ? "Partial" : "All/Nothing"}
+                          </small>
+                        </td>
+                        <td>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                            {cExam.allowedLanguages && cExam.allowedLanguages.slice(0, 3).map((lang, idx) => (
+                              <span 
+                                key={idx}
+                                style={{
+                                  fontSize: "10.5px",
+                                  fontWeight: 700,
+                                  padding: "2px 6px",
+                                  borderRadius: "4px",
+                                  background: "#f1f5f9",
+                                  color: "#334155",
+                                  fontFamily: "JetBrains Mono, monospace",
+                                  border: "1px solid #e2e8f0"
+                                }}
+                              >
+                                {lang.toUpperCase()}
                               </span>
                             ))}
+                            {cExam.allowedLanguages && cExam.allowedLanguages.length > 3 && (
+                              <span style={{ fontSize: "10px", color: "#64748b", alignSelf: "center" }}>
+                                +{cExam.allowedLanguages.length - 3}
+                              </span>
+                            )}
                           </div>
-                        ) : (
-                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>All Departments</span>
-                        )}
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{exam.durationMinutes} mins</div>
-                        <small style={{ color: "#64748b" }}>{exam.questions?.length || 0} Problems</small>
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{exam.totalMarks} Marks</div>
-                        <small style={{ color: "#16a34a", fontWeight: 600 }}>
-                          Pass: {exam.qualificationPercentage}% ({exam.evaluationMode})
-                        </small>
-                      </td>
-                      <td>
-                        <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                          {exam.allowedLanguages?.slice(0, 4).map((lang: string, li: number) => (
-                            <span key={li} style={{
-                              fontSize: "10px",
-                              fontWeight: 600,
-                              padding: "2px 6px",
-                              borderRadius: "4px",
-                              background: "#e2e8f0",
-                              color: "#334155"
-                            }}>
-                              {lang}
-                            </span>
-                          ))}
-                          {exam.allowedLanguages && exam.allowedLanguages.length > 4 && (
-                            <span style={{ fontSize: "10px", color: "#64748b" }}>+{exam.allowedLanguages.length - 4}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`status-pill ${exam.status.toLowerCase()}`}>
-                          {exam.status}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: "right" }}>
-                        <div className="admin-action-btn-group">
-                          <button 
-                            type="button"
-                            className="btn-view" 
-                            title="View Problems & Test Cases"
-                            onClick={() => setSelectedCodingExam(exam)}
-                          >
-                            <Eye size={12} /> Problems
-                          </button>
-
-                          {exam.status === "DRAFT" && exam.id && (
+                        </td>
+                        <td>
+                          <span className={`status-pill ${statusClass}`}>
+                            {cExam.status === "ARCHIVED" ? "COMPLETED" : cExam.status}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          <div className="admin-action-btn-group">
+                            {/* View Coding Details Modal */}
                             <button 
                               type="button"
-                              className="btn-publish" 
-                              title="Publish Coding Assessment"
-                              onClick={() => handlePublishCoding(exam.id!)}
+                              className="btn-view" 
+                              title="View Assessment Problems & Details"
+                              onClick={() => setSelectedCodingExam(cExam)}
                             >
-                              <CheckCircle size={12} /> Publish
+                              <Eye size={12} /> View
                             </button>
-                          )}
 
-                          <button 
-                            type="button"
-                            className="btn-delete" 
-                            title="Delete Assessment"
-                            onClick={() => setCodingExamToDelete(exam)}
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                            {/* Configure / Edit */}
+                            <button 
+                              type="button"
+                              className="btn-sets" 
+                              title="Configure in Wizard"
+                              style={{ color: "#0284c7", borderColor: "#bfdbfe", background: "#f0f9ff" }}
+                              onClick={() => navigate("/admin/exams/new/coding")}
+                            >
+                              <Code2 size={12} /> Edit
+                            </button>
+
+                            {/* Publish Coding Exam */}
+                            {cExam.status === "DRAFT" && (
+                              <button 
+                                type="button"
+                                className="btn-publish" 
+                                title="Publish Coding Assessment"
+                                onClick={() => handlePublishCoding(cExam.id || "")}
+                              >
+                                <CheckCircle size={12} /> Publish
+                              </button>
+                            )}
+
+                            {/* Close Coding Exam */}
+                            {cExam.status === "PUBLISHED" && (
+                              <button 
+                                type="button"
+                                className="btn-close-exam" 
+                                title="Close / Archive Assessment"
+                                onClick={() => handleCloseCoding(cExam.id || "")}
+                              >
+                                <Clock size={12} /> Close
+                              </button>
+                            )}
+
+                            {/* Results */}
+                            <button 
+                              type="button"
+                              className="btn-results" 
+                              title="View Round 2 Results"
+                              onClick={() => navigate("/admin/results")}
+                            >
+                              <BarChart2 size={12} /> Results
+                            </button>
+
+                            {/* Delete Coding Exam Action */}
+                            <button 
+                              type="button"
+                              className="btn-delete" 
+                              title="Delete Coding Assessment"
+                              onClick={() => setCodingExamToDelete(cExam)}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
-          )}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Delete Exam Confirmation Modal */}
+      {/* ========================================================
+          DELETE MCQ EXAM CONFIRMATION MODAL
+          ======================================================== */}
       {examToDelete && (
         <div 
           className="admin-modal-backdrop" 
@@ -639,13 +733,13 @@ export default function ExamsPage() {
           >
             <h3 style={{ margin: "0 0 12px 0", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px", fontSize: "16px" }}>
               <Trash2 size={20} />
-              {deleteNeedsForce ? "Confirm Force Cascade Deletion" : "Delete Examination"}
+              {deleteNeedsForce ? "Confirm Force Cascade Deletion" : "Delete MCQ Examination"}
             </h3>
             
             {deleteNeedsForce ? (
               <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "8px", padding: "14px", marginBottom: "16px" }}>
                 <div style={{ color: "#991b1b", fontWeight: 700, fontSize: "13px", marginBottom: "6px" }}>
-                  ⚠️ Active Candidate Attempts Detected
+                  ΓÜá∩╕Å Active Candidate Attempts Detected
                 </div>
                 <p style={{ fontSize: "12px", color: "#7f1d1d", margin: 0, lineHeight: 1.45 }}>
                   {deleteWarningMsg}
@@ -712,37 +806,41 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {/* Delete Coding Exam Modal */}
+      {/* ========================================================
+          DELETE CODING EXAM CONFIRMATION MODAL
+          ======================================================== */}
       {codingExamToDelete && (
         <div 
           className="admin-modal-backdrop" 
-          onClick={() => { if (!isDeleting) setCodingExamToDelete(null); }}
+          onClick={() => setCodingExamToDelete(null)}
           style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", zIndex: 1100 }}
         >
           <div 
             className="admin-modal-box" 
             onClick={e => e.stopPropagation()} 
             style={{ 
-              maxWidth: "460px", 
+              maxWidth: "480px", 
               width: "100%", 
               boxSizing: "border-box", 
               borderRadius: "12px", 
-              padding: "24px"
+              padding: "24px",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
             }}
           >
             <h3 style={{ margin: "0 0 12px 0", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px", fontSize: "16px" }}>
               <Trash2 size={20} />
               Delete Coding Assessment
             </h3>
+            
             <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.5, margin: "0 0 16px 0" }}>
-              Are you sure you want to delete coding assessment <b>"{codingExamToDelete.title}"</b>? 
-              All associated problems, test cases, and candidate coding logs will be removed.
+              Are you sure you want to delete coding assessment <b>"{codingExamToDelete.title}"</b> (ID: {String(codingExamToDelete.id)})? 
+              This will remove all associated coding problems and test case suites.
             </p>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" }}>
               <button 
                 type="button" 
                 className="secondary" 
-                disabled={isDeleting}
                 onClick={() => setCodingExamToDelete(null)}
                 style={{ padding: "8px 16px", fontSize: "13px" }}
               >
@@ -751,18 +849,25 @@ export default function ExamsPage() {
               <button 
                 type="button" 
                 className="primary" 
-                disabled={isDeleting}
-                style={{ background: "#dc2626", borderColor: "#dc2626", padding: "8px 18px", fontSize: "13px", fontWeight: 600 }}
+                style={{ 
+                  background: "#dc2626", 
+                  borderColor: "#dc2626", 
+                  padding: "8px 18px",
+                  fontSize: "13px",
+                  fontWeight: 600
+                }} 
                 onClick={handleDeleteCodingConfirm}
               >
-                {isDeleting ? "Deleting..." : "Confirm Delete"}
+                Confirm Delete
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* MCQ Exam Details Modal */}
+      {/* ========================================================
+          ROUND 1 (MCQ) EXAM DETAILS MODAL
+          ======================================================== */}
       {selectedExam && (
         <div className="admin-modal-backdrop" onClick={() => setSelectedExam(null)}>
           <div className="admin-modal-box" onClick={e => e.stopPropagation()}>
@@ -774,7 +879,7 @@ export default function ExamsPage() {
                 <h2 style={{ margin: "4px 0 0 0", fontSize: "18px", color: "#0f172a" }}>
                   {selectedExam.title}
                 </h2>
-                <small style={{ color: "#64748b" }}>Database ID: #{selectedExam.id}</small>
+                <small style={{ color: "#64748b" }}>PostgreSQL Database ID: #{selectedExam.id}</small>
               </div>
               <button 
                 type="button" 
@@ -800,6 +905,7 @@ export default function ExamsPage() {
               margin: "16px 0",
               fontSize: "12px"
             }}>
+              <div><span style={{ color: "#64748b" }}>Assessment Type:</span> <b style={{ color: "#017846" }}>Round 1 (MCQ)</b></div>
               <div><span style={{ color: "#64748b" }}>Timing Mode:</span> <b>{selectedExam.timingMode}</b></div>
               <div><span style={{ color: "#64748b" }}>Duration:</span> <b>{selectedExam.durationMinutes} Minutes</b></div>
               <div><span style={{ color: "#64748b" }}>Questions:</span> <b>{selectedExam.totalQuestions} MCQs</b></div>
@@ -819,19 +925,42 @@ export default function ExamsPage() {
         </div>
       )}
 
-      {/* Coding Exam Details Modal */}
+      {/* ========================================================
+          ROUND 2 (CODING) EXAM DETAILS MODAL
+          ======================================================== */}
       {selectedCodingExam && (
         <div className="admin-modal-backdrop" onClick={() => setSelectedCodingExam(null)}>
-          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "680px", width: "100%" }}>
+          <div 
+            className="admin-modal-box" 
+            onClick={e => e.stopPropagation()}
+            style={{ maxWidth: "680px", maxHeight: "90vh", overflowY: "auto" }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
               <div>
-                <span className={`status-pill ${selectedCodingExam.status.toLowerCase()}`} style={{ marginBottom: "6px" }}>
-                  {selectedCodingExam.status}
-                </span>
-                <h2 style={{ margin: "4px 0 0 0", fontSize: "18px", color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <Code2 size={20} color="#017846" /> {selectedCodingExam.title}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                  <span 
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 800,
+                      padding: "2px 8px",
+                      borderRadius: "4px",
+                      background: "#eff6ff",
+                      color: "#0369a1",
+                      border: "1px solid #bfdbfe"
+                    }}
+                  >
+                    ROUND 2 CODING
+                  </span>
+                  <span className={`status-pill ${selectedCodingExam.status === "PUBLISHED" ? "published" : "draft"}`}>
+                    {selectedCodingExam.status}
+                  </span>
+                </div>
+                <h2 style={{ margin: "4px 0 0 0", fontSize: "18px", color: "#0f172a" }}>
+                  {selectedCodingExam.title}
                 </h2>
-                <small style={{ color: "#64748b" }}>Round 2 Assessment ID: #{selectedCodingExam.id || "DRAFT"}</small>
+                <small style={{ color: "#64748b", fontFamily: "JetBrains Mono, monospace" }}>
+                  Assessment ID: {String(selectedCodingExam.id)}
+                </small>
               </div>
               <button 
                 type="button" 
@@ -843,62 +972,95 @@ export default function ExamsPage() {
               </button>
             </div>
 
-            <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.5 }}>
-              {selectedCodingExam.description || "Round 2 Coding Examination with automated test case evaluation."}
+            <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.5, margin: "0 0 14px" }}>
+              {selectedCodingExam.description || "No description provided."}
             </p>
 
+            {/* Spec Details Grid */}
             <div style={{ 
               display: "grid", 
-              gridTemplateColumns: "repeat(3, 1fr)", 
-              gap: "10px", 
+              gridTemplateColumns: "repeat(2, 1fr)", 
+              gap: "12px", 
               background: "#f8fafc", 
               padding: "14px", 
               borderRadius: "8px", 
-              margin: "16px 0",
+              marginBottom: "16px",
               fontSize: "12px"
             }}>
-              <div><span style={{ color: "#64748b" }}>Duration:</span> <b>{selectedCodingExam.durationMinutes} Mins</b></div>
+              <div><span style={{ color: "#64748b" }}>Duration:</span> <b>{selectedCodingExam.durationMinutes} Minutes</b></div>
+              <div><span style={{ color: "#64748b" }}>Timing Mode:</span> <b>{selectedCodingExam.timingMode}</b></div>
               <div><span style={{ color: "#64748b" }}>Total Marks:</span> <b>{selectedCodingExam.totalMarks} Marks</b></div>
-              <div><span style={{ color: "#64748b" }}>Evaluation:</span> <b>{selectedCodingExam.evaluationMode}</b></div>
+              <div><span style={{ color: "#64748b" }}>Pass Threshold:</span> <b>{selectedCodingExam.qualificationPercentage}%</b></div>
+              <div><span style={{ color: "#64748b" }}>Evaluation:</span> <b>{selectedCodingExam.evaluationMode === "PARTIAL_PER_TESTCASE" ? "Partial per Testcase" : "All or Nothing"}</b></div>
+              <div>
+                <span style={{ color: "#64748b" }}>Allowed Languages:</span>{" "}
+                <b>{selectedCodingExam.allowedLanguages?.join(", ").toUpperCase() || "All"}</b>
+              </div>
             </div>
 
-            <h4 style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", margin: "14px 0 8px" }}>
-              Configured Problems ({selectedCodingExam.questions?.length || 0}):
-            </h4>
-            <div style={{ maxHeight: "240px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {selectedCodingExam.questions?.map((q: any, qIdx: number) => (
-                <div key={q.id || qIdx} style={{
-                  padding: "10px 14px",
-                  borderRadius: "8px",
-                  background: "#ffffff",
-                  border: "1px solid #e2e8f0",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between"
-                }}>
-                  <div>
-                    <strong style={{ fontSize: "13px", color: "#0f172a" }}>Problem {qIdx + 1}: {q.title}</strong>
-                    <div style={{ fontSize: "11.5px", color: "#64748b", marginTop: "2px" }}>
-                      {q.difficulty} • {q.maxMarks} Marks • {q.testCases?.length || 0} Test Cases
+            {/* Questions Roster */}
+            <div style={{ marginTop: "12px" }}>
+              <h4 style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a", margin: "0 0 10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <Terminal size={15} color="#0284c7" />
+                Coding Problems Included ({selectedCodingExam.questions?.length || 0})
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {selectedCodingExam.questions?.map((q, idx) => (
+                  <div 
+                    key={q.id || idx}
+                    style={{
+                      background: "#ffffff",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                      padding: "10px 14px"
+                    }}
+                  >
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                      <strong style={{ fontSize: "13px", color: "#0f172a" }}>
+                        {idx + 1}. {q.title}
+                      </strong>
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                        <span 
+                          style={{
+                            fontSize: "10.5px",
+                            fontWeight: 700,
+                            padding: "2px 7px",
+                            borderRadius: "4px",
+                            background: q.difficulty === "Easy" ? "#dcfce7" : q.difficulty === "Medium" ? "#fef3c7" : "#fee2e2",
+                            color: q.difficulty === "Easy" ? "#166534" : q.difficulty === "Medium" ? "#92400e" : "#991b1b"
+                          }}
+                        >
+                          {q.difficulty}
+                        </span>
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#64748b" }}>
+                          {q.maxMarks} Marks
+                        </span>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: "12px", color: "#64748b", margin: 0, lineHeight: 1.4 }}>
+                      {q.problemStatement.slice(0, 140)}...
+                    </p>
+                    <div style={{ marginTop: "6px", fontSize: "11px", color: "#0284c7", fontWeight: 600 }}>
+                      Γ£ô {q.testCases?.filter(t => !t.isHidden).length || 0} Sample Cases | ≡ƒöÆ {q.testCases?.filter(t => t.isHidden).length || 0} Hidden Evaluation Cases
                     </div>
                   </div>
-                  <span style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    padding: "3px 8px",
-                    borderRadius: "4px",
-                    background: q.difficulty === "Easy" ? "#dcfce7" : q.difficulty === "Medium" ? "#fef3c7" : "#fee2e2",
-                    color: q.difficulty === "Easy" ? "#166534" : q.difficulty === "Medium" ? "#92400e" : "#991b1b"
-                  }}>
-                    {q.difficulty}
-                  </span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "18px" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "20px" }}>
+              <button 
+                type="button"
+                className="secondary" 
+                onClick={() => {
+                  setSelectedCodingExam(null);
+                  navigate("/admin/exams/new/coding");
+                }}
+              >
+                Open in Wizard Editor
+              </button>
               <button className="primary" onClick={() => setSelectedCodingExam(null)}>
-                Close
+                Done
               </button>
             </div>
           </div>

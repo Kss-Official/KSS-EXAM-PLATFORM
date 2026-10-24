@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   CheckCircle2, 
   AlertCircle, 
@@ -83,7 +83,7 @@ export default function BrowserReadinessCheck({ onStatusChange }: BrowserReadine
     const height = typeof window !== "undefined" ? window.screen.height || window.innerHeight : 1080;
     const isScreenSupported = width >= 1024 && height >= 600;
     const detectedScreen = {
-      resolution: `${width} × ${height} px`,
+      resolution: `${width} ├ù ${height} px`,
       isSupported: isScreenSupported
     };
     setScreenInfo(detectedScreen);
@@ -166,7 +166,7 @@ export default function BrowserReadinessCheck({ onStatusChange }: BrowserReadine
             </span>
             <div>
               <strong>Screen Display Resolution</strong>
-              <small>Detected: {screenInfo.resolution} (Minimum requirement: 1024 × 768 px)</small>
+              <small>Detected: {screenInfo.resolution} (Minimum requirement: 1024 ├ù 768 px)</small>
             </div>
           </div>
           <span className={`status-chip ${screenInfo.isSupported ? "ready" : "warning"}`}>
@@ -183,7 +183,7 @@ export default function BrowserReadinessCheck({ onStatusChange }: BrowserReadine
             </span>
             <div>
               <strong>Network & Internet Connectivity</strong>
-              <small>Status: {networkInfo.status} — Low latency connection</small>
+              <small>Status: {networkInfo.status} ΓÇö Low latency connection</small>
             </div>
           </div>
           <span className={`status-chip ${networkInfo.isOnline ? "ready" : "warning"}`}>

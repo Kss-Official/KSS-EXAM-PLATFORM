@@ -1,0 +1,581 @@
+﻿/* Role & Application Details Page Stylesheet */
+
+.role-app-page {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f4faf6 0%, #f8fafc 35%, #f1f5f9 100%);
+  padding: 24px 20px 44px;
+  box-sizing: border-box;
+  font-family: var(--font-sans, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.role-app-container {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Header & Logo */
+.role-app-header {
+  width: 100%;
+  margin-bottom: 18px;
+  display: flex;
+  align-items: center;
+}
+
+.role-app-logo {
+  width: 210px;
+  height: auto;
+  max-height: 40px;
+  object-fit: contain;
+  display: block;
+}
+
+/* Hero Section */
+.role-app-hero {
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.role-app-hero-title {
+  font-size: 30px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 6px;
+  letter-spacing: -0.4px;
+  line-height: 1.25;
+}
+
+.role-app-hero-title .highlight {
+  color: #017846;
+}
+
+.role-app-hero-desc {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.5;
+  max-width: 640px;
+}
+
+/* Main White Application Card */
+.role-app-card {
+  width: 100%;
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03), 0 2px 6px -1px rgba(0, 0, 0, 0.02);
+  padding: 28px 36px 24px;
+  box-sizing: border-box;
+}
+
+/* Card Header */
+.role-app-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.role-app-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #eaf6ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #017846;
+  flex-shrink: 0;
+}
+
+.role-app-card-title {
+  font-size: 16.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 2px;
+}
+
+.role-app-card-subtitle {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0;
+}
+
+/* Error Banner */
+.role-app-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+/* Form Container */
+.role-app-form {
+  margin-top: 4px;
+}
+
+/* 2-Column Row Layout */
+.role-app-row {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 28px;
+  padding: 18px 0;
+  border-bottom: 1px solid #f8fafc;
+  align-items: start;
+}
+
+.role-app-row:last-child {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.role-app-col-label {
+  display: flex;
+  flex-direction: column;
+}
+
+.role-app-label-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.role-app-label {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.role-app-required {
+  color: #ef4444;
+}
+
+.role-app-badge-optional {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+}
+
+.role-app-desc {
+  font-size: 12.5px;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.role-app-col-input {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* Standard Input Control */
+.role-app-input-wrap {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 44px;
+  background: #ffffff;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.role-app-input-wrap:focus-within,
+.role-app-input-wrap.open {
+  border-color: #017846;
+  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+}
+
+.role-app-input-icon {
+  color: #94a3b8;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.role-app-text-input,
+.role-app-text-input:focus,
+.role-app-text-input:focus-visible,
+input.role-app-text-input,
+input.role-app-text-input:focus,
+input.role-app-text-input:focus-visible,
+.role-app-input-wrap input,
+.role-app-input-wrap input:focus,
+.role-app-input-wrap input:focus-visible {
+  border: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  width: 100%;
+  font-size: 13.5px;
+  color: #0f172a;
+  background: transparent !important;
+  font-family: inherit;
+  padding: 0;
+  margin: 0;
+}
+
+.role-app-text-input::placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+/* Custom Select Dropdown Trigger */
+.role-app-select-trigger {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 44px;
+  background: #ffffff;
+  cursor: pointer;
+  box-sizing: border-box;
+  user-select: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.role-app-select-trigger:focus-visible,
+.role-app-select-trigger.open {
+  border-color: #017846;
+  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+  outline: none;
+}
+
+.role-app-select-val {
+  font-size: 13.5px;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role-app-select-val.filled {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.role-app-select-val.placeholder {
+  color: #94a3b8;
+  font-weight: 400;
+}
+
+.role-app-chevron {
+  color: #94a3b8;
+  margin-left: 8px;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.role-app-chevron.rotated {
+  transform: rotate(180deg);
+}
+
+/* Dropdown Menu */
+.role-app-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 4px 8px -2px rgba(0, 0, 0, 0.03);
+  z-index: 30;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.role-app-dropdown-item {
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #1e293b;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  font-weight: 500;
+}
+
+.role-app-dropdown-item:hover {
+  background: #f8fafc;
+}
+
+.role-app-dropdown-item.selected {
+  background: #eaf6ef;
+  color: #017846;
+  font-weight: 700;
+}
+
+/* Multi-Skill Selection Box */
+.role-app-skills-box {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 6px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  background: #ffffff;
+  min-height: 44px;
+  box-sizing: border-box;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.role-app-skills-box:focus-within {
+  border-color: #017846;
+  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+}
+
+.role-app-skill-chip {
+  background: #eaf6ef;
+  color: #017846;
+  border-radius: 999px;
+  padding: 3px 9px 3px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  user-select: none;
+}
+
+.role-app-skill-chip-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #017846;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.15s ease;
+}
+
+.role-app-skill-chip-remove:hover {
+  opacity: 1;
+}
+
+.role-app-skills-input,
+.role-app-skills-input:focus,
+.role-app-skills-input:focus-visible,
+input.role-app-skills-input,
+input.role-app-skills-input:focus,
+input.role-app-skills-input:focus-visible,
+.role-app-skills-box input,
+.role-app-skills-box input:focus,
+.role-app-skills-box input:focus-visible {
+  border: none !important;
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+  flex: 1;
+  min-width: 140px;
+  font-size: 13px;
+  color: #0f172a;
+  background: transparent !important;
+  padding: 4px 0;
+  font-family: inherit;
+  margin: 0;
+}
+
+.role-app-skills-input::placeholder {
+  color: #94a3b8;
+}
+
+/* Suggested Skills Cloud */
+.role-app-suggested-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+.role-app-suggested-title {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 1px;
+}
+
+.role-app-suggested-sub {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.role-app-clear-btn {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.role-app-clear-btn:hover {
+  color: #0f172a;
+  background: #f1f5f9;
+}
+
+.role-app-pills-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.role-app-pill {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  color: #334155;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+  font-family: inherit;
+}
+
+.role-app-pill:hover {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.role-app-pill.active {
+  background: #eaf6ef;
+  border-color: #017846;
+  color: #017846;
+  font-weight: 600;
+}
+
+/* Action Buttons Footer */
+.role-app-actions {
+  width: 100%;
+  margin-top: 20px;
+  display: flex;
+  justifyContent: flex-end;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.role-app-btn-back {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 9px 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.role-app-btn-back:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.role-app-btn-continue {
+  background: #017846;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.22);
+  transition: all 0.15s ease;
+  font-family: inherit;
+}
+
+.role-app-btn-continue:hover {
+  background: #01663c;
+  box-shadow: 0 3px 8px rgba(1, 120, 70, 0.3);
+}
+
+/* Responsive Media Queries */
+@media (max-width: 860px) {
+  .role-app-page {
+    padding: 20px 16px 36px;
+  }
+
+  .role-app-card {
+    padding: 22px 24px;
+  }
+
+  .role-app-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 14px 0;
+  }
+
+  .role-app-logo {
+    width: 185px;
+  }
+
+  .role-app-hero-title {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 560px) {
+  .role-app-card {
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+
+  .role-app-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+  }
+
+  .role-app-btn-back,
+  .role-app-btn-continue {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .role-app-logo {
+    width: 165px;
+  }
+}

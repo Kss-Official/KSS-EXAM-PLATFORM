@@ -1,28 +1,16 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { 
   ArrowLeft, 
   Save, 
-  Calendar, 
   Code2, 
   CheckCircle2, 
-  AlertCircle, 
   Building2, 
   Plus, 
   Trash2, 
-  Copy,
-  Terminal,
-  FileCode2,
-  Clock,
-  Eye,
-  EyeOff,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  ChevronDown,
-  ChevronRight,
-  HelpCircle,
-  Award,
-  Layers
+  Clock, 
+  Eye, 
+  EyeOff, 
+  ArrowRight
 } from "lucide-react";
 import { useRouter } from "../../router";
 import { 
@@ -34,7 +22,6 @@ import {
   type TestCaseDto, 
   type SupportedLanguage 
 } from "../../services/codingExamService";
-import { createCodingExam, publishCodingExam } from "../../services/api";
 
 const STANDARD_DEPARTMENTS = [
   { name: "Developer", code: "DEV", description: "Software & Web Development", recommended: true },
@@ -61,7 +48,7 @@ export default function CreateCodingExamPage() {
   // Step 1: Examination Details
   const [title, setTitle] = useState("Core Data Structures & Algorithm Assessment (Round 2)");
   const [description, setDescription] = useState("Technical programming round evaluating data structure manipulation, time-space complexity optimization, and edge-case handling.");
-  const [instructions, setInstructions] = useState("• Read the problem statement and constraint boundaries carefully before coding.\n• Standard input/output (stdin/stdout) must be used across all test cases.\n• Hidden test cases test extreme boundaries and memory/time limit bounds.\n• Do not print conversational text (e.g. 'Enter a number') in output.\n• You may submit multiple times; the highest score will be recorded.");
+  const [instructions, setInstructions] = useState("ΓÇó Read the problem statement and constraint boundaries carefully before coding.\nΓÇó Standard input/output (stdin/stdout) must be used across all test cases.\nΓÇó Hidden test cases test extreme boundaries and memory/time limit bounds.\nΓÇó Do not print conversational text (e.g. 'Enter a number') in output.\nΓÇó You may submit multiple times; the highest score will be recorded.");
   const [durationMinutes, setDurationMinutes] = useState("90");
   const [timingMode, setTimingMode] = useState<"DURATION_FROM_START" | "SCHEDULED">("DURATION_FROM_START");
   const [examDate, setExamDate] = useState("2026-10-25");
@@ -95,8 +82,6 @@ export default function CreateCodingExamPage() {
   const [savedNotice, setSavedNotice] = useState<string | null>(null);
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [backendExamId, setBackendExamId] = useState<number | null>(null);
 
   // Derived Computations
   const totalMarks = questions.reduce((acc, q) => acc + (Number(q.maxMarks) || 0), 0);
@@ -277,27 +262,14 @@ export default function CreateCodingExamPage() {
     };
   };
 
-  const handleSaveDraft = async () => {
-    setIsSaving(true);
-    try {
-      const payload = buildExamPayload("DRAFT");
-      saveCodingExamDraft(payload);
-      const saved = await createCodingExam(payload);
-      if (saved && saved.id) {
-        setBackendExamId(Number(saved.id));
-        saveCodingExamDraft({ ...payload, id: saved.id });
-      }
-      setSavedNotice("Draft successfully synchronized with database.");
-    } catch (err: any) {
-      console.warn("Backend draft sync error:", err);
-      setSavedNotice("Draft saved to local storage (Backend sync offline).");
-    } finally {
-      setIsSaving(false);
-      setTimeout(() => setSavedNotice(null), 4000);
-    }
+  const handleSaveDraft = () => {
+    const payload = buildExamPayload("DRAFT");
+    saveCodingExamDraft(payload);
+    setSavedNotice("Draft saved successfully to local storage.");
+    setTimeout(() => setSavedNotice(null), 4000);
   };
 
-  const handlePublish = async () => {
+  const handlePublish = () => {
     if (!title.trim()) {
       alert("Please provide an examination title.");
       setStep(1);
@@ -314,105 +286,11 @@ export default function CreateCodingExamPage() {
       return;
     }
 
-    setIsSaving(true);
-    try {
-      const payload = buildExamPayload("PUBLISHED");
-      saveCodingExamDraft(payload);
-
-      let targetId = backendExamId;
-      if (!targetId) {
-        const created = await createCodingExam(payload);
-        targetId = Number(created.id);
-        setBackendExamId(targetId);
-      }
-      if (targetId) {
-        await publishCodingExam(targetId);
-      }
-      setIsPublished(true);
-      setShowPublishModal(false);
-    } catch (err: any) {
-      console.warn("Backend publish error:", err);
-      setIsPublished(true);
-      setShowPublishModal(false);
-      alert("Notice: Exam marked as published locally. (" + (err.message || "Failed to reach server") + ")");
-    } finally {
-      setIsSaving(false);
-    }
+    const payload = buildExamPayload("PUBLISHED");
+    saveCodingExamDraft(payload);
+    setIsPublished(true);
+    setShowPublishModal(false);
   };
-
-  if (isPublished) {
-    return (
-      <div className="admin-page-container" style={{ padding: "48px 32px", maxWidth: "800px", margin: "0 auto", textAlign: "center" }}>
-        <div style={{
-          background: "#ffffff",
-          borderRadius: "16px",
-          border: "1px solid #e2e8f0",
-          padding: "48px 32px",
-          boxShadow: "0 10px 25px -5px rgba(0,0,0,0.05)"
-        }}>
-          <div style={{
-            width: "64px",
-            height: "64px",
-            borderRadius: "50%",
-            background: "#dcfce7",
-            color: "#017846",
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            marginBottom: "20px"
-          }}>
-            <CheckCircle2 size={36} />
-          </div>
-          <h2 style={{ fontSize: "24px", fontWeight: 700, color: "#0f172a", marginBottom: "8px" }}>
-            Round 2 Coding Assessment Published!
-          </h2>
-          <p style={{ fontSize: "14.5px", color: "#64748b", maxWidth: "520px", margin: "0 auto 28px", lineHeight: 1.6 }}>
-            <strong>{title}</strong> has been successfully registered and published. Qualified candidates from {selectedDepartments.join(", ")} can now access the assessment during their scheduled window.
-          </p>
-          <div style={{ display: "flex", justifyContent: "center", gap: "12px" }}>
-            <button
-              type="button"
-              onClick={() => navigate("/admin/exams")}
-              style={{
-                background: "#017846",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "8px",
-                padding: "10px 20px",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px"
-              }}
-            >
-              Go to Examinations
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/admin/candidates")}
-              style={{
-                background: "#ffffff",
-                border: "1px solid #cbd5e1",
-                borderRadius: "8px",
-                padding: "10px 20px",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#334155",
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px"
-              }}
-            >
-              Manage Candidates & Access Codes
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="admin-page-container" style={{ padding: "24px 32px", maxWidth: "1320px", margin: "0 auto" }}>
@@ -582,7 +460,6 @@ export default function CreateCodingExamPage() {
         ].map(s => {
           const isActive = step === s.num;
           const isDone = step > s.num;
-          const Icon = s.icon;
 
           return (
             <button
@@ -617,7 +494,7 @@ export default function CreateCodingExamPage() {
                   flexShrink: 0
                 }}
               >
-                {isDone ? "✓" : s.num}
+                {isDone ? "Γ£ô" : s.num}
               </div>
               <div style={{ overflow: "hidden" }}>
                 <span style={{ fontSize: "10px", color: isActive ? "#017846" : "#94a3b8", fontWeight: 700, textTransform: "uppercase", display: "block" }}>
@@ -990,7 +867,7 @@ export default function CreateCodingExamPage() {
                       </small>
                       {dept.recommended && (
                         <span style={{ display: "inline-block", fontSize: "10px", color: "#017846", fontWeight: 700, marginTop: "4px" }}>
-                          ★ Recommended for Coding
+                          Γÿà Recommended for Coding
                         </span>
                       )}
                     </div>
@@ -1644,7 +1521,7 @@ export default function CreateCodingExamPage() {
                 {questions.length}
               </strong>
               <small style={{ fontSize: "11px", color: "#017846", fontWeight: 700 }}>
-                {easyCount} Easy · {mediumCount} Medium · {hardCount} Hard
+                {easyCount} Easy ┬╖ {mediumCount} Medium ┬╖ {hardCount} Hard
               </small>
             </div>
 
@@ -1680,7 +1557,7 @@ export default function CreateCodingExamPage() {
                 {totalTestCases} Cases
               </strong>
               <small style={{ fontSize: "11px", color: "#2563eb", fontWeight: 700 }}>
-                {totalSampleTestCases} Sample · {totalHiddenTestCases} Hidden (Private)
+                {totalSampleTestCases} Sample ┬╖ {totalHiddenTestCases} Hidden (Private)
               </small>
             </div>
           </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { 
   ArrowLeft, 
   Save, 
@@ -494,7 +494,7 @@ export default function CreateExamPage() {
         </div>
 
         <span style={{ fontSize: "11px", color: "#64748b" }}>
-          ExamSecure Assessment Engine · Integrated Department & Question Management
+          ExamSecure Assessment Engine ┬╖ Integrated Department & Question Management
         </span>
       </div>
 
@@ -596,7 +596,7 @@ export default function CreateExamPage() {
                 fontWeight: 800,
                 flexShrink: 0
               }}>
-                {isDone ? "✓" : step.num}
+                {isDone ? "Γ£ô" : step.num}
               </div>
               <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 <Icon size={13} /> {step.label}
@@ -840,7 +840,7 @@ export default function CreateExamPage() {
                 <Building2 size={18} color="#017846" /> 3. Department-Wise Question Sets & MCQ Extraction
               </h3>
               <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
-                Every assigned department has four independent sets (Set A, Set B, Set C, Set D). Attach question papers & answer keys directly to each set — text and MCQs are extracted automatically in-memory.
+                Every assigned department has four independent sets (Set A, Set B, Set C, Set D). Attach question papers & answer keys directly to each set ΓÇö text and MCQs are extracted automatically in-memory.
               </p>
             </div>
 
@@ -1067,7 +1067,7 @@ export default function CreateExamPage() {
                           </span>
                           {dept.description && (
                             <span style={{ marginLeft: "10px", fontSize: "11.5px", color: "#64748b" }}>
-                              — {dept.description}
+                              ΓÇö {dept.description}
                             </span>
                           )}
                         </div>
@@ -1150,7 +1150,7 @@ export default function CreateExamPage() {
                                   background: hasQuestions ? "#dcfce7" : (isComplete ? "#EAF6EF" : "#f1f5f9"),
                                   color: hasQuestions ? "#15803d" : (isComplete ? "#017846" : "#64748b")
                                 }}>
-                                  {isExtracting ? "⏳ Extracting..." : (hasQuestions ? `✓ ${setQuestions.length} MCQs Extracted` : (isComplete ? "✓ Fully Configured" : (qp ? "Paper Attached" : (ak ? "Key Attached" : "Not Configured"))))}
+                                  {isExtracting ? "ΓÅ│ Extracting..." : (hasQuestions ? `Γ£ô ${setQuestions.length} MCQs Extracted` : (isComplete ? "Γ£ô Fully Configured" : (qp ? "Paper Attached" : (ak ? "Key Attached" : "Not Configured"))))}
                                 </span>
                               </div>
 
@@ -1181,7 +1181,7 @@ export default function CreateExamPage() {
                                     alignItems: "center"
                                   }}>
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80%" }}>
-                                      📄 {qp.name}
+                                      ≡ƒôä {qp.name}
                                     </span>
                                     <small style={{ color: "#60a5fa" }}>{(qp.size / 1024).toFixed(0)} KB</small>
                                   </div>
@@ -1226,7 +1226,7 @@ export default function CreateExamPage() {
                                     alignItems: "center"
                                   }}>
                                     <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "80%" }}>
-                                      🔑 {ak.name}
+                                      ≡ƒöæ {ak.name}
                                     </span>
                                     <small style={{ color: "#4ade80" }}>{(ak.size / 1024).toFixed(0)} KB</small>
                                   </div>
@@ -1247,7 +1247,7 @@ export default function CreateExamPage() {
                               {/* Live In-Memory MCQ Extraction Status & Preview */}
                               {isExtracting && (
                                 <div style={{ marginTop: "8px", fontSize: "11px", color: "#017846", display: "flex", alignItems: "center", gap: "6px" }}>
-                                  <span>⏳ Extracting text & MCQs from PDF in-memory...</span>
+                                  <span>ΓÅ│ Extracting text & MCQs from PDF in-memory...</span>
                                 </div>
                               )}
 
@@ -1263,14 +1263,14 @@ export default function CreateExamPage() {
                                   alignItems: "center"
                                 }}>
                                   <span style={{ fontSize: "11px", color: "#166534", fontWeight: 700 }}>
-                                    ✓ {setQuestions.length} MCQs Extracted
+                                    Γ£ô {setQuestions.length} MCQs Extracted
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => setReviewingSet({ deptName: dept.name, deptId: dept.id, setCode, questions: setQuestions })}
                                     style={{ background: "none", border: "none", color: "#017846", fontSize: "11px", fontWeight: 600, cursor: "pointer", padding: 0 }}
                                   >
-                                    Review Questions ({setQuestions.length}) →
+                                    Review Questions ({setQuestions.length}) ΓåÆ
                                   </button>
                                 </div>
                               )}
@@ -1361,7 +1361,7 @@ export default function CreateExamPage() {
                     })()}
                   </b>
                   <div style={{ fontSize: "11px", color: "#166534", marginTop: "4px" }}>
-                    {marksPerQuestion} Marks/Q · Pass Threshold: {qualificationThreshold}{qualificationMode === "PERCENTAGE" ? "%" : " marks"}
+                    {marksPerQuestion} Marks/Q ┬╖ Pass Threshold: {qualificationThreshold}{qualificationMode === "PERCENTAGE" ? "%" : " marks"}
                   </div>
                 </div>
               </div>
@@ -1400,7 +1400,7 @@ export default function CreateExamPage() {
                                   fontWeight: 600
                                 }}
                               >
-                                Set {code}: {qCount > 0 ? `✓ ${qCount} MCQs` : (isConfigured ? "Configured" : "Draft")}
+                                Set {code}: {qCount > 0 ? `Γ£ô ${qCount} MCQs` : (isConfigured ? "Configured" : "Draft")}
                               </span>
                             );
                           })}
@@ -1431,7 +1431,7 @@ export default function CreateExamPage() {
               </label>
               <p style={{ margin: "6px 0 0 28px", fontSize: "12px", color: publishImmediately ? "#15803d" : "#64748b", lineHeight: 1.45 }}>
                 {publishImmediately
-                  ? "✓ Active: Upon clicking create, this examination will be immediately PUBLISHED. Eligible candidates in assigned department(s) can enter the assessment portal and start answering questions right away."
+                  ? "Γ£ô Active: Upon clicking create, this examination will be immediately PUBLISHED. Eligible candidates in assigned department(s) can enter the assessment portal and start answering questions right away."
                   : "Draft: The examination will be saved as DRAFT. You can publish it manually later from the Examinations Management table whenever ready."}
               </p>
             </div>
@@ -1451,7 +1451,7 @@ export default function CreateExamPage() {
               <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                 {submissionProgress && (
                   <span style={{ fontSize: "12px", color: "#017846", fontWeight: 600 }}>
-                    ⏳ {submissionProgress}
+                    ΓÅ│ {submissionProgress}
                   </span>
                 )}
                 {successNotice && (
@@ -1502,7 +1502,7 @@ export default function CreateExamPage() {
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a" }}>
-                  Extracted Questions — {reviewingSet.deptName} (Set {reviewingSet.setCode})
+                  Extracted Questions ΓÇö {reviewingSet.deptName} (Set {reviewingSet.setCode})
                 </h3>
                 <span style={{ fontSize: "12px", color: "#64748b" }}>
                   {reviewingSet.questions.length} questions extracted in-memory from attached Question Paper PDF
@@ -1513,7 +1513,7 @@ export default function CreateExamPage() {
                 onClick={() => setReviewingSet(null)}
                 style={{ background: "none", border: "none", fontSize: "18px", cursor: "pointer", color: "#64748b", fontWeight: 700 }}
               >
-                ✕
+                Γ£ò
               </button>
             </div>
             <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
