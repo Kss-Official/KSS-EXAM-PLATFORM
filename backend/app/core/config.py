@@ -22,8 +22,8 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "private-storage"
     MAX_FILE_SIZE_BYTES: int = 25 * 1024 * 1024  # 25 MB
 
-    # Neon Cloud PostgreSQL Database Connection
-    DATABASE_URL: str = "postgresql://neondb_owner:npg_LIkXjciq2e0s@ep-shy-tooth-b5gyc99a-pooler.c-7.us-east-2.aws.neon.tech/neondb?sslmode=require"
+    # Database Connection (overridden by DATABASE_URL in .env)
+    DATABASE_URL: str = "sqlite:///./examsecure.db"
     DB_POOL_SIZE: int = 20
     DB_MAX_OVERFLOW: int = 10
     DB_POOL_RECYCLE: int = 1800
