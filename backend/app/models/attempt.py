@@ -1,13 +1,17 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
     Column, BigInteger, Integer, String, Numeric,
-    DateTime, ForeignKey
+    DateTime, ForeignKey, UniqueConstraint, Index
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base, ID_TYPE
 
 class ExamAttempt(Base):
     __tablename__ = "exam_attempts"
+    __table_args__ = (
+        Index("ix_exam_attempts_candidate_exam", "candidate_id", "exam_id"),
+        Index("ix_exam_attempts_status", "status"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
@@ -47,6 +51,10 @@ class ExamAttempt(Base):
 
 class AttemptRandomizedQuestion(Base):
     __tablename__ = "attempt_randomized_questions"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", name="uq_arq_attempt_question"),
+        Index("ix_arq_attempt_display_order", "attempt_id", "display_order"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     attempt_id = Column(BigInteger, ForeignKey("exam_attempts.id", ondelete="CASCADE"), nullable=False)
@@ -62,6 +70,9 @@ class AttemptRandomizedQuestion(Base):
 
 class AttemptRandomizedOption(Base):
     __tablename__ = "attempt_randomized_options"
+    __table_args__ = (
+        Index("ix_aro_attempt_q_order", "attempt_id", "question_id", "display_order"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     attempt_id = Column(BigInteger, ForeignKey("exam_attempts.id", ondelete="CASCADE"), nullable=False)
@@ -80,6 +91,10 @@ class AttemptRandomizedOption(Base):
 
 class AttemptAnswer(Base):
     __tablename__ = "attempt_answers"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", name="uq_attempt_answer_attempt_question"),
+        Index("ix_attempt_answer_attempt_q", "attempt_id", "question_id"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     attempt_id = Column(BigInteger, ForeignKey("exam_attempts.id", ondelete="CASCADE"), nullable=False)

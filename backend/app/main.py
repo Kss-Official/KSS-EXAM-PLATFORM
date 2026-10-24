@@ -24,6 +24,8 @@ async def lifespan(app: FastAPI):
         from app.core.database import Base, engine
         import app.models  # ensure models are registered
         Base.metadata.create_all(bind=engine)
+        from app.core.schema_guard import ensure_indexes_and_constraints
+        ensure_indexes_and_constraints()
     except Exception as e:
         logger.warning(f"Database schema synchronization notice: {e}")
 

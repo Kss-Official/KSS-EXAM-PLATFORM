@@ -133,6 +133,7 @@ def test_save_answer_clearing_and_deduplication(db: Session):
 
         v_res = CandidateExamService.verify_candidate(
             db, CandidateVerifyRequest(
+                email=test_cand.email,
                 registration_number=cand_reg,
                 unique_id=code_dto.code,
                 access_code=code_dto.code,

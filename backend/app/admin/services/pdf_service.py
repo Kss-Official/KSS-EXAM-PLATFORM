@@ -1,6 +1,7 @@
 import io
 import re
 import gc
+import asyncio
 from typing import Optional, List, Dict, Tuple
 from decimal import Decimal
 import pypdf
@@ -11,7 +12,11 @@ from app.schemas import (
 )
 
 PDF_MAGIC_BYTES = b"%PDF-"
-MAX_FILE_SIZE = 25 * 1024 * 1024  # 25 MB
+MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB bound to protect worker memory
+PARSE_TIMEOUT_SECONDS = 25.0  # 25s execution timeout bound
+
+# Bound concurrency: at most 2 PDF parsing jobs can run simultaneously across the API
+_pdf_semaphore = asyncio.Semaphore(2)
 
 class InMemoryPdfService:
     @staticmethod
@@ -61,98 +66,110 @@ class InMemoryPdfService:
             questions=[]
         )
 
-        # 1. Read Question Paper strictly into volatile RAM
-        qp_bytes = await question_paper_file.read()
-        if len(qp_bytes) > MAX_FILE_SIZE:
-            response.success = False
-            response.errors.append("Question Paper exceeds maximum allowed 25 MB limit.")
-            return response
-
-        response.question_paper_file_name = question_paper_file.filename
-        response.question_paper_size_bytes = len(qp_bytes)
-
         try:
-            qp_text = cls.extract_text_from_pdf_bytes(qp_bytes, question_paper_file.filename)
-        except ValueError as e:
-            response.success = False
-            response.errors.append(str(e))
-            return response
-        finally:
-            del qp_bytes
-            gc.collect()
+            # Bound concurrency using semaphore (max 2 concurrent extractions) and 25s execution timeout
+            async with asyncio.timeout(PARSE_TIMEOUT_SECONDS):
+                async with _pdf_semaphore:
+                    # 1. Read Question Paper strictly into volatile RAM
+                    qp_bytes = await question_paper_file.read()
+                    if len(qp_bytes) > MAX_FILE_SIZE:
+                        response.success = False
+                        response.errors.append("Question Paper exceeds maximum allowed 15 MB limit.")
+                        return response
 
-        # Check for scanned image PDF (< 50 printable characters)
-        if not qp_text or len(qp_text.strip()) < 50 or len(re.sub(r"\s+", "", qp_text)) < 30:
-            response.success = False
-            response.requires_ocr = True
-            response.ocr_reason = (
-                "The uploaded Question Paper appears to be a scanned image or raster PDF with "
-                "insufficient extractable text (fewer than 50 characters). Optical Character Recognition (OCR) is required."
-            )
-            response.errors.append(response.ocr_reason)
-            return response
+                    response.question_paper_file_name = question_paper_file.filename
+                    response.question_paper_size_bytes = len(qp_bytes)
 
-        # 2. Process optional Answer Sheet
-        answer_key_map: Dict[int, str] = {}
-        if answer_sheet_file and answer_sheet_file.filename:
-            as_bytes = await answer_sheet_file.read()
-            if len(as_bytes) > MAX_FILE_SIZE:
-                response.warnings.append("Answer Sheet exceeds 25 MB limit; skipped.")
-            else:
-                response.answer_sheet_file_name = answer_sheet_file.filename
-                response.answer_sheet_size_bytes = len(as_bytes)
-                try:
-                    as_text = cls.extract_text_from_pdf_bytes(as_bytes, answer_sheet_file.filename)
-                    if as_text and len(as_text.strip()) >= 10:
-                        answer_key_map = cls._parse_answer_sheet_text(as_text, answer_key_pattern_str)
+                    try:
+                        qp_text = cls.extract_text_from_pdf_bytes(qp_bytes, question_paper_file.filename)
+                    except ValueError as e:
+                        response.success = False
+                        response.errors.append(str(e))
+                        return response
+                    finally:
+                        del qp_bytes
+                        gc.collect()
+
+                    # Check for scanned image PDF (< 50 printable characters)
+                    if not qp_text or len(qp_text.strip()) < 50 or len(re.sub(r"\s+", "", qp_text)) < 30:
+                        response.success = False
+                        response.requires_ocr = True
+                        response.ocr_reason = (
+                            "The uploaded Question Paper appears to be a scanned image or raster PDF with "
+                            "insufficient extractable text (fewer than 50 characters). Optical Character Recognition (OCR) is required."
+                        )
+                        response.errors.append(response.ocr_reason)
+                        return response
+
+                    # 2. Process optional Answer Sheet
+                    answer_key_map: Dict[int, str] = {}
+                    if answer_sheet_file and answer_sheet_file.filename:
+                        as_bytes = await answer_sheet_file.read()
+                        if len(as_bytes) > MAX_FILE_SIZE:
+                            response.warnings.append("Answer Sheet exceeds 15 MB limit; skipped.")
+                        else:
+                            response.answer_sheet_file_name = answer_sheet_file.filename
+                            response.answer_sheet_size_bytes = len(as_bytes)
+                            try:
+                                as_text = cls.extract_text_from_pdf_bytes(as_bytes, answer_sheet_file.filename)
+                                if as_text and len(as_text.strip()) >= 10:
+                                    answer_key_map = cls._parse_answer_sheet_text(as_text, answer_key_pattern_str)
+                                else:
+                                    response.warnings.append("Answer Sheet has minimal text; verify answer key manually.")
+                            except Exception as e:
+                                response.warnings.append(f"Answer Sheet extraction warning: {str(e)}")
+                            finally:
+                                del as_bytes
+                                gc.collect()
+
+                    # 3. Parse MCQs from Question Paper Text
+                    questions, parsed_keys = cls._extract_questions(
+                        qp_text,
+                        question_pattern_str,
+                        option_pattern_str,
+                        answer_key_pattern_str,
+                        Decimal(str(marks_per_question)),
+                        Decimal(str(negative_marks))
+                    )
+
+                    # Merge answer keys from answer sheet
+                    if answer_key_map:
+                        for q in questions:
+                            if q.display_order in answer_key_map:
+                                target_label = answer_key_map[q.display_order]
+                                q.correct_option = target_label
+                                for opt in q.options:
+                                    opt.correct = (opt.label.upper() == target_label.upper())
+
+                    # Collect final answer map
+                    final_answer_map: Dict[int, str] = {}
+                    for q in questions:
+                        if q.correct_option:
+                            final_answer_map[q.display_order] = q.correct_option
+                        elif parsed_keys.get(q.display_order):
+                            final_answer_map[q.display_order] = parsed_keys[q.display_order]
+
+                    response.questions = questions
+                    response.total_questions = len(questions)
+                    response.extracted_answer_key = final_answer_map
+                    response.mapped_answers_count = len(final_answer_map)
+
+                    if len(questions) == 0:
+                        response.warnings.append("No standard MCQs could be identified using default regex heuristics.")
+                        response.confidence_score = 0.3
                     else:
-                        response.warnings.append("Answer Sheet has minimal text; verify answer key manually.")
-                except Exception as e:
-                    response.warnings.append(f"Answer Sheet extraction warning: {str(e)}")
-                finally:
-                    del as_bytes
-                    gc.collect()
+                        mapped_ratio = len(final_answer_map) / len(questions) if questions else 0
+                        response.confidence_score = round(0.7 + (0.3 * mapped_ratio), 2)
 
-        # 3. Parse MCQs from Question Paper Text
-        questions, parsed_keys = cls._extract_questions(
-            qp_text,
-            question_pattern_str,
-            option_pattern_str,
-            answer_key_pattern_str,
-            Decimal(str(marks_per_question)),
-            Decimal(str(negative_marks))
-        )
-
-        # Merge answer keys from answer sheet
-        if answer_key_map:
-            for q in questions:
-                if q.display_order in answer_key_map:
-                    target_label = answer_key_map[q.display_order]
-                    q.correct_option = target_label
-                    for opt in q.options:
-                        opt.correct = (opt.label.upper() == target_label.upper())
-
-        # Collect final answer map
-        final_answer_map: Dict[int, str] = {}
-        for q in questions:
-            if q.correct_option:
-                final_answer_map[q.display_order] = q.correct_option
-            elif parsed_keys.get(q.display_order):
-                final_answer_map[q.display_order] = parsed_keys[q.display_order]
-
-        response.questions = questions
-        response.total_questions = len(questions)
-        response.extracted_answer_key = final_answer_map
-        response.mapped_answers_count = len(final_answer_map)
-
-        if len(questions) == 0:
-            response.warnings.append("No standard MCQs could be identified using default regex heuristics.")
-            response.confidence_score = 0.3
-        else:
-            mapped_ratio = len(final_answer_map) / len(questions) if questions else 0
-            response.confidence_score = round(0.7 + (0.3 * mapped_ratio), 2)
-
-        return response
+                    return response
+        except TimeoutError:
+            response.success = False
+            response.errors.append("PDF parsing timed out after 25 seconds. Please ensure the document is not corrupted.")
+            return response
+        except Exception as e:
+            response.success = False
+            response.errors.append(f"PDF extraction error: {str(e)}")
+            return response
 
     @staticmethod
     def _parse_answer_sheet_text(text: str, custom_pattern: Optional[str] = None) -> Dict[int, str]:

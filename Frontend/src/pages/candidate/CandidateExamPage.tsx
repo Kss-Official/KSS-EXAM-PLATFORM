@@ -6,7 +6,9 @@ import {
   Flag, 
   LogOut,
   Loader2,
-  Menu
+  Menu,
+  CheckCircle2,
+  CloudOff
 } from "lucide-react";
 import type { 
   CandidateSession, 
@@ -735,6 +737,68 @@ export default function CandidateExamPage({
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
   const [submitting, setSubmitting] = useState(false);
 
+  // Risk 3: Retain pending saves in browser localStorage for offline resilience
+  const [pendingQueue, setPendingQueue] = useState<Array<{ qNum: number; qId: number; optId: number }>>(() => {
+    try {
+      const stored = localStorage.getItem("examsecure_pending_answers");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist pendingQueue to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem("examsecure_pending_answers", JSON.stringify(pendingQueue));
+    } catch {
+      // Local storage quota or security restriction handled safely
+    }
+  }, [pendingQueue]);
+
+  // Safe retry and background sync for offline pending saves
+  useEffect(() => {
+    let active = true;
+
+    const flushPendingQueue = async () => {
+      const aid = backendAttemptId || session?.backendAttemptId;
+      if (!aid || pendingQueue.length === 0) return;
+
+      const itemsToSync = [...pendingQueue];
+      const remaining: typeof pendingQueue = [];
+
+      for (const item of itemsToSync) {
+        try {
+          await saveCandidateAnswer(aid, item.qId, item.optId);
+        } catch {
+          remaining.push(item);
+        }
+      }
+
+      if (active) {
+        setPendingQueue(remaining);
+        setAutosaveStatus(remaining.length === 0 ? "saved" : "offline");
+      }
+    };
+
+    const handleOnline = () => {
+      flushPendingQueue();
+    };
+
+    window.addEventListener("online", handleOnline);
+    const intervalId = setInterval(() => {
+      if (pendingQueue.length > 0 && navigator.onLine) {
+        flushPendingQueue();
+      }
+    }, 4000);
+
+    return () => {
+      active = false;
+      window.removeEventListener("online", handleOnline);
+      clearInterval(intervalId);
+    };
+  }, [backendAttemptId, session?.backendAttemptId, pendingQueue]);
+
   // Load questions from backend attempt on mount
   useEffect(() => {
     let isCancelled = false;
@@ -933,11 +997,26 @@ export default function CandidateExamPage({
 
       if (qId !== undefined && optId !== undefined) {
         setAutosaveStatus("saving");
+
+        // Retain pending save locally
+        setPendingQueue(prev => [
+          ...prev.filter(item => item.qNum !== questionNum),
+          { qNum: questionNum, qId, optId }
+        ]);
+
+        if (!navigator.onLine) {
+          setAutosaveStatus("offline");
+          return;
+        }
+
         try {
           await saveCandidateAnswer(activeAid, qId, optId);
+          // On successful server save, dequeue item
+          setPendingQueue(prev => prev.filter(item => item.qNum !== questionNum));
           setAutosaveStatus("saved");
-        } catch {
-          setAutosaveStatus("error");
+        } catch (saveErr) {
+          console.warn("[CandidateExamPage] Save interrupted. Answer safely buffered locally:", saveErr);
+          setAutosaveStatus("offline");
         }
       }
     }
@@ -1010,7 +1089,7 @@ export default function CandidateExamPage({
           </div>
         </div>
 
-        {/* Center: Section Progress Indicator */}
+        {/* Center: Section Progress Indicator & Live Autosave Status */}
         <div className="exam-nav-center">
           <div className="exam-progress-bar-wrap">
             <div 
@@ -1021,6 +1100,35 @@ export default function CandidateExamPage({
           <span className="exam-progress-label">
             Progress: <strong>{((idx % 15) + 1)} / 15</strong>
           </span>
+
+          {/* Real-time Answer Autosave Status */}
+          <div 
+            className={`exam-autosave-pill ${autosaveStatus}`}
+            title={
+              autosaveStatus === "offline"
+                ? "Network disconnected. Answers are retained safely in browser storage and will sync automatically."
+                : "Real-time answer save status"
+            }
+          >
+            {autosaveStatus === "saved" && (
+              <>
+                <CheckCircle2 size={13} color="#15803d" />
+                <span>Saved</span>
+              </>
+            )}
+            {autosaveStatus === "saving" && (
+              <>
+                <Loader2 size={13} className="animate-spin" color="#0f766e" />
+                <span>Saving...</span>
+              </>
+            )}
+            {(autosaveStatus === "offline" || autosaveStatus === "error") && (
+              <>
+                <CloudOff size={13} color="#b45309" />
+                <span>Offline • Saved locally ({pendingQueue.length} pending sync)</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Right: Timer, Profile, Exit */}

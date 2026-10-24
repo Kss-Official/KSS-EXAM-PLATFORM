@@ -603,19 +603,15 @@ class CandidateExamService:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected option does not belong to question")
 
         try:
-            # Query existing answers for this attempt and question to prevent duplicate rows
-            existing_answers = db.query(AttemptAnswer).filter(
+            # Idempotent upsert with short transaction duration (< 5ms)
+            existing_answer = db.query(AttemptAnswer).filter(
                 AttemptAnswer.attempt_id == attempt_id,
                 AttemptAnswer.question_id == real_q_id
-            ).order_by(AttemptAnswer.id.asc()).all()
+            ).first()
 
-            if existing_answers:
-                answer = existing_answers[0]
-                answer.selected_option_id = real_opt_id
-                answer.answered_at = now
-                if len(existing_answers) > 1:
-                    for dup in existing_answers[1:]:
-                        db.delete(dup)
+            if existing_answer:
+                existing_answer.selected_option_id = real_opt_id
+                existing_answer.answered_at = now
             else:
                 answer = AttemptAnswer(
                     attempt_id=attempt_id,
@@ -626,9 +622,23 @@ class CandidateExamService:
                 db.add(answer)
 
             db.commit()
-        except Exception:
+        except Exception as exc:
             db.rollback()
-            raise
+            # If concurrent inserts raced on the unique constraint, resolve idempotently
+            try:
+                conflicted = db.query(AttemptAnswer).filter(
+                    AttemptAnswer.attempt_id == attempt_id,
+                    AttemptAnswer.question_id == real_q_id
+                ).first()
+                if conflicted:
+                    conflicted.selected_option_id = real_opt_id
+                    conflicted.answered_at = now
+                    db.commit()
+                else:
+                    raise exc
+            except Exception:
+                db.rollback()
+                raise
 
         return {
             "success": True,
@@ -648,6 +658,42 @@ class CandidateExamService:
         return cls.finalize_submission(db, attempt, answers_payload=answers_payload)
 
     @classmethod
+    def _build_submission_response(
+        cls,
+        attempt: ExamAttempt,
+        is_published: bool,
+        message: str = "Examination submitted successfully."
+    ) -> SubmissionResponse:
+        receipt = attempt.receipt_id or ""
+        cand_code = attempt.candidate_code or (attempt.candidate.registration_number if attempt.candidate else "")
+        set_code = attempt.question_set_code or (attempt.question_set.set_code if attempt.question_set else "A")
+
+        resp = SubmissionResponse(
+            success=True,
+            message=message,
+            receipt_id=receipt,
+            submitted_at=attempt.submitted_at or datetime.now(timezone.utc),
+            attempt_id=attempt.id,
+            total_marks=attempt.total_marks,
+            is_published=is_published,
+            results_published=is_published,
+            total_questions=attempt.total_questions,
+            questions_answered=attempt.questions_answered,
+            correct_answers=attempt.correct_answers,
+            incorrect_answers=attempt.incorrect_answers,
+            unanswered_questions=attempt.unanswered_questions,
+            duration_seconds=attempt.duration_seconds,
+            started_at=attempt.started_at,
+            candidate_code=cand_code,
+            question_set_code=set_code
+        )
+        if is_published:
+            resp.score = attempt.score
+            resp.percentage = attempt.percentage
+            resp.qualification_status = attempt.qualification_status
+        return resp
+
+    @classmethod
     def finalize_submission(
         cls,
         db: Session,
@@ -657,31 +703,26 @@ class CandidateExamService:
         exam = attempt.exam
         is_published = exam.results_published if exam else False
 
+        # Fast idempotent path: check if attempt was already finalized
         if attempt.status == "SUBMITTED":
-            return SubmissionResponse(
-                success=True,
-                message="Attempt was already submitted.",
-                attempt_id=attempt.id,
-                receipt_id=attempt.receipt_id or "",
-                submitted_at=attempt.submitted_at or datetime.now(timezone.utc),
-                score=attempt.score if is_published else None,
-                total_marks=attempt.total_marks if is_published else None,
-                percentage=attempt.percentage if is_published else None,
-                is_published=is_published,
-                results_published=is_published,
-                qualification_status=attempt.qualification_status if is_published else None,
-                total_questions=attempt.total_questions,
-                questions_answered=attempt.questions_answered,
-                correct_answers=attempt.correct_answers,
-                incorrect_answers=attempt.incorrect_answers,
-                unanswered_questions=attempt.unanswered_questions,
-                duration_seconds=attempt.duration_seconds,
-                started_at=attempt.started_at,
-                candidate_code=attempt.candidate_code,
-                question_set_code=attempt.question_set_code
-            )
+            return cls._build_submission_response(attempt, is_published, "Attempt was already submitted.")
 
         try:
+            # Row-level lock on ExamAttempt to serialize simultaneous final submissions
+            # Any competing finalization threads will queue here until this transaction commits.
+            locked_attempt = db.query(ExamAttempt).filter(
+                ExamAttempt.id == attempt.id
+            ).with_for_update().first()
+
+            if not locked_attempt:
+                locked_attempt = attempt
+
+            # Re-check under the row lock: if another thread finalized it just now, return cached receipt
+            if locked_attempt.status == "SUBMITTED":
+                return cls._build_submission_response(locked_attempt, is_published, "Attempt was already submitted.")
+
+            attempt = locked_attempt
+
             correct_count = 0
             incorrect_count = 0
             calculated_score = Decimal("0.00")

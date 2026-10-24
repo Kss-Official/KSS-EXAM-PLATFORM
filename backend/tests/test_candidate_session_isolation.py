@@ -30,6 +30,7 @@ def test_multi_candidate_session_isolation():
     cand_a_payload = {
         "fullName": "Aarav Sharma",
         "name": "Aarav Sharma",
+        "email": "aarav.sharma@campus.edu",
         "registrationNumber": "MCQ-REG001",
         "uniqueId": "MCQ-REG001",
         "department": dept_name,
@@ -48,6 +49,7 @@ def test_multi_candidate_session_isolation():
     cand_b_payload = {
         "fullName": "Jingyasa Priyadarsini",
         "name": "Jingyasa Priyadarsini",
+        "email": "jingyasa.p@campus.edu",
         "registrationNumber": "MCQ-REG008",
         "uniqueId": "MCQ-REG008",
         "department": dept_name,
