@@ -23,6 +23,14 @@ class ExamAttempt(Base):
     percentage = Column(Numeric(6, 2), nullable=True)
     qualification_status = Column(String(20), default="PENDING")  # PENDING, QUALIFIED, NOT_QUALIFIED
     receipt_id = Column(String(64), nullable=True)
+    candidate_code = Column(String(64), nullable=True)
+    question_set_code = Column(String(20), nullable=True)
+    total_questions = Column(Integer, nullable=False, default=0)
+    questions_answered = Column(Integer, nullable=False, default=0)
+    correct_answers = Column(Integer, nullable=False, default=0)
+    incorrect_answers = Column(Integer, nullable=False, default=0)
+    unanswered_questions = Column(Integer, nullable=False, default=0)
+    duration_seconds = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     candidate = relationship("Candidate", back_populates="attempts")

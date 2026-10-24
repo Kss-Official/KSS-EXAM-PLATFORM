@@ -989,13 +989,13 @@ export default function CandidateExamPage({
     const aid = backendAttemptId || session?.backendAttemptId;
     if (aid) {
       try {
-        backendResult = await submitCandidateAttempt(aid);
+        backendResult = await submitCandidateAttempt(aid, answers);
       } catch (err) {
         console.warn("[CandidateExamPage] Live backend submit attempt error:", err);
       }
     }
     onFinalize(reason, backendResult);
-  }, [submitting, backendAttemptId, session, onFinalize]);
+  }, [submitting, backendAttemptId, session, answers, onFinalize]);
 
   return (
     <main className="exam-fullscreen-view">

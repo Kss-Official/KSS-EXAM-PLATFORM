@@ -234,6 +234,15 @@ export interface SubmissionResponse {
   percentage?: number;
   isPublished?: boolean;
   qualificationStatus?: string;
+  totalQuestions?: number;
+  questionsAnswered?: number;
+  correctAnswers?: number;
+  incorrectAnswers?: number;
+  unansweredQuestions?: number;
+  durationSeconds?: number;
+  startedAt?: string;
+  candidateCode?: string;
+  questionSetCode?: string;
 }
 
 export interface ExamResultDto {
@@ -256,6 +265,14 @@ export interface ExamResultDto {
   qualificationStatus?: string;
   resultsPublished: boolean;
   submittedAt?: string;
+  totalQuestions?: number;
+  questionsAnswered?: number;
+  correctAnswers?: number;
+  incorrectAnswers?: number;
+  durationSeconds?: number;
+  startedAt?: string;
+  candidateCode?: string;
+  questionSetCode?: string;
 }
 
 export interface AdminDashboardResponse {
@@ -732,9 +749,14 @@ export async function saveCandidateAnswer(attemptId: number, questionId: number,
   });
 }
 
-export async function submitCandidateAttempt(attemptId: number): Promise<SubmissionResponse> {
+export async function submitCandidateAttempt(
+  attemptId: number,
+  answers?: Record<number, number>
+): Promise<SubmissionResponse> {
   return request<SubmissionResponse>(`candidate/submit?attemptId=${attemptId}`, {
-    method: "POST"
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ attemptId, answers })
   });
 }
 

@@ -756,17 +756,23 @@ class CandidateExamService:
         }
 
     @classmethod
-    def submit_attempt(cls, db: Session, attempt_id: int) -> SubmissionResponse:
+    def submit_attempt(cls, db: Session, attempt_id: int, answers_payload: Optional[Dict[str, Any]] = None) -> SubmissionResponse:
         attempt = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.exam),
-            joinedload(ExamAttempt.candidate)
+            joinedload(ExamAttempt.candidate),
+            joinedload(ExamAttempt.question_set)
         ).filter(ExamAttempt.id == attempt_id).first()
         if not attempt:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
-        return cls.finalize_submission(db, attempt)
+        return cls.finalize_submission(db, attempt, answers_payload=answers_payload)
 
     @classmethod
-    def finalize_submission(cls, db: Session, attempt: ExamAttempt) -> SubmissionResponse:
+    def finalize_submission(
+        cls,
+        db: Session,
+        attempt: ExamAttempt,
+        answers_payload: Optional[Dict[str, Any]] = None
+    ) -> SubmissionResponse:
         exam = attempt.exam
         is_published = exam.results_published if exam else False
 
@@ -782,42 +788,106 @@ class CandidateExamService:
                 percentage=attempt.percentage if is_published else None,
                 is_published=is_published,
                 results_published=is_published,
-                qualification_status=attempt.qualification_status if is_published else None
+                qualification_status=attempt.qualification_status if is_published else None,
+                total_questions=attempt.total_questions,
+                questions_answered=attempt.questions_answered,
+                correct_answers=attempt.correct_answers,
+                incorrect_answers=attempt.incorrect_answers,
+                unanswered_questions=attempt.unanswered_questions,
+                duration_seconds=attempt.duration_seconds,
+                started_at=attempt.started_at,
+                candidate_code=attempt.candidate_code,
+                question_set_code=attempt.question_set_code
             )
 
         try:
-            # Eager load answers with question & option
-            answers = db.query(AttemptAnswer).options(
-                joinedload(AttemptAnswer.question),
-                joinedload(AttemptAnswer.selected_option)
-            ).filter(AttemptAnswer.attempt_id == attempt.id).all()
-
-            # Deduplicate by question_id (keep latest)
-            latest_answers: Dict[int, AttemptAnswer] = {}
-            for a in answers:
-                if a.question_id not in latest_answers:
-                    latest_answers[a.question_id] = a
-                else:
-                    prev = latest_answers[a.question_id]
-                    if a.answered_at and prev.answered_at and a.answered_at > prev.answered_at:
-                        latest_answers[a.question_id] = a
-
+            correct_count = 0
+            incorrect_count = 0
             calculated_score = Decimal("0.00")
-            for q_id, a in latest_answers.items():
-                if a.selected_option_id and a.question:
-                    opt = a.selected_option
-                    q = a.question
-                    if opt and opt.is_correct:
-                        calculated_score += q.marks if q.marks is not None else Decimal("1.00")
+            answered_questions_set = set()
+
+            # Load question set questions with options for accurate evaluation
+            set_questions = db.query(Question).options(
+                joinedload(Question.options)
+            ).filter(
+                Question.question_set_id == attempt.question_set_id
+            ).all()
+            q_map_by_id = {q.id: q for q in set_questions}
+
+            arqs = db.query(AttemptRandomizedQuestion).filter(
+                AttemptRandomizedQuestion.attempt_id == attempt.id
+            ).order_by(AttemptRandomizedQuestion.display_order.asc()).all()
+            q_map_by_order = {arq.display_order: q_map_by_id.get(arq.question_id) for arq in arqs if arq.question_id in q_map_by_id}
+
+            if answers_payload and len(answers_payload) > 0:
+                for k, opt_val in answers_payload.items():
+                    if opt_val is None:
+                        continue
+                    try:
+                        k_num = int(k)
+                    except (ValueError, TypeError):
+                        continue
+
+                    target_q = q_map_by_order.get(k_num) or q_map_by_id.get(k_num)
+                    if not target_q and 1 <= k_num <= len(set_questions):
+                        target_q = set_questions[k_num - 1]
+
+                    if not target_q:
+                        continue
+
+                    answered_questions_set.add(target_q.id)
+
+                    chosen_opt = None
+                    try:
+                        opt_id_val = int(opt_val)
+                        chosen_opt = next((o for o in target_q.options if o.id == opt_id_val), None)
+                        if not chosen_opt and 0 <= opt_id_val < len(target_q.options):
+                            chosen_opt = target_q.options[opt_id_val]
+                    except (ValueError, TypeError):
+                        pass
+
+                    if chosen_opt and chosen_opt.is_correct:
+                        correct_count += 1
+                        calculated_score += target_q.marks if target_q.marks is not None else Decimal("1.00")
                     else:
-                        calculated_score -= q.negative_marks if q.negative_marks is not None else Decimal("0.00")
+                        incorrect_count += 1
+                        calculated_score -= target_q.negative_marks if target_q.negative_marks is not None else Decimal("0.00")
+            else:
+                answers = db.query(AttemptAnswer).options(
+                    joinedload(AttemptAnswer.question),
+                    joinedload(AttemptAnswer.selected_option)
+                ).filter(AttemptAnswer.attempt_id == attempt.id).all()
+
+                latest_answers: Dict[int, AttemptAnswer] = {}
+                for a in answers:
+                    if a.question_id not in latest_answers:
+                        latest_answers[a.question_id] = a
+                    else:
+                        prev = latest_answers[a.question_id]
+                        if a.answered_at and prev.answered_at and a.answered_at > prev.answered_at:
+                            latest_answers[a.question_id] = a
+
+                for q_id, a in latest_answers.items():
+                    if a.selected_option_id and a.question:
+                        answered_questions_set.add(q_id)
+                        opt = a.selected_option
+                        q = a.question
+                        if opt and opt.is_correct:
+                            correct_count += 1
+                            calculated_score += q.marks if q.marks is not None else Decimal("1.00")
+                        else:
+                            incorrect_count += 1
+                            calculated_score -= q.negative_marks if q.negative_marks is not None else Decimal("0.00")
 
             if calculated_score < Decimal("0.00"):
                 calculated_score = Decimal("0.00")
 
+            total_q = attempt.total_questions or len(set_questions) or (exam.total_questions if exam else 60)
+            answered_count = len(answered_questions_set)
+            unanswered_count = max(0, total_q - answered_count)
+
             total_exam_marks = exam.total_marks if (exam and exam.total_marks and exam.total_marks > Decimal("0.00")) else None
             if not total_exam_marks or total_exam_marks <= Decimal("0.00"):
-                # Dynamically calculate sum of questions in set as robust fallback
                 q_sum = db.query(func.sum(Question.marks)).filter(
                     Question.question_set_id == attempt.question_set_id
                 ).scalar()
@@ -832,22 +902,45 @@ class CandidateExamService:
                 qual_status = "QUALIFIED" if calculated_score >= threshold else "NOT_QUALIFIED"
 
             receipt = f"SEB-REC-{secrets.token_hex(4).upper()}-{int(time.time() * 1000)}"
-
             now = datetime.now(timezone.utc)
+            duration_sec = max(0, int((now - attempt.started_at).total_seconds())) if attempt.started_at else 0
+
+            cand_code = attempt.candidate.registration_number if attempt.candidate else (attempt.candidate_code or "")
+            set_code = attempt.question_set.set_code if attempt.question_set else (attempt.question_set_code or "A")
+
+            # Store the student's complete overall examination summary in the database
             attempt.status = "SUBMITTED"
             attempt.submitted_at = now
+            attempt.candidate_code = cand_code
+            attempt.question_set_code = set_code
+            attempt.total_questions = total_q
+            attempt.questions_answered = answered_count
+            attempt.correct_answers = correct_count
+            attempt.incorrect_answers = incorrect_count
+            attempt.unanswered_questions = unanswered_count
+            attempt.duration_seconds = duration_sec
             attempt.score = calculated_score
             attempt.total_marks = total_exam_marks
             attempt.percentage = percentage
             attempt.qualification_status = qual_status
             attempt.receipt_id = receipt
 
+            # IMPORTANT REQUIREMENT:
+            # Do not store individual selected answers or selected-question details in the database
+            # if they are not required for the intended workflow. Store only the necessary examination
+            # summary data and ensure that each student's records remain isolated.
+            db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
+
             db.add(AuditLog(
                 action="SUBMIT_EXAM",
                 entity_type="ExamAttempt",
                 entity_id=str(attempt.id),
-                performed_by=attempt.candidate.registration_number if attempt.candidate else "SYSTEM",
-                details=f"Finalized exam submission: score={calculated_score} status={qual_status} receipt={receipt}"
+                performed_by=cand_code or "SYSTEM",
+                details=(
+                    f"Finalized exam submission: candidate={cand_code} set={set_code} "
+                    f"answered={answered_count}/{total_q} correct={correct_count} incorrect={incorrect_count} "
+                    f"score={calculated_score}/{total_exam_marks} ({percentage}%) status={qual_status} duration={duration_sec}s receipt={receipt}"
+                )
             ))
             db.commit()
             db.refresh(attempt)
@@ -857,13 +950,22 @@ class CandidateExamService:
 
         resp = SubmissionResponse(
             success=True,
-            message="Examination submitted successfully. Your answers have been safely acknowledged and recorded.",
+            message="Examination submitted successfully. Your examination summary has been safely recorded.",
             receipt_id=receipt,
             submitted_at=attempt.submitted_at,
             attempt_id=attempt.id,
             total_marks=total_exam_marks,
             is_published=is_published,
-            results_published=is_published
+            results_published=is_published,
+            total_questions=total_q,
+            questions_answered=answered_count,
+            correct_answers=correct_count,
+            incorrect_answers=incorrect_count,
+            unanswered_questions=unanswered_count,
+            duration_seconds=duration_sec,
+            started_at=attempt.started_at,
+            candidate_code=cand_code,
+            question_set_code=set_code
         )
 
         if is_published:

@@ -15,6 +15,15 @@ class SubmissionResponse(CamelModel):
     is_published: Optional[bool] = False
     results_published: Optional[bool] = False
     qualification_status: Optional[str] = None
+    total_questions: Optional[int] = None
+    questions_answered: Optional[int] = None
+    correct_answers: Optional[int] = None
+    incorrect_answers: Optional[int] = None
+    unanswered_questions: Optional[int] = None
+    duration_seconds: Optional[int] = None
+    started_at: Optional[datetime] = None
+    candidate_code: Optional[str] = None
+    question_set_code: Optional[str] = None
 
 class ExamResultDto(CamelModel):
     attempt_id: int
@@ -36,3 +45,11 @@ class ExamResultDto(CamelModel):
     qualification_status: Optional[str] = None
     results_published: bool = False
     submitted_at: Optional[datetime] = None
+    total_questions: Optional[int] = None
+    questions_answered: Optional[int] = None
+    correct_answers: Optional[int] = None
+    incorrect_answers: Optional[int] = None
+    duration_seconds: Optional[int] = None
+    started_at: Optional[datetime] = None
+    candidate_code: Optional[str] = None
+    question_set_code: Optional[str] = None

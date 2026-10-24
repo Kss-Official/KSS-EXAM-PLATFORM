@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "../../router";
 import type { CandidateProfile, SubmissionReceipt } from "../../types/candidate";
 import type { SubmissionResponse } from "../../services/api";
@@ -32,6 +32,7 @@ export default function CandidatePortal() {
     const answeredCount = Object.keys(sess?.answers || {}).length;
     const isBackend = typeof sess?.receiptId === "string" && (sess.receiptId.startsWith("SEB-") || sess.backendAttemptId !== undefined);
     const isRound2 = sess?.profile?.assessmentRound === "ROUND_2";
+    const totalQ = isRound2 ? 3 : (isBackend ? 60 : DEMO_TOTAL_QUESTIONS);
     return {
       receiptId: String(sess?.receiptId || (isRound2 ? `CODE-REC-2026-${String(sess?.sessionId || "000000").slice(-6).toUpperCase()}` : `DEMO-REC-2026-${String(sess?.sessionId || "000000").slice(-6).toUpperCase()}`)),
       sessionId: String(sess?.sessionId || ""),
@@ -40,8 +41,8 @@ export default function CandidatePortal() {
       candidateId: sess?.profile?.candidateId || "CAND-001",
       department: sess?.profile?.department || "General",
       answeredCount: isRound2 ? 3 : answeredCount,
-      unansweredCount: isRound2 ? 0 : Math.max(0, DEMO_TOTAL_QUESTIONS - answeredCount),
-      totalQuestions: isRound2 ? 3 : DEMO_TOTAL_QUESTIONS,
+      unansweredCount: isRound2 ? 0 : Math.max(0, totalQ - answeredCount),
+      totalQuestions: totalQ,
       submittedAt: typeof sess?.submittedAt === "number" ? sess.submittedAt : Date.now(),
       submissionReason: sess?.submissionReason || "manual_submit",
       isDemoReceipt: !isBackend,
@@ -141,6 +142,13 @@ export default function CandidatePortal() {
         result.session.percentage = backendResult.percentage;
         result.session.qualificationStatus = backendResult.qualificationStatus;
         result.session.isPublished = backendResult.isPublished;
+        if (backendResult.submittedAt) {
+          try {
+            result.session.submittedAt = new Date(backendResult.submittedAt).getTime();
+          } catch {
+            // retain existing timestamp
+          }
+        }
       }
       setActiveSession({ ...result.session });
     }

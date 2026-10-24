@@ -86,13 +86,14 @@ class DashboardService:
 
         results: List[ExamResultDto] = []
         for a in attempts:
-            answered_cnt = answered_counts.get(a.id, 0)
-            total_q = attempt_q_counts.get(a.id) or (a.exam.total_questions if a.exam else 50)
-            unanswered_cnt = max(0, total_q - answered_cnt)
+            answered_cnt = a.questions_answered if (a.questions_answered is not None and a.questions_answered > 0) else answered_counts.get(a.id, 0)
+            total_q = a.total_questions or attempt_q_counts.get(a.id) or (a.exam.total_questions if a.exam else 50)
+            unanswered_cnt = a.unanswered_questions if a.unanswered_questions is not None else max(0, total_q - answered_cnt)
 
             cand_name = a.candidate.full_name if a.candidate else "Unknown"
-            reg_num = a.candidate.registration_number if a.candidate else "-"
+            reg_num = a.candidate_code or (a.candidate.registration_number if a.candidate else "-")
             dept_name = a.candidate.department.name if (a.candidate and a.candidate.department) else "Unassigned"
+            set_cd = a.question_set_code or (a.question_set.set_code if a.question_set else "-")
 
             dto = ExamResultDto(
                 attempt_id=a.id,
@@ -102,7 +103,7 @@ class DashboardService:
                 department_name=dept_name,
                 exam_id=a.exam_id,
                 exam_title=a.exam.title if a.exam else "Exam",
-                set_code=a.question_set.set_code if a.question_set else "-",
+                set_code=set_cd,
                 slot_number=a.slot.slot_number if a.slot else 1,
                 attempt_status=a.status,
                 answered_count=answered_cnt,
@@ -113,7 +114,15 @@ class DashboardService:
                 qualification_threshold=a.exam.qualification_threshold if a.exam else None,
                 qualification_status=a.qualification_status,
                 results_published=a.exam.results_published if a.exam else False,
-                submitted_at=a.submitted_at
+                submitted_at=a.submitted_at,
+                total_questions=total_q,
+                questions_answered=answered_cnt,
+                correct_answers=a.correct_answers,
+                incorrect_answers=a.incorrect_answers,
+                duration_seconds=a.duration_seconds,
+                started_at=a.started_at,
+                candidate_code=a.candidate_code or reg_num,
+                question_set_code=set_cd,
             )
             results.append(dto)
 

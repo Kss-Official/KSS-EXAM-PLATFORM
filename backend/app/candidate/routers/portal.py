@@ -115,11 +115,13 @@ def submit_attempt(
     db: Session = Depends(get_db)
 ):
     aid = attemptId or attempt_id
-    if not aid and payload:
-        aid = payload.get("attemptId") or payload.get("attempt_id")
+    answers_payload = None
+    if payload:
+        aid = aid or payload.get("attemptId") or payload.get("attempt_id")
+        answers_payload = payload.get("answers")
     if not aid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="attemptId is required")
-    return CandidateExamService.submit_attempt(db, int(aid))
+    return CandidateExamService.submit_attempt(db, int(aid), answers_payload=answers_payload)
 
 # =========================================================================
 # ROUND 2: CODING ASSESSMENT CANDIDATE TERMINAL ENDPOINTS
