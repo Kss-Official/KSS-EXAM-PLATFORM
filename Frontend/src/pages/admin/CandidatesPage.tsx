@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   Search, 
   FileSpreadsheet, 
@@ -339,7 +339,7 @@ export default function CandidatesPage() {
           onClick={() => setSelectedRound("ROUND_1")}
         >
           <CheckSquare size={16} />
-          <span>Round 1 ΓÇö MCQ Assessment</span>
+          <span>Round 1 — MCQ Assessment</span>
           <span className="candidate-round-count">{round1EligibleCount}</span>
         </button>
 
@@ -349,7 +349,7 @@ export default function CandidatesPage() {
           onClick={() => setSelectedRound("ROUND_2")}
         >
           <Code2 size={16} />
-          <span>Round 2 ΓÇö Coding Assessment</span>
+          <span>Round 2 — Coding Assessment</span>
           <span className="candidate-round-count">{round2EligibleCount}</span>
         </button>
       </div>
@@ -397,11 +397,11 @@ export default function CandidatesPage() {
           </span>
           {generatedCountInCurrentRound === roundEligibleCandidates.length && roundEligibleCandidates.length > 0 ? (
             <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#dcfce7", border: "1px solid #86efac", padding: "2px 8px", borderRadius: "999px" }}>
-              Γ£ô All IDs Generated
+              ✓ All IDs Generated
             </span>
           ) : (
             <span style={{ fontSize: "11px", fontWeight: 700, color: "#d97706", background: "#fef3c7", border: "1px solid #fde68a", padding: "2px 8px", borderRadius: "999px" }}>
-              ΓùÅ Pending Generation ({roundEligibleCandidates.length - generatedCountInCurrentRound})
+              • Pending Generation ({roundEligibleCandidates.length - generatedCountInCurrentRound})
             </span>
           )}
         </div>
@@ -494,7 +494,7 @@ export default function CandidatesPage() {
                           </span>
                         ) : (
                           <span className="candidate-id-empty" title="Click 'Create Unique ID' above to generate">
-                            ΓÇö Not Generated ΓÇö
+                            — Not Generated —
                           </span>
                         )}
                       </td>
