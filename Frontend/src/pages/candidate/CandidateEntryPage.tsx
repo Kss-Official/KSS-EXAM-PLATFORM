@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { 
   ShieldCheck, 
   GraduationCap, 
@@ -127,7 +127,11 @@ export default function CandidateEntryPage({
 
       const verifyRes = await verifyCandidateEligibility({
         registrationNumber: candidateId.trim().toUpperCase(),
-        departmentId: departmentId
+        departmentId: departmentId,
+        fullName: name.trim(),
+        name: name.trim(),
+        departmentName: department,
+        department: department
       });
 
       if (!verifyRes.eligible) {
