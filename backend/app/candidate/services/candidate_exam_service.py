@@ -60,8 +60,9 @@ class CandidateExamService:
         if not access_code_obj:
             clean_reg = re.sub(r'^(MCQ|CODE)[-_]', '', input_code.upper())
             base_reg = re.sub(r'[-_]\d+$', '', clean_reg) or clean_reg
+            reg_candidate = re.split(r'[-_](?:ROUND|R\d|\d+$)', clean_reg, flags=re.IGNORECASE)[0]
             cand_by_reg = db.query(Candidate).filter(
-                func.upper(Candidate.registration_number).in_([input_code.upper(), clean_reg, base_reg])
+                func.upper(Candidate.registration_number).in_([input_code.upper(), clean_reg, base_reg, reg_candidate])
             ).first()
             if cand_by_reg:
                 target_round = req.round or ("ROUND_2" if input_code.upper().startswith("CODE-") else "ROUND_1")

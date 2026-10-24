@@ -125,12 +125,28 @@ def init_default_candidates(db: Session) -> None:
                 db.commit()
                 db.refresh(c)
 
-        # Ensure canonical access codes are generated for both Round 1 & Round 2
+        # Ensure canonical access codes exist for both Round 1 & Round 2
+        from app.models.candidate import CandidateAccessCode
         try:
-            CandidateService.generate_access_code(db, c.id, "SYSTEM", "ROUND_1")
-            CandidateService.generate_access_code(db, c.id, "SYSTEM", "ROUND_2")
-        except Exception:
-            pass
+            has_r1 = db.query(CandidateAccessCode).filter(
+                CandidateAccessCode.candidate_id == c.id,
+                CandidateAccessCode.round == "ROUND_1",
+                CandidateAccessCode.is_active == True,
+                CandidateAccessCode.usage_count < CandidateAccessCode.max_uses
+            ).first()
+            if not has_r1:
+                CandidateService.generate_access_code(db, c.id, "SYSTEM", "ROUND_1")
+
+            has_r2 = db.query(CandidateAccessCode).filter(
+                CandidateAccessCode.candidate_id == c.id,
+                CandidateAccessCode.round == "ROUND_2",
+                CandidateAccessCode.is_active == True,
+                CandidateAccessCode.usage_count < CandidateAccessCode.max_uses
+            ).first()
+            if not has_r2:
+                CandidateService.generate_access_code(db, c.id, "SYSTEM", "ROUND_2")
+        except Exception as e:
+            logger.debug(f"Code generation notice for {c.registration_number}: {e}")
 
     logger.info("Default candidates and access codes verified.")
 
