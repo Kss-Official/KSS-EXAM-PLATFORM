@@ -15,45 +15,24 @@ router = APIRouter(prefix="/api/candidate", tags=["Candidate Examination Portal"
 @router.get("/departments", response_model=List[DepartmentDto])
 def get_eligible_departments(db: Session = Depends(get_db)):
     """
-    Returns active departments that have an eligible published examination.
-    Uses eager loading to avoid N+1 query overhead.
+    Returns the two primary departments for candidate self-selection on the entry portal:
+    Technical Department and Non-Technical Department.
     """
-    published_exams = db.query(Exam).options(
-        joinedload(Exam.departments)
-    ).filter(Exam.status == "PUBLISHED").all()
-
-    # Check if there is any published exam open to all departments
-    has_universal_exam = any(not exam.departments for exam in published_exams)
-
-    if not published_exams or has_universal_exam:
-        depts = db.query(Department).options(
-            joinedload(Department.exams)
-        ).filter(Department.active == True).order_by(Department.name.asc()).all()
-    else:
-        dept_ids = {d.id for exam in published_exams for d in (exam.departments or []) if d.active}
-        if not dept_ids:
-            depts = db.query(Department).options(
-                joinedload(Department.exams)
-            ).filter(Department.active == True).order_by(Department.name.asc()).all()
-        else:
-            depts = db.query(Department).options(
-                joinedload(Department.exams)
-            ).filter(
-                Department.id.in_(dept_ids),
-                Department.active == True
-            ).order_by(Department.name.asc()).all()
-
     return [
         DepartmentDto(
-            id=d.id,
-            name=d.name,
-            code=d.code,
-            description=d.description,
-            active=d.active,
-            created_at=d.created_at,
-            associated_exams_count=len(d.exams) if d.exams else 0
+            id=1,
+            name="Technical Department",
+            code="TECH",
+            description="Technical Department (Engineering, Development, Testing, UI/UX)",
+            active=True
+        ),
+        DepartmentDto(
+            id=2,
+            name="Non-Technical Department",
+            code="NON_TECH",
+            description="Non-Technical Department (Human Resources, Sales & Marketing, Management)",
+            active=True
         )
-        for d in depts
     ]
 
 @router.post("/verify", response_model=CandidateVerifyResponse)

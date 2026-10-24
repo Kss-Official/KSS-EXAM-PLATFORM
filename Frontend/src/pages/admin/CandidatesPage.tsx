@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { 
   Search, 
   FileSpreadsheet, 
+  FileText,
   PlusCircle,
   RotateCcw,
   UserCheck,
@@ -19,7 +20,7 @@ import {
   type DepartmentDto 
 } from "../../services/api";
 
-const LOCAL_STORAGE_CANDIDATES_KEY = "examsecure_cached_candidates_v1";
+const LOCAL_STORAGE_CANDIDATES_KEY = "examsecure_cached_candidates_v2";
 
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateDto[]>([]);
@@ -106,12 +107,12 @@ export default function CandidatesPage() {
 
   const handleCreateCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newRegNum.trim() || !newName.trim() || !newEmail.trim()) {
-      setNotice({ text: "Registration Number, Full Name, and Email are required.", type: "error" });
+    if (!newName.trim() || !newEmail.trim()) {
+      setNotice({ text: "Full Name and Email are required.", type: "error" });
       return;
     }
 
-    const regUpper = newRegNum.trim().toUpperCase();
+    const regUpper = newRegNum.trim() ? newRegNum.trim().toUpperCase() : `CAND-${Date.now().toString().slice(-6)}`;
     const deptObj = departments.find(d => d.id === newDeptId);
 
     const localNewCand: CandidateDto = {
@@ -181,7 +182,7 @@ export default function CandidatesPage() {
             </strong>
           </div>
           <p style={{ margin: "3px 0 0", fontSize: "12.5px", color: "#64748b" }}>
-            Manage registered candidates, departmental allocations, and student authentication credentials
+            Manage registered candidates, college allocations, and student authentication credentials
           </p>
         </div>
 
@@ -202,7 +203,7 @@ export default function CandidatesPage() {
             onClick={() => setIsCsvModalOpen(true)}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
           >
-            <FileSpreadsheet size={15} color="#059669" /> Batch CSV Import
+            <FileText size={15} color="#017846" /> Add document
           </button>
 
           <button 
@@ -270,7 +271,7 @@ export default function CandidatesPage() {
             EXAMINATION ROSTER
           </span>
           <span style={{ fontSize: "12.5px", color: "#166534", fontWeight: 500 }}>
-            Candidates authenticate securely using their Full Name, Department, and Email Address.
+            Candidates authenticate securely using their Full Name, College Name, and Email Address.
           </span>
         </div>
 
@@ -287,7 +288,7 @@ export default function CandidatesPage() {
           <Search size={16} className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search candidates by name, registration number, or email..."
+            placeholder="Search candidates by name, SL. No, or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -312,10 +313,10 @@ export default function CandidatesPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Registration Number</th>
+                <th>SL. No</th>
                 <th>Candidate Name</th>
                 <th>Email Address</th>
-                <th>Assigned Department</th>
+                <th>College Name</th>
                 <th>Account Status</th>
               </tr>
             </thead>
@@ -334,17 +335,17 @@ export default function CandidatesPage() {
                       No candidates match your criteria
                     </p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                      Register a candidate or use Batch CSV Import to load student rosters.
+                      Register a candidate or use "Add document" to load student rosters.
                     </small>
                   </td>
                 </tr>
               ) : (
-                filtered.map(cand => {
+                filtered.map((cand, index) => {
                   return (
                     <tr key={cand.id}>
                       <td>
-                        <b style={{ color: "#0f172a", fontFamily: "JetBrains Mono, monospace" }}>
-                          {cand.registrationNumber}
+                        <b style={{ color: "#017846", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
+                          {index + 1}
                         </b>
                       </td>
                       <td style={{ fontWeight: 600 }}>{cand.fullName}</td>
@@ -353,11 +354,22 @@ export default function CandidatesPage() {
                       </td>
                       <td>
                         {cand.departmentName ? (
-                          <span className="admin-dept-chip">
+                          <span 
+                            className="admin-dept-chip"
+                            style={{
+                              background: "#eef2ff",
+                              color: "#3730a3",
+                              border: "1px solid #c7d2fe",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                              padding: "4px 10px",
+                              borderRadius: "6px"
+                            }}
+                          >
                             {cand.departmentName}
                           </span>
                         ) : (
-                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Unassigned</span>
+                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
                         )}
                       </td>
                       <td>
@@ -384,10 +396,6 @@ export default function CandidatesPage() {
             </div>
             <form onSubmit={handleCreateCandidate} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600 }}>Registration Number / Roll No *</label>
-                <input type="text" placeholder="e.g. 2026-CSE-101" value={newRegNum} onChange={e => setNewRegNum(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
-              </div>
-              <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Full Name *</label>
                 <input type="text" placeholder="e.g. Aarav Sharma" value={newName} onChange={e => setNewName(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
               </div>
@@ -396,11 +404,11 @@ export default function CandidatesPage() {
                 <input type="email" placeholder="e.g. aarav@campus.edu" value={newEmail} onChange={e => setNewEmail(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
               </div>
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600 }}>Department</label>
-                <select value={newDeptId || ""} onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
-                  <option value="">-- Unassigned --</option>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>College Name *</label>
+                <select value={newDeptId || ""} onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
+                  <option value="">-- Select College Name --</option>
                   {departments.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                    <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
                 </select>
               </div>
@@ -413,22 +421,25 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      {/* CSV Import Modal */}
+      {/* Add Document Modal */}
       {isCsvModalOpen && (
         <div className="admin-modal-backdrop" onClick={() => setIsCsvModalOpen(false)}>
           <div className="admin-modal-box" onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
-              <h3 style={{ margin: 0, fontSize: "16px" }}>Batch Candidate CSV Ingestion</h3>
+              <h3 style={{ margin: 0, fontSize: "16px" }}>Add Document</h3>
               <button type="button" onClick={() => setIsCsvModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>✕</button>
             </div>
-            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 12px 0" }}>
-              CSV columns: <code>RegistrationNumber, FullName, Email, [DepartmentCode]</code>
+            <p style={{ fontSize: "12px", color: "#334155", margin: "0 0 6px 0", fontWeight: 600 }}>
+              Supported Formats: PDF, DOCS, Word (.doc, .docx), Spreadsheets (.xlsx, .xls, .csv)
+            </p>
+            <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 14px 0" }}>
+              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode]</code>
             </p>
             <input 
               type="file" 
-              accept=".csv"
+              accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
               onChange={e => setCsvFile(e.target.files ? e.target.files[0] : null)}
-              style={{ fontSize: "12px", marginBottom: "16px" }}
+              style={{ fontSize: "12px", marginBottom: "16px", width: "100%" }}
             />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
               <button type="button" className="secondary" onClick={() => setIsCsvModalOpen(false)}>Cancel</button>
@@ -438,7 +449,7 @@ export default function CandidatesPage() {
                 disabled={!csvFile || uploadingCsv}
                 onClick={handleUploadCsv}
               >
-                {uploadingCsv ? "Ingesting..." : "Upload & Ingest to PostgreSQL"}
+                {uploadingCsv ? "Uploading..." : "Upload Document"}
               </button>
             </div>
           </div>

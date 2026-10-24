@@ -8,17 +8,9 @@ interface DepartmentSelectorProps {
   disabled?: boolean;
 }
 
-const DEFAULT_DEPARTMENTS: DepartmentDto[] = [
-  { id: 1, name: "Developer", code: "DEV", active: true },
-  { id: 2, name: "Computer Science and Engineering", code: "CSE", active: true },
-  { id: 3, name: "Information Technology", code: "IT", active: true },
-  { id: 4, name: "Electronics & Communication Engineering", code: "ECE", active: true },
-  { id: 5, name: "Electrical & Electronics Engineering", code: "EEE", active: true },
-  { id: 6, name: "Mechanical Engineering", code: "MECH", active: true },
-  { id: 7, name: "Civil Engineering", code: "CIVIL", active: true },
-  { id: 8, name: "Quality Assurance & Testing", code: "QA", active: true },
-  { id: 9, name: "UI/UX Design & Product", code: "UIUX", active: true },
-  { id: 10, name: "Human Resources", code: "HR", active: true }
+const PRIMARY_DEPARTMENTS: DepartmentDto[] = [
+  { id: 1, name: "Technical Department", code: "TECH", active: true },
+  { id: 2, name: "Non-Technical Department", code: "NON_TECH", active: true }
 ];
 
 export default function DepartmentSelector({
@@ -27,7 +19,7 @@ export default function DepartmentSelector({
   error,
   disabled = false
 }: DepartmentSelectorProps) {
-  const [departments, setDepartments] = useState<DepartmentDto[]>(DEFAULT_DEPARTMENTS);
+  const [departments, setDepartments] = useState<DepartmentDto[]>(PRIMARY_DEPARTMENTS);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,9 +33,9 @@ export default function DepartmentSelector({
           setDepartments(data);
         }
       } catch {
-        // Silently retain default departments without displaying offline server error
+        // Silently retain primary departments without displaying offline server error
         if (!isCancelled) {
-          setDepartments(DEFAULT_DEPARTMENTS);
+          setDepartments(PRIMARY_DEPARTMENTS);
         }
       } finally {
         if (!isCancelled) {
@@ -65,7 +57,7 @@ export default function DepartmentSelector({
     onChange(selectedName, matched ? matched.id : undefined);
   };
 
-  const safeDepts = Array.isArray(departments) && departments.length > 0 ? departments : DEFAULT_DEPARTMENTS;
+  const safeDepts = Array.isArray(departments) && departments.length > 0 ? departments : PRIMARY_DEPARTMENTS;
 
   return (
     <div className="dept-field-wrapper">
@@ -79,11 +71,11 @@ export default function DepartmentSelector({
         aria-required="true"
       >
         <option value="" disabled>
-          -- Select Department --
+          Select Department
         </option>
         {safeDepts.map((dept) => (
           <option key={dept.id || dept.code} value={dept.name}>
-            {dept.name} ({dept.code})
+            {dept.name}
           </option>
         ))}
       </select>
@@ -96,3 +88,4 @@ export default function DepartmentSelector({
     </div>
   );
 }
+

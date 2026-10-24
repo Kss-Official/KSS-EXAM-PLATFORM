@@ -252,3 +252,101 @@ def test_single_round_examination_workflow(db: Session):
     assert attempt.status == "SUBMITTED"
     assert attempt.candidate_id == cand.id
     assert attempt.submitted_at is not None
+
+
+def test_candidate_primary_department_technical_matching(db: Session):
+    """
+    Candidate registered in a Technical sub-department (e.g. Developer, QA, UI/UX, Civil Engineering)
+    can select 'Technical Department' and verification succeeds.
+    """
+    dev_cand, _ = setup_test_candidate(db, "TEST-TECH-01", "Tech Dev Cand", "tech.dev@testcampus.edu", "Developer", "DEV")
+    qa_cand, _ = setup_test_candidate(db, "TEST-TECH-02", "Tech QA Cand", "tech.qa@testcampus.edu", "Software Tester", "QA")
+    civ_cand, _ = setup_test_candidate(db, "TEST-TECH-03", "Tech Civil Cand", "tech.civ@testcampus.edu", "Civil Engineering", "CIVIL")
+
+    # Developer selects Technical Department
+    req1 = CandidateVerifyRequest(
+        fullName=dev_cand.full_name,
+        email=dev_cand.email,
+        department="Technical Department"
+    )
+    r1 = CandidateExamService.verify_candidate(db, req1)
+    assert r1.candidate_id == dev_cand.id
+    assert r1.department_name == "Developer"
+
+    # QA / Tester selects Technical Department
+    req2 = CandidateVerifyRequest(
+        fullName=qa_cand.full_name,
+        email=qa_cand.email,
+        department="Technical Department"
+    )
+    r2 = CandidateExamService.verify_candidate(db, req2)
+    assert r2.candidate_id == qa_cand.id
+    assert r2.department_name in ("Software Tester", "Quality Assurance & Testing")
+
+    # Civil Engineering selects Technical Department
+    req3 = CandidateVerifyRequest(
+        fullName=civ_cand.full_name,
+        email=civ_cand.email,
+        department="Technical Department"
+    )
+    r3 = CandidateExamService.verify_candidate(db, req3)
+    assert r3.candidate_id == civ_cand.id
+    assert r3.department_name == "Civil Engineering"
+
+
+def test_candidate_primary_department_non_technical_matching(db: Session):
+    """
+    Candidate registered in a Non-Technical sub-department (e.g. HR, Sales & Marketing)
+    can select 'Non-Technical Department' and verification succeeds.
+    """
+    hr_cand, _ = setup_test_candidate(db, "TEST-NONTECH-01", "HR Cand", "hr.cand@testcampus.edu", "Human Resources", "HR")
+    mkt_cand, _ = setup_test_candidate(db, "TEST-NONTECH-02", "Mkt Cand", "mkt.cand@testcampus.edu", "Sales & Marketing", "SALES_MKT")
+
+    # HR selects Non-Technical Department
+    req1 = CandidateVerifyRequest(
+        fullName=hr_cand.full_name,
+        email=hr_cand.email,
+        department="Non-Technical Department"
+    )
+    r1 = CandidateExamService.verify_candidate(db, req1)
+    assert r1.candidate_id == hr_cand.id
+    assert r1.department_name == "Human Resources"
+
+    # Sales & Marketing selects Non-Technical Department
+    req2 = CandidateVerifyRequest(
+        fullName=mkt_cand.full_name,
+        email=mkt_cand.email,
+        department="Non-Technical Department"
+    )
+    r2 = CandidateExamService.verify_candidate(db, req2)
+    assert r2.candidate_id == mkt_cand.id
+    assert r2.department_name == "Sales & Marketing"
+
+
+def test_candidate_primary_department_mismatch_rejection(db: Session):
+    """
+    Candidate selecting the wrong primary department category is rejected with a clear Department mismatch error.
+    """
+    dev_cand, _ = setup_test_candidate(db, "TEST-MISMATCH-01", "Dev Cand", "dev.cand@testcampus.edu", "Developer", "DEV")
+    hr_cand, _ = setup_test_candidate(db, "TEST-MISMATCH-02", "HR Cand", "hr.mismatch@testcampus.edu", "Human Resources", "HR")
+
+    # Developer mistakenly selects Non-Technical Department
+    bad_req1 = CandidateVerifyRequest(
+        fullName=dev_cand.full_name,
+        email=dev_cand.email,
+        department="Non-Technical Department"
+    )
+    res1 = CandidateExamService.verify_candidate(db, bad_req1)
+    assert res1.eligible is False
+    assert "Department mismatch" in res1.message
+
+    # HR mistakenly selects Technical Department
+    bad_req2 = CandidateVerifyRequest(
+        fullName=hr_cand.full_name,
+        email=hr_cand.email,
+        department="Technical Department"
+    )
+    res2 = CandidateExamService.verify_candidate(db, bad_req2)
+    assert res2.eligible is False
+    assert "Department mismatch" in res2.message
+

@@ -90,9 +90,22 @@ class CandidateService:
         """
         content = file.file.read()
         if not content:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded CSV file is empty")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty")
 
-        text = content.decode("utf-8-sig", errors="replace")
+        # Extract text based on file format
+        filename = (file.filename or "").lower()
+        if filename.endswith(".pdf"):
+            try:
+                import pymupdf
+                doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
+                pages_text = [page.get_text("text") for page in doc]
+                doc.close()
+                text = "\n".join(pages_text)
+            except Exception as e:
+                text = content.decode("utf-8-sig", errors="replace")
+        else:
+            text = content.decode("utf-8-sig", errors="replace")
+
         reader = csv.reader(io.StringIO(text))
         
         created_list: List[CandidateDto] = []

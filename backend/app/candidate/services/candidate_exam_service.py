@@ -85,7 +85,7 @@ class CandidateExamService:
             )
             return resp
 
-        # Check Department match via ID, Name, or Code
+        # Check Department match via Category, ID, Name, or Code
         def normalize_dept(s: str) -> str:
             clean = (s or "").strip().lower()
             clean = re.sub(r'\s*&\s*', ' and ', clean)
@@ -94,37 +94,83 @@ class CandidateExamService:
         cand_dname = normalize_dept(candidate.department.name)
         cand_dcode = normalize_dept(candidate.department.code or "")
 
+        # Authoritative mapping of department categories
+        NON_TECHNICAL_CODES = {"HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", "OPS", "MGMT", "NON_TECH"}
+        NON_TECHNICAL_KEYWORDS = [
+            "human resource", "hr", "sales", "marketing", "business", "management",
+            "non-technical", "non technical", "finance", "accounting", "commerce",
+            "recruitment", "talent acquisition"
+        ]
+
+        def get_department_category(dept_name: str, dept_code: str) -> str:
+            code_upper = (dept_code or "").strip().upper()
+            if code_upper in NON_TECHNICAL_CODES:
+                return "NON_TECHNICAL"
+            name_clean = (dept_name or "").strip().lower()
+            name_clean = re.sub(r'\s*&\s*', ' and ', name_clean)
+            for kw in NON_TECHNICAL_KEYWORDS:
+                if re.search(r'\b' + re.escape(kw) + r'\b', name_clean):
+                    return "NON_TECHNICAL"
+            return "TECHNICAL"
+
+        def parse_primary_category(val: str) -> Optional[str]:
+            if not val:
+                return None
+            v = re.sub(r'[^a-zA-Z0-9]', '', val).lower()
+            if v in ("nontechnicaldepartment", "nontechnical", "nontech"):
+                return "NON_TECHNICAL"
+            if v in ("technicaldepartment", "technical", "tech"):
+                return "TECHNICAL"
+            return None
+
+        cand_category = get_department_category(candidate.department.name, candidate.department.code or "")
+        input_category = parse_primary_category(input_dept_name)
+
         matched_dept = False
 
-        # Match by direct ID equality
-        if input_dept_id is not None and candidate.department_id == input_dept_id:
-            matched_dept = True
-
-        # Match by Department Name or Code
-        if input_dept_name:
-            input_d = normalize_dept(input_dept_name)
-            if (input_d == cand_dname or 
-                input_d == cand_dcode or 
-                input_d in cand_dname or 
-                cand_dname in input_d):
+        if input_category is not None:
+            # Candidate selected a primary department category (Technical Department or Non-Technical Department)
+            if input_category == cand_category:
                 matched_dept = True
-            elif cand_dcode and cand_dcode in input_d:
+        else:
+            # Direct sub-department matching via ID, Name, or Code
+            # Match by direct ID equality
+            if input_dept_id is not None and candidate.department_id == input_dept_id:
                 matched_dept = True
 
-        # If ID was sent, verify if that ID maps to candidate department in DB
-        if not matched_dept and input_dept_id is not None:
-            dept_from_id = db.query(Department).filter(Department.id == input_dept_id).first()
-            if dept_from_id:
-                dept_id_name = normalize_dept(dept_from_id.name)
-                dept_id_code = normalize_dept(dept_from_id.code or "")
-                if dept_id_name == cand_dname or dept_id_code == cand_dcode:
+            # Match by Department Name or Code
+            if input_dept_name:
+                input_d = normalize_dept(input_dept_name)
+                if (input_d == cand_dname or 
+                    input_d == cand_dcode or 
+                    input_d in cand_dname or 
+                    cand_dname in input_d):
+                    matched_dept = True
+                elif cand_dcode and cand_dcode in input_d:
                     matched_dept = True
 
+            # If ID was sent, verify if that ID maps to candidate department in DB
+            if not matched_dept and input_dept_id is not None:
+                dept_from_id = db.query(Department).filter(Department.id == input_dept_id).first()
+                if dept_from_id:
+                    dept_id_name = normalize_dept(dept_from_id.name)
+                    dept_id_code = normalize_dept(dept_from_id.code or "")
+                    if dept_id_name == cand_dname or dept_id_code == cand_dcode:
+                        matched_dept = True
+
         if not matched_dept:
-            resp.message = (
-                f"Department mismatch: The selected department does not match the department assigned "
-                f"to candidate '{candidate.full_name}' in our records ('{candidate.department.name}'). Please select your assigned department."
-            )
+            if input_category is not None:
+                category_label = "Technical Department" if input_category == "TECHNICAL" else "Non-Technical Department"
+                assigned_category_label = "Technical Department" if cand_category == "TECHNICAL" else "Non-Technical Department"
+                resp.message = (
+                    f"Department mismatch: The selected department category '{category_label}' does not match the department assigned "
+                    f"to candidate '{candidate.full_name}' in our records ('{candidate.department.name}' - {assigned_category_label}). Please select your assigned department."
+                )
+            else:
+                resp.message = (
+                    f"Department mismatch: The selected department does not match the department assigned "
+                    f"to candidate '{candidate.full_name}' in our records ('{candidate.department.name}'). Please select your assigned department."
+                )
             return resp
 
         # Store validated details
@@ -166,7 +212,7 @@ class CandidateExamService:
             question_set = existing_attempt.question_set
             slot = existing_attempt.slot
         else:
-            dept_id = req.department_id or (candidate.department_id if candidate.department_id else None)
+            dept_id = candidate.department_id if (input_category is not None or not req.department_id) else req.department_id
 
             published_exams = db.query(Exam).options(
                 joinedload(Exam.departments)
@@ -825,7 +871,8 @@ class CandidateExamService:
 
             receipt = f"SEB-REC-{secrets.token_hex(4).upper()}-{int(time.time() * 1000)}"
             now = datetime.now(timezone.utc)
-            duration_sec = max(0, int((now - attempt.started_at).total_seconds())) if attempt.started_at else 0
+            started_utc = _ensure_utc(attempt.started_at)
+            duration_sec = max(0, int((now - started_utc).total_seconds())) if started_utc else 0
 
             cand_code = attempt.candidate.registration_number if attempt.candidate else (attempt.candidate_code or "")
             set_code = attempt.question_set.set_code if attempt.question_set else (attempt.question_set_code or "A")
