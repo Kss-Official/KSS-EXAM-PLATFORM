@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { getEligibleDepartments, type DepartmentDto } from "../../services/api";
 
 interface DepartmentSelectorProps {
@@ -10,14 +10,15 @@ interface DepartmentSelectorProps {
 
 const DEFAULT_DEPARTMENTS: DepartmentDto[] = [
   { id: 1, name: "Developer", code: "DEV", active: true },
-  { id: 2, name: "Tester", code: "QA", active: true },
-  { id: 3, name: "Computer Science & Engineering", code: "CSE", active: true },
-  { id: 4, name: "Information Technology", code: "IT", active: true },
-  { id: 5, name: "Electronics & Communication Engineering", code: "ECE", active: true },
-  { id: 6, name: "Electrical & Electronics Engineering", code: "EEE", active: true },
-  { id: 7, name: "UI/UX", code: "UIUX", active: true },
-  { id: 8, name: "Marketing", code: "MKT", active: true },
-  { id: 9, name: "HR", code: "HR", active: true }
+  { id: 2, name: "Computer Science and Engineering", code: "CSE", active: true },
+  { id: 3, name: "Information Technology", code: "IT", active: true },
+  { id: 4, name: "Electronics & Communication Engineering", code: "ECE", active: true },
+  { id: 5, name: "Electrical & Electronics Engineering", code: "EEE", active: true },
+  { id: 6, name: "Mechanical Engineering", code: "MECH", active: true },
+  { id: 7, name: "Civil Engineering", code: "CIVIL", active: true },
+  { id: 8, name: "Quality Assurance & Testing", code: "QA", active: true },
+  { id: 9, name: "UI/UX Design & Product", code: "UIUX", active: true },
+  { id: 10, name: "Human Resources", code: "HR", active: true }
 ];
 
 export default function DepartmentSelector({

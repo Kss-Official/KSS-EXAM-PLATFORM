@@ -136,32 +136,47 @@ class CandidateExamService:
             )
             return resp
 
-        # Check by Department ID
-        if input_dept_id is not None and candidate.department_id != input_dept_id:
+        # Check Department match via ID, Name, or Code
+        def normalize_dept(s: str) -> str:
+            clean = (s or "").strip().lower()
+            clean = re.sub(r'\s*&\s*', ' and ', clean)
+            return re.sub(r'[^a-zA-Z0-9]', '', clean)
+
+        cand_dname = normalize_dept(candidate.department.name)
+        cand_dcode = normalize_dept(candidate.department.code or "")
+
+        matched_dept = False
+
+        # Match by direct ID equality
+        if input_dept_id is not None and candidate.department_id == input_dept_id:
+            matched_dept = True
+
+        # Match by Department Name or Code
+        if input_dept_name:
+            input_d = normalize_dept(input_dept_name)
+            if (input_d == cand_dname or 
+                input_d == cand_dcode or 
+                input_d in cand_dname or 
+                cand_dname in input_d):
+                matched_dept = True
+            elif cand_dcode and cand_dcode in input_d:
+                matched_dept = True
+
+        # If ID was sent, verify if that ID maps to candidate department in DB
+        if not matched_dept and input_dept_id is not None:
+            dept_from_id = db.query(Department).filter(Department.id == input_dept_id).first()
+            if dept_from_id:
+                dept_id_name = normalize_dept(dept_from_id.name)
+                dept_id_code = normalize_dept(dept_from_id.code or "")
+                if dept_id_name == cand_dname or dept_id_code == cand_dcode:
+                    matched_dept = True
+
+        if not matched_dept:
             resp.message = (
                 f"Department mismatch: The selected department does not match the department assigned "
                 f"to this candidate in our records ('{candidate.department.name}'). Please select your assigned department."
             )
             return resp
-
-        # Check by Department Name / Code if provided
-        if input_dept_name:
-            def normalize_dept(s: str) -> str:
-                return re.sub(r'[^a-zA-Z0-9]', '', (s or "").strip()).lower()
-
-            cand_dname = normalize_dept(candidate.department.name)
-            cand_dcode = normalize_dept(candidate.department.code or "")
-            input_d = normalize_dept(input_dept_name)
-
-            if (input_d != cand_dname and 
-                input_d != cand_dcode and 
-                input_d not in cand_dname and 
-                cand_dname not in input_d):
-                resp.message = (
-                    f"Department mismatch: The selected department does not match the department assigned "
-                    f"to this candidate in our records ('{candidate.department.name}'). Please select your assigned department."
-                )
-                return resp
 
         # Store validated details
         resp.candidate_id = candidate.id
