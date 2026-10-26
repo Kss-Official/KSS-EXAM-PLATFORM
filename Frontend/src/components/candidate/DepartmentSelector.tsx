@@ -73,8 +73,8 @@ export default function DepartmentSelector({
         <option value="" disabled>
           Select Department
         </option>
-        {safeDepts.map((dept) => (
-          <option key={dept.id || dept.code} value={dept.name}>
+        {safeDepts.map((dept, idx) => (
+          <option key={`${dept.id || 'dept'}-${dept.code || 'code'}-${idx}`} value={dept.name}>
             {dept.name}
           </option>
         ))}
