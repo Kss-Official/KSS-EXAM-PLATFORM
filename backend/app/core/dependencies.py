@@ -9,10 +9,14 @@ from app.models.user import AppUser
 
 def get_client_ip(request: Request) -> str:
     """Extracts client IP address supporting reverse proxies and Cloudflare/Nginx headers."""
-    xf = request.headers.get("x-forwarded-for")
-    if xf:
-        return xf.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+    peer = request.client.host if request.client else "unknown"
+    # Only honor X-Forwarded-For when the direct peer is a configured trusted proxy;
+    # otherwise any client could spoof the header to evade rate limiting.
+    if peer in settings.TRUSTED_PROXY_IPS:
+        xf = request.headers.get("x-forwarded-for")
+        if xf:
+            return xf.split(",")[0].strip()
+    return peer
 
 def get_current_user_optional(
     request: Request,
@@ -30,8 +34,16 @@ def get_current_user_optional(
     if not data or "user_id" not in data:
         return None
 
+    # Strict Role Guard: Candidates cannot use tokens on staff/admin endpoints
+    if data.get("role") == "CANDIDATE":
+        return None
+
     user = db.query(AppUser).filter(AppUser.id == data["user_id"]).first()
     if not user or not user.enabled or not user.account_non_locked:
+        return None
+
+    # Strict Identity Guard: Token email must match AppUser email to prevent cross-table ID collisions
+    if data.get("email") and user.email.lower() != data.get("email").strip().lower():
         return None
 
     return user
