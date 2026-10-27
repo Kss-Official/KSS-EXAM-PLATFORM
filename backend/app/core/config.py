@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ENVIRONMENT: str = "development"  # set ENVIRONMENT=production to enforce startup security checks
     # Reverse proxies whose X-Forwarded-For header is trusted (exact client IPs as seen by the app)
-    TRUSTED_PROXY_IPS: List[str] = []
+    TRUSTED_PROXY_IPS: List[str] = ["127.0.0.1", "::1"]
 
     # Server Configuration
     HOST: str = "127.0.0.1"
@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "examsecure-enterprise-jwt-super-secret-key-production-grade-2026-min-64-bytes-entropy-kalpanaaa-software"
     SESSION_COOKIE_NAME: str = "JSESSIONID"
     SESSION_MAX_AGE: int = 7200  # 2 hours
+    COOKIE_SECURE: bool = False  # Set to True in production HTTPS environments
+    ALLOW_SQLITE_FAILOVER: bool = True  # In production, set to False to prevent silent SQLite split-brain
     BCRYPT_ROUNDS: int = 12
 
     # Administrator Initial Bootstrap

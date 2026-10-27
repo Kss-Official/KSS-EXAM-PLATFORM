@@ -39,9 +39,12 @@ def _init_engine():
                 echo=False
             )
         except Exception as exc:
+            if settings.ENVIRONMENT.lower() == "production" or not getattr(settings, "ALLOW_SQLITE_FAILOVER", True):
+                logger.critical(f"[DATABASE ERROR] Primary PostgreSQL unreachable ({exc}) and SQLite failover is disabled.")
+                raise RuntimeError(f"Database connection failed: {exc}")
             logger.warning(
                 f"[DATABASE FAILOVER] PostgreSQL unreachable ({exc}). "
-                f"Falling back to local persistent SQLite (examsecure.db) for zero downtime."
+                f"Falling back to local persistent SQLite (examsecure.db) for development resilience."
             )
             return create_engine(
                 "sqlite:///./examsecure.db",

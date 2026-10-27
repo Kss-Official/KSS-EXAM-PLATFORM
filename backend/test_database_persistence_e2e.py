@@ -19,9 +19,21 @@ def test_full_database_persistence_flow():
 
     print("\n--- 2. Testing Candidate Verification & Exam Matching ---")
     dynamic_cand_reg = f"CAND-PERSIST-{int(time.time() * 1000)}"
+    cand = Candidate(
+        registration_number=dynamic_cand_reg,
+        full_name="Persist Test Candidate",
+        email=f"{dynamic_cand_reg.lower()}@campus.edu",
+        department_id=1,
+        status="ACTIVE"
+    )
+    db.add(cand)
+    db.commit()
+    db.refresh(cand)
+
     verify_payload = {
-        "registrationNumber": dynamic_cand_reg,
-        "uniqueId": dynamic_cand_reg,
+        "fullName": cand.full_name,
+        "email": cand.email,
+        "department": "Developer",
         "departmentId": 1
     }
     res = client.post("/api/candidate/verify", json=verify_payload)

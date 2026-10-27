@@ -42,16 +42,31 @@ async def lifespan(app: FastAPI):
     yield
     logger.info("ExamSecure FastAPI Backend shutting down.")
 
+_is_prod = settings.ENVIRONMENT.lower() == "production"
+
 app = FastAPI(
     title=settings.APP_NAME,
     description="Enterprise examination platform backend powered by Python and FastAPI",
     version=settings.APP_VERSION,
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/docs" if not _is_prod or settings.DEBUG else None,
+    redoc_url="/redoc" if not _is_prod or settings.DEBUG else None,
+    openapi_url="/openapi.json" if not _is_prod or settings.DEBUG else None
 )
 
 from starlette.middleware.gzip import GZipMiddleware
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=*, microphone=*"
+    if _is_prod:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
 
 # CORS configuration matching frontend Vite origin
 app.add_middleware(

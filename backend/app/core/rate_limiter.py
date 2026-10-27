@@ -55,4 +55,8 @@ class RateLimiter:
             count, _, _ = record
             return max(0, self.max_failed_attempts - count)
 
+    def reset_all(self) -> None:
+        with self._lock:
+            self._records.clear()
+
 rate_limiter = RateLimiter(max_failed_attempts=5, lockout_seconds=900)

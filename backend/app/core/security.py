@@ -83,7 +83,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         max_age=settings.SESSION_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=settings.COOKIE_SECURE,
         path="/"
     )
 
@@ -91,7 +91,10 @@ def clear_auth_cookie(response: Response) -> None:
     """Deletes session cookie from client browser."""
     response.delete_cookie(
         key=settings.SESSION_COOKIE_NAME,
-        path="/"
+        path="/",
+        httponly=True,
+        samesite="lax",
+        secure=settings.COOKIE_SECURE
     )
 
 def extract_token_from_request(request: Request) -> Optional[str]:

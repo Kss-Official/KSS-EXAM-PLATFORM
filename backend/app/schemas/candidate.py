@@ -79,6 +79,7 @@ class CandidateVerifyResponse(CamelModel):
     scheduled_end_time: Optional[datetime] = None
     set_code: Optional[str] = None
     question_set_code: Optional[str] = None
+    token: Optional[str] = None
 
 class CandidateOptionDto(CamelModel):
     option_id: int

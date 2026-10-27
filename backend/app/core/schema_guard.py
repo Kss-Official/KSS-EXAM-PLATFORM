@@ -116,11 +116,11 @@ def ensure_indexes_and_constraints():
         "CREATE INDEX IF NOT EXISTS ix_stored_documents_exam_id ON stored_documents (exam_id);"
     ]
 
-    with engine.begin() as conn:
-        for stmt in ddl_statements:
-            try:
+    for stmt in ddl_statements:
+        try:
+            with engine.begin() as conn:
                 conn.execute(text(stmt))
-            except Exception as e:
-                logger.debug(f"Index statement notice: {e}")
+        except Exception as e:
+            logger.warning(f"Index/DDL statement notice (non-fatal): {e}")
 
     logger.info("High-concurrency database constraints, indexes, and schema verified successfully.")

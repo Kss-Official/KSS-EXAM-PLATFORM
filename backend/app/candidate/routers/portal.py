@@ -1,8 +1,11 @@
 from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, Query, Body, HTTPException, status
+from fastapi import APIRouter, Depends, Query, Body, HTTPException, status, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
-from app.core import get_db
+from app.core import (
+    get_db, rate_limiter, get_client_ip,
+    extract_token_from_request, verify_session_token, set_auth_cookie
+)
 from app.models import Department, Exam
 from app.schemas import (
     DepartmentDto, CandidateVerifyRequest, CandidateVerifyResponse,
@@ -25,6 +28,22 @@ def _require_candidate_id(cid) -> int:
         return int(cid)
     except (TypeError, ValueError):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="candidateId must be an integer")
+
+
+def _verify_candidate_ownership(request: Request, cid: Any) -> int:
+    """Ownership guard: ensures candidateId matches the signed candidate session token if one is present."""
+    int_cid = _require_candidate_id(cid)
+    token = extract_token_from_request(request)
+    if token:
+        data = verify_session_token(token)
+        if data and data.get("role") == "CANDIDATE" and "candidate_id" in data:
+            token_cid = int(data["candidate_id"])
+            if int_cid != token_cid:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: Candidate ID does not match active session token."
+                )
+    return int_cid
 
 
 def _candidate_safe_exam(exam):
@@ -82,6 +101,7 @@ def get_eligible_departments(db: Session = Depends(get_db)):
 @router.post("/login", response_model=CandidateVerifyResponse)
 def verify_candidate(
     req: CandidateVerifyRequest,
+    request: Request,
     db: Session = Depends(get_db)
 ):
     """
@@ -89,10 +109,27 @@ def verify_candidate(
     Accepts candidate credentials (fullName, email, department/college) and returns examination eligibility.
     Available at both /api/candidate/verify and /api/candidate/login for full compatibility with load testing suites.
     """
-    return CandidateExamService.verify_candidate(db, req)
+    client_ip = get_client_ip(request)
+    email_key = f"candidate_email:{req.email.strip().lower()}"
+    ip_key = f"candidate_ip:{client_ip}"
+
+    if rate_limiter.is_blocked(email_key) or rate_limiter.is_blocked(ip_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many verification attempts. Please wait 15 minutes before retrying."
+        )
+    res = CandidateExamService.verify_candidate(db, req)
+    if not res.eligible:
+        rate_limiter.record_failed_attempt(email_key)
+        rate_limiter.record_failed_attempt(ip_key)
+    else:
+        rate_limiter.record_successful_attempt(email_key)
+        rate_limiter.record_successful_attempt(ip_key)
+    return res
 
 @router.post("/start", response_model=CandidateStartAttemptResponse)
 def start_or_resume_attempt(
+    request: Request,
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db)
 ):
@@ -103,10 +140,12 @@ def start_or_resume_attempt(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="candidateId and examId are required"
         )
-    return CandidateExamService.start_or_resume_attempt(db, int(cand_id), int(exam_id))
+    verified_cid = _verify_candidate_ownership(request, cand_id)
+    return CandidateExamService.start_or_resume_attempt(db, verified_cid, int(exam_id))
 
 @router.post("/answers")
 def save_answer(
+    request: Request,
     attemptId: Optional[int] = Query(None, alias="attemptId"),
     attempt_id: Optional[int] = Query(None, alias="attempt_id"),
     payload: Dict[str, Any] = Body(...),
@@ -120,13 +159,15 @@ def save_answer(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="questionId is required")
     opt_id = payload.get("selectedOptionId") if "selectedOptionId" in payload else payload.get("selected_option_id")
     cid = payload.get("candidateId") or payload.get("candidate_id")
+    verified_cid = _verify_candidate_ownership(request, cid)
     return CandidateExamService.save_answer(
         db, int(aid), int(qid), int(opt_id) if opt_id is not None else None,
-        candidate_id=_require_candidate_id(cid)
+        candidate_id=verified_cid
     )
 
 @router.post("/submit", response_model=SubmissionResponse)
 def submit_attempt(
+    request: Request,
     attemptId: Optional[int] = Query(None, alias="attemptId"),
     attempt_id: Optional[int] = Query(None, alias="attempt_id"),
     candidateId: Optional[int] = Query(None, alias="candidateId"),
@@ -143,9 +184,10 @@ def submit_attempt(
         answers_payload = payload.get("answers")
     if not aid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="attemptId is required")
+    verified_cid = _verify_candidate_ownership(request, cid)
     return CandidateExamService.submit_attempt(
         db, int(aid), answers_payload=answers_payload,
-        candidate_id=_require_candidate_id(cid)
+        candidate_id=verified_cid
     )
 
 @router.post("/proctor/warning")

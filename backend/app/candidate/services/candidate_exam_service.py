@@ -63,22 +63,27 @@ class CandidateExamService:
             joinedload(Candidate.college)
         )
         candidate = None
+        target_reg = (req.registration_number or "").strip().upper()
+        if not target_reg and input_email and (input_email.isdigit() or "@" not in input_email):
+            target_reg = input_email.strip().upper()
 
-        if input_email:
+        if input_email and "@" in input_email:
             candidate = cand_query.filter(func.lower(Candidate.email) == input_email).first()
 
         # Fallback to registration number / Sl. No. if email didn't match or input was a registration number
-        if not candidate:
-            target_reg = (req.registration_number or "").strip().upper()
-            if not target_reg and input_email and (input_email.isdigit() or "@" not in input_email):
-                target_reg = input_email.strip().upper()
-            if target_reg:
-                candidate = cand_query.filter(func.upper(Candidate.registration_number) == target_reg).first()
+        if not candidate and target_reg:
+            candidate = cand_query.filter(func.upper(Candidate.registration_number) == target_reg).first()
 
         if not candidate:
             ident = input_email or req.registration_number or "provided identifier"
             resp.message = f"Access Denied: No candidate record found for '{ident}'. Please verify your registered email address or contact your administrator."
             return resp
+
+        # Strict validation: If both email and registration number are provided, both must match candidate
+        if input_email and "@" in input_email and target_reg:
+            if candidate.registration_number.strip().upper() != target_reg or candidate.email.strip().lower() != input_email:
+                resp.message = f"Registration and email mismatch: The provided registration number '{target_reg}' does not match the registered email '{input_email}'."
+                return resp
 
         if candidate.status and candidate.status.upper() != "ACTIVE":
             resp.message = "Candidate account is disabled, suspended, or inactive. Please contact your exam administrator."
@@ -367,6 +372,14 @@ class CandidateExamService:
         resp.department_name = candidate.department.name if candidate.department else "General Assessment"
         resp.slot_name = f"Slot {slot.slot_number}" if slot else "Slot 1 (Main)"
 
+        from app.core.security import create_session_token
+        resp.token = create_session_token({
+            "candidate_id": candidate.id,
+            "registration_number": candidate.registration_number,
+            "email": candidate.email,
+            "role": "CANDIDATE"
+        })
+
         return resp
 
     @classmethod
@@ -439,9 +452,20 @@ class CandidateExamService:
                         status="ASSIGNED",
                         created_at=datetime.now(timezone.utc)
                     )
-                    db.add(attempt)
-                    db.commit()
-                    db.refresh(attempt)
+                    try:
+                        db.add(attempt)
+                        db.commit()
+                        db.refresh(attempt)
+                    except Exception:
+                        db.rollback()
+                        attempt = db.query(ExamAttempt).options(
+                            joinedload(ExamAttempt.exam),
+                            joinedload(ExamAttempt.candidate),
+                            joinedload(ExamAttempt.question_set)
+                        ).filter(
+                            ExamAttempt.candidate_id == cand.id,
+                            ExamAttempt.exam_id == target_exam.id
+                        ).order_by(ExamAttempt.created_at.desc()).first()
                 else:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
@@ -526,20 +550,29 @@ class CandidateExamService:
                         "display_label": lbl
                     })
 
-            if new_arqs:
-                db.bulk_insert_mappings(AttemptRandomizedQuestion, new_arqs)
-            if new_aros:
-                db.bulk_insert_mappings(AttemptRandomizedOption, new_aros)
+            try:
+                if new_arqs:
+                    db.bulk_insert_mappings(AttemptRandomizedQuestion, new_arqs)
+                if new_aros:
+                    db.bulk_insert_mappings(AttemptRandomizedOption, new_aros)
 
-            db.add(AuditLog(
-                action="START_EXAM_ATTEMPT",
-                entity_type="ExamAttempt",
-                entity_id=str(attempt.id),
-                performed_by=attempt.candidate.registration_number,
-                details=f"Started attempt: examId={exam.id} set={attempt.question_set.set_code}"
-            ))
-            db.commit()
-            db.refresh(attempt)
+                db.add(AuditLog(
+                    action="START_EXAM_ATTEMPT",
+                    entity_type="ExamAttempt",
+                    entity_id=str(attempt.id),
+                    performed_by=attempt.candidate.registration_number,
+                    details=f"Started attempt: examId={exam.id} set={attempt.question_set.set_code}"
+                ))
+                db.commit()
+                db.refresh(attempt)
+            except Exception:
+                db.rollback()
+                # If concurrent transaction already randomized and committed, refresh attempt state gracefully
+                attempt = db.query(ExamAttempt).options(
+                    joinedload(ExamAttempt.exam),
+                    joinedload(ExamAttempt.candidate),
+                    joinedload(ExamAttempt.question_set)
+                ).filter(ExamAttempt.id == attempt.id).first()
 
         elif attempt.status == "IN_PROGRESS":
             exp_utc = _ensure_utc(attempt.expires_at)
