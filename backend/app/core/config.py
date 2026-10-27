@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "2.0.0"
     API_PREFIX: str = "/api"
     DEBUG: bool = False
+    ENVIRONMENT: str = "development"  # set ENVIRONMENT=production to enforce startup security checks
+    # Reverse proxies whose X-Forwarded-For header is trusted (exact client IPs as seen by the app)
+    TRUSTED_PROXY_IPS: List[str] = []
 
     # Server Configuration
     HOST: str = "127.0.0.1"
@@ -72,3 +75,25 @@ class Settings(BaseSettings):
     )
 
 settings = Settings()
+
+_DEFAULT_SECRET_KEY_PREFIX = "examsecure-enterprise-jwt-super-secret-key"
+
+
+def validate_security_settings(s: "Settings") -> None:
+    """Fail fast in production on insecure defaults; warn loudly elsewhere."""
+    import logging
+    problems = []
+    if s.SECRET_KEY.startswith(_DEFAULT_SECRET_KEY_PREFIX) or len(s.SECRET_KEY) < 32:
+        problems.append("SECRET_KEY is the built-in default or too short")
+    if s.ADMIN_BOOTSTRAP_PASSWORD == "Admin@ExamSecure2026!":
+        problems.append("ADMIN_BOOTSTRAP_PASSWORD is the built-in default")
+    if any(o.strip() == "*" for o in s.CORS_ORIGINS):
+        problems.append("CORS_ORIGINS contains a wildcard while credentials are enabled")
+    if not problems:
+        return
+    if s.ENVIRONMENT.lower() == "production":
+        raise RuntimeError("Refusing to start in production: " + "; ".join(problems))
+    logging.getLogger(__name__).warning("INSECURE SETTINGS (set ENVIRONMENT=production to enforce): %s", "; ".join(problems))
+
+
+validate_security_settings(settings)

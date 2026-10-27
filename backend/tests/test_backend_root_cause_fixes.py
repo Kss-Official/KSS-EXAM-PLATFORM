@@ -13,6 +13,12 @@ from app.admin.services import ExamService, QuestionService
 
 client = TestClient(app)
 
+
+def _fresh(fn, *args, **kwargs):
+    """Run a service call on its own session, exactly like one HTTP request does."""
+    with SessionLocal() as s:
+        return fn(s, *args, **kwargs)
+
 @pytest.fixture
 def db():
     session = SessionLocal()
@@ -155,11 +161,11 @@ def test_save_answer_clearing_and_deduplication(db: Session):
         ).first()
 
         # 1. Save answer
-        save1 = CandidateExamService.save_answer(db, attempt_id, q_id, opt_correct.id)
+        save1 = _fresh(CandidateExamService.save_answer, attempt_id, q_id, opt_correct.id)
         assert save1["success"] is True
 
         # 2. Simulate concurrent second save for same question -> should NOT duplicate rows
-        save2 = CandidateExamService.save_answer(db, attempt_id, q_id, opt_correct.id)
+        save2 = _fresh(CandidateExamService.save_answer, attempt_id, q_id, opt_correct.id)
         assert save2["success"] is True
 
         ans_rows = db.query(AttemptAnswer).filter(
@@ -169,8 +175,9 @@ def test_save_answer_clearing_and_deduplication(db: Session):
         assert len(ans_rows) == 1, "There must be exactly 1 answer row for this question"
 
         # 3. Test choice clearing with -1 and 0 (defensive check)
-        clear1 = CandidateExamService.save_answer(db, attempt_id, q_id, -1)
+        clear1 = _fresh(CandidateExamService.save_answer, attempt_id, q_id, -1)
         assert clear1["success"] is True
+        db.expire_all()
         ans_cleared = db.query(AttemptAnswer).filter(
             AttemptAnswer.attempt_id == attempt_id,
             AttemptAnswer.question_id == q_id
@@ -178,16 +185,16 @@ def test_save_answer_clearing_and_deduplication(db: Session):
         assert ans_cleared.selected_option_id is None, "Option ID -1 must clear the selection to None"
 
         # 4. Re-select correct answer and submit
-        CandidateExamService.save_answer(db, attempt_id, q_id, opt_correct.id)
+        _fresh(CandidateExamService.save_answer, attempt_id, q_id, opt_correct.id)
 
         # Finalize submission (Results NOT published yet)
-        sub_resp = CandidateExamService.submit_attempt(db, attempt_id)
+        sub_resp = _fresh(CandidateExamService.submit_attempt, attempt_id)
         assert sub_resp.success is True
         assert sub_resp.results_published is False
         assert sub_resp.score is None, "Score must be hidden when results are not published"
 
         # Idempotent re-submission should ALSO hide score when unpublished!
-        sub_resp2 = CandidateExamService.submit_attempt(db, attempt_id)
+        sub_resp2 = _fresh(CandidateExamService.submit_attempt, attempt_id)
         assert sub_resp2.score is None, "Re-submission must NOT leak score when unpublished"
 
         # 5. Publish results and verify score is now revealed
@@ -195,7 +202,7 @@ def test_save_answer_clearing_and_deduplication(db: Session):
         exam.results_published = True
         db.commit()
 
-        sub_resp3 = CandidateExamService.submit_attempt(db, attempt_id)
+        sub_resp3 = _fresh(CandidateExamService.submit_attempt, attempt_id)
         assert sub_resp3.results_published is True
         assert sub_resp3.score == Decimal("10.00"), "Score must be revealed once results are published"
         assert sub_resp3.percentage == Decimal("100.00")

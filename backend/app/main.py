@@ -105,7 +105,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
-            "message": f"Internal Server Error: {str(exc)}",
+            "message": f"Internal Server Error: {str(exc)}" if settings.DEBUG else "Internal Server Error",
             "statusCode": 500
         }
     )

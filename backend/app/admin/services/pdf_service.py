@@ -35,6 +35,8 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
         raise ValueError("The uploaded document is empty.")
     if len(pdf_bytes) < 5:
         raise ValueError("The uploaded document is corrupted or too small.")
+    if not pdf_bytes.startswith(PDF_MAGIC_BYTES):
+        raise ValueError("The uploaded file is not a valid PDF document (missing %PDF- header).")
 
     try:
         with pymupdf.open(

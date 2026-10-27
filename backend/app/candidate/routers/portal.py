@@ -17,6 +17,22 @@ import time
 _DEPT_CACHE = None
 _DEPT_CACHE_TIME = 0.0
 
+def _require_candidate_id(cid) -> int:
+    """Ownership checks must never be skippable: candidateId is mandatory."""
+    if cid is None or cid == "":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="candidateId is required")
+    try:
+        return int(cid)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="candidateId must be an integer")
+
+
+def _candidate_safe_exam(exam):
+    """Strip hidden test cases so graders' inputs/expected outputs are never served to candidates."""
+    for q in exam.questions:
+        q.testCases = [tc for tc in q.testCases if not tc.isHidden]
+    return exam
+
 @router.get("/departments", response_model=List[DepartmentDto])
 def get_eligible_departments(db: Session = Depends(get_db)):
     """
@@ -106,7 +122,7 @@ def save_answer(
     cid = payload.get("candidateId") or payload.get("candidate_id")
     return CandidateExamService.save_answer(
         db, int(aid), int(qid), int(opt_id) if opt_id is not None else None,
-        candidate_id=int(cid) if cid is not None else None
+        candidate_id=_require_candidate_id(cid)
     )
 
 @router.post("/submit", response_model=SubmissionResponse)
@@ -129,7 +145,7 @@ def submit_attempt(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="attemptId is required")
     return CandidateExamService.submit_attempt(
         db, int(aid), answers_payload=answers_payload,
-        candidate_id=int(cid) if cid is not None else None
+        candidate_id=_require_candidate_id(cid)
     )
 
 @router.post("/proctor/warning")
@@ -165,21 +181,26 @@ from app.admin.services.coding_exam_service import CodingExamService
 @router.get("/coding/exams", response_model=List[CodingExamDto])
 def list_available_coding_exams(db: Session = Depends(get_db)):
     """Retrieves all active Round 2 Coding assessments for candidates."""
-    return CodingExamService.get_all_coding_exams(db)
+    return [_candidate_safe_exam(e) for e in CodingExamService.get_all_coding_exams(db) if e.status == "PUBLISHED"]
 
 @router.get("/coding/exams/{exam_id}", response_model=CodingExamDto)
 def get_coding_exam_for_candidate(exam_id: int, db: Session = Depends(get_db)):
     """Retrieves problem definitions and public test cases for a coding exam."""
-    return CodingExamService.get_coding_exam_by_id(db, exam_id)
+    exam = CodingExamService.get_coding_exam_by_id(db, exam_id)
+    if exam.status != "PUBLISHED":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Coding exam {exam_id} not found")
+    return _candidate_safe_exam(exam)
 
 @router.post("/coding/run", response_model=CodeRunResponse)
 def run_candidate_code(req: CodeRunRequest):
     """Runs candidate code against custom or sample inputs in a secure sandbox."""
-    return CodeRunnerService.run_candidate_code(req)
+    # DISABLED: unauthenticated, unsandboxed code execution (audit report 2). Re-enable only with auth + sandbox.
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Code execution is temporarily disabled until a sandboxed runner is available.")
 
 @router.post("/coding/submit", response_model=CodeSubmitResponse)
 def submit_candidate_code(req: CodeSubmitRequest, db: Session = Depends(get_db)):
     """Evaluates candidate code against all hidden & public test cases, scoring the attempt."""
-    return CodeRunnerService.evaluate_and_submit_code(db, req)
+    # DISABLED: see /coding/run.
+    raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Code execution is temporarily disabled until a sandboxed runner is available.")
 
 

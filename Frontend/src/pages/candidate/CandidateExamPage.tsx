@@ -938,7 +938,7 @@ export default function CandidateExamPage({
                   const chosenOpt = q.options[optIdx];
                   const optId = chosenOpt.id ?? chosenOpt.optionId ?? optIdx;
                   try {
-                    await saveCandidateAnswer(attemptData.attemptId, qId, optId);
+                    await saveCandidateAnswer(attemptData.attemptId, qId, optId, dbCandId);
                   } catch (syncErr) {
                     console.warn("[CandidateExamPage] Initial answer sync notice:", syncErr);
                   }

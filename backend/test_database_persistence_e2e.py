@@ -60,7 +60,7 @@ def test_full_database_persistence_flow():
     print(f"Saving answer for Question {q5.get('displayIndex')}: Question ID={q5_id}, Selected Option ID={opt_c_id} ('{safe_opt_text}')")
     ans_res = client.post(
         f"/api/candidate/answers?attemptId={attempt_id}",
-        json={"questionId": q5_id, "selectedOptionId": opt_c_id}
+        json={"questionId": q5_id, "selectedOptionId": opt_c_id, "candidateId": cand_id}
     )
     assert ans_res.status_code == 200, f"Answer save failed: {ans_res.text}"
     ans_data = ans_res.json()
@@ -77,7 +77,7 @@ def test_full_database_persistence_flow():
     print(f"Verified AttemptAnswer row persisted in DB! ID={saved_db_ans.id}, Attempt={saved_db_ans.attempt_id}, Question={saved_db_ans.question_id}, Option={saved_db_ans.selected_option_id}")
 
     print("\n--- 5. Testing Candidate Exam Submission & Scoring ---")
-    sub_res = client.post(f"/api/candidate/submit?attemptId={attempt_id}")
+    sub_res = client.post(f"/api/candidate/submit?attemptId={attempt_id}", json={"candidateId": cand_id})
     assert sub_res.status_code == 200, f"Submit attempt failed: {sub_res.text}"
     sub_data = sub_res.json()
     print("Submit API response:")

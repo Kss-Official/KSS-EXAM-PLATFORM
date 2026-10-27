@@ -115,7 +115,7 @@ def test_multi_candidate_session_isolation():
 
     ans_a1 = requests.post(
         f"{BASE_URL}/candidate/answers?attemptId={attempt_a_id}",
-        json={"questionId": q1_a_id, "selectedOptionId": opt_a_q1}
+        json={"questionId": q1_a_id, "selectedOptionId": opt_a_q1, "candidateId": cand_a_id}
     )
     assert ans_a1.status_code == 200, f"Candidate A save answer failed: {ans_a1.text}"
 
@@ -130,7 +130,7 @@ def test_multi_candidate_session_isolation():
 
     ans_b1 = requests.post(
         f"{BASE_URL}/candidate/answers?attemptId={attempt_b_id}",
-        json={"questionId": q1_b_id, "selectedOptionId": opt_b_q1}
+        json={"questionId": q1_b_id, "selectedOptionId": opt_b_q1, "candidateId": cand_b_id}
     )
     assert ans_b1.status_code == 200, f"Candidate B save answer failed: {ans_b1.text}"
 
@@ -157,7 +157,7 @@ def test_multi_candidate_session_isolation():
     assert answers_b[str(q1_b_id)] != opt_a_q1, "Candidate B's answer must NOT be contaminated by Candidate A!"
 
     # 10. Candidate A submits the attempt
-    submit_a_res = requests.post(f"{BASE_URL}/candidate/submit?attemptId={attempt_a_id}")
+    submit_a_res = requests.post(f"{BASE_URL}/candidate/submit?attemptId={attempt_a_id}", json={"candidateId": cand_a_id})
     assert submit_a_res.status_code == 200, f"Candidate A submit failed: {submit_a_res.text}"
     submit_a = submit_a_res.json()
     assert submit_a["receiptId"] is not None

@@ -144,6 +144,7 @@ def test_full_backend_lifecycle_and_root_cause_fixes(db: Session):
         v_res = client.post("/api/candidate/verify", json={
             "registrationNumber": test_reg,
             "uniqueId": code_dto.code,
+            "email": test_cand.email,
             "fullName": test_cand.full_name,
             "departmentId": dept.id,
             "departmentName": dept.name
@@ -186,7 +187,8 @@ def test_full_backend_lifecycle_and_root_cause_fixes(db: Session):
             f"/api/candidate/answers?attemptId={attempt_id}",
             json={
                 "questionId": q_target["id"],
-                "selectedOptionId": target_opt_id
+                "selectedOptionId": target_opt_id,
+                "candidateId": candidate_id
             }
         )
         assert ans_res.status_code == 200
@@ -197,13 +199,14 @@ def test_full_backend_lifecycle_and_root_cause_fixes(db: Session):
             f"/api/candidate/answers?attempt_id={attempt_id}",
             json={
                 "question_id": q_target["id"],
-                "selected_option_id": target_opt_id
+                "selected_option_id": target_opt_id,
+                "candidate_id": candidate_id
             }
         )
         assert ans_res2.status_code == 200
 
         # 8. Submit Attempt via Portal API
-        sub_res = client.post(f"/api/candidate/submit?attemptId={attempt_id}")
+        sub_res = client.post(f"/api/candidate/submit?attemptId={attempt_id}", json={"candidateId": candidate_id})
         assert sub_res.status_code == 200
         sub_data = sub_res.json()
         assert sub_data["success"] is True
@@ -240,7 +243,7 @@ def test_full_backend_lifecycle_and_root_cause_fixes(db: Session):
         assert cand_result["percentage"] == 50.0
 
         # 10. Submitting already submitted attempt returns consistent payload with revealed results
-        sub_res_again = client.post(f"/api/candidate/submit?attemptId={attempt_id}")
+        sub_res_again = client.post(f"/api/candidate/submit?attemptId={attempt_id}", json={"candidateId": candidate_id})
         assert sub_res_again.status_code == 200
         sub_again_data = sub_res_again.json()
         assert sub_again_data["resultsPublished"] is True

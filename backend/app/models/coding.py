@@ -98,6 +98,10 @@ class CodingAttempt(Base):
 
 
 class CodingSubmission(Base):
+    """
+    Stores evaluation RESULTS only — no source code is ever persisted.
+    Keeps the submission record lean: pass/fail counts + marks awarded.
+    """
     __tablename__ = "coding_submissions"
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)

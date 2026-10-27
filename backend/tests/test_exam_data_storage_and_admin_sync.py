@@ -143,7 +143,8 @@ def test_full_exam_flow_data_storage_and_admin_sync(db: Session):
     save1_resp = client.post("/api/candidate/answers", json={
         "attemptId": attempt_id,
         "questionId": q1_data["id"],
-        "selectedOptionId": correct_opt1["id"]
+        "selectedOptionId": correct_opt1["id"],
+        "candidateId": cand.id
     })
     assert save1_resp.status_code == 200
     assert save1_resp.json()["success"] is True
@@ -155,7 +156,8 @@ def test_full_exam_flow_data_storage_and_admin_sync(db: Session):
     save2_resp = client.post("/api/candidate/answers", json={
         "attemptId": attempt_id,
         "questionId": q2_data["id"],
-        "selectedOptionId": correct_opt2["id"]
+        "selectedOptionId": correct_opt2["id"],
+        "candidateId": cand.id
     })
     assert save2_resp.status_code == 200
 
@@ -169,7 +171,8 @@ def test_full_exam_flow_data_storage_and_admin_sync(db: Session):
     # 5. Candidate Submits Exam
     submit_resp = client.post("/api/candidate/submit", json={
         "attemptId": attempt_id,
-        "reason": "manual_submit"
+        "reason": "manual_submit",
+        "candidateId": cand.id
     })
     assert submit_resp.status_code == 200
     sub_data = submit_resp.json()
