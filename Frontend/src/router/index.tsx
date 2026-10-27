@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 
 
 interface RouterContextType {
@@ -20,8 +20,18 @@ interface RouterProviderProps {
 }
 
 export function RouterProvider({ children }: RouterProviderProps) {
-  // Read current pathname, fallback to /admin/dashboard if root
+  // Read current pathname, with hash (#/admin/login) or query (?page=/admin/login) fallback for static host compatibility
   const getInitialPath = () => {
+    if (typeof window === "undefined") return "/";
+    if (window.location.hash) {
+      const cleanHash = window.location.hash.replace(/^#/, "");
+      if (cleanHash.startsWith("/")) return cleanHash;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const queryPath = params.get("page") || params.get("p");
+    if (queryPath) {
+      return queryPath.startsWith("/") ? queryPath : `/${queryPath}`;
+    }
     return window.location.pathname || "/";
   };
 
@@ -29,11 +39,22 @@ export function RouterProvider({ children }: RouterProviderProps) {
 
   useEffect(() => {
     const onPopState = () => {
-      setPath(window.location.pathname || "/");
+      setPath(getInitialPath());
+    };
+
+    const onHashChange = () => {
+      if (window.location.hash) {
+        const cleanHash = window.location.hash.replace(/^#/, "");
+        if (cleanHash.startsWith("/")) setPath(cleanHash);
+      }
     };
 
     window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
+    window.addEventListener("hashchange", onHashChange);
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      window.removeEventListener("hashchange", onHashChange);
+    };
   }, []);
 
   const navigate = (to: string) => {
