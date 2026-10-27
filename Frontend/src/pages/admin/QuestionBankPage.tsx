@@ -410,10 +410,28 @@ export default function QuestionBankPage() {
 
   // Import Raw Text MCQs
   const handleImportText = async () => {
-    if (!activeSet || !rawTextImport.trim()) return;
+    if (!activeSet || !rawTextImport.trim() || !selectedDept) return;
     try {
       const imported = await importQuestionsText(activeSet.id, rawTextImport);
-      setNotice({ type: "success", message: `Successfully parsed and saved ${imported.length} MCQs to Set ${selectedSetCode}!` });
+      
+      // Sync imported questions to sister departments in the same track
+      const currentIsNonTech = isDeptNonTech(selectedDept);
+      const sisterDepts = (currentIsNonTech ? nonTechnicalDepts : technicalDepts).filter(d => d.id !== selectedDept.id);
+      if (sisterDepts.length > 0 && selectedSetCode && selectedExamId) {
+        for (const sister of sisterDepts) {
+          try {
+            const sisterSets = await getExamDepartmentSets(selectedExamId, sister.id);
+            const targetSisterSet = sisterSets.find(s => s.setCode === selectedSetCode);
+            if (targetSisterSet) {
+              await bulkUpdateSetQuestions(targetSisterSet.id, imported);
+            }
+          } catch (syncErr) {
+            console.warn(`Could not sync imported questions to sister dept ${sister.name}:`, syncErr);
+          }
+        }
+      }
+
+      setNotice({ type: "success", message: `Successfully parsed and saved ${imported.length} MCQs to Set ${selectedSetCode} across all enrolled ${currentIsNonTech ? "Non-Technical" : "Technical"} roles!` });
       setRawTextImport("");
       fetchSetQuestions();
       fetchDepartmentSets();
@@ -425,10 +443,28 @@ export default function QuestionBankPage() {
 
   // Apply Answer Key
   const handleApplyAnswerKey = async () => {
-    if (!activeSet || !answerKeyInput.trim()) return;
+    if (!activeSet || !answerKeyInput.trim() || !selectedDept) return;
     try {
       const res = await applyAnswerKey(activeSet.id, answerKeyInput);
-      setNotice({ type: "success", message: `Answer key applied: ${res.mappedAnswers} questions updated for Set ${selectedSetCode}.` });
+
+      // Sync answer key to sister departments in the same track
+      const currentIsNonTech = isDeptNonTech(selectedDept);
+      const sisterDepts = (currentIsNonTech ? nonTechnicalDepts : technicalDepts).filter(d => d.id !== selectedDept.id);
+      if (sisterDepts.length > 0 && selectedSetCode && selectedExamId) {
+        for (const sister of sisterDepts) {
+          try {
+            const sisterSets = await getExamDepartmentSets(selectedExamId, sister.id);
+            const targetSisterSet = sisterSets.find(s => s.setCode === selectedSetCode);
+            if (targetSisterSet) {
+              await applyAnswerKey(targetSisterSet.id, answerKeyInput);
+            }
+          } catch (syncErr) {
+            console.warn(`Could not sync answer key to sister dept ${sister.name}:`, syncErr);
+          }
+        }
+      }
+
+      setNotice({ type: "success", message: `Answer key applied: ${res.mappedAnswers} questions updated for Set ${selectedSetCode} across ${currentIsNonTech ? "Non-Technical" : "Technical"} track.` });
       setAnswerKeyInput("");
       fetchSetQuestions();
     } catch (err: unknown) {
@@ -442,7 +478,25 @@ export default function QuestionBankPage() {
     if (!selectedExamId || !selectedDept || !activeSet || !uploadFile) return;
     try {
       const res = await uploadDeptSetDocument(selectedExamId, selectedDept.id, activeSet.id, uploadFile, uploadDocType);
-      setNotice({ type: "success", message: `File "${res.originalFilename}" uploaded successfully for Set ${selectedSetCode}!` });
+
+      // Sync uploaded document to sister departments in the same track
+      const currentIsNonTech = isDeptNonTech(selectedDept);
+      const sisterDepts = (currentIsNonTech ? nonTechnicalDepts : technicalDepts).filter(d => d.id !== selectedDept.id);
+      if (sisterDepts.length > 0 && selectedSetCode && selectedExamId) {
+        for (const sister of sisterDepts) {
+          try {
+            const sisterSets = await getExamDepartmentSets(selectedExamId, sister.id);
+            const targetSisterSet = sisterSets.find(s => s.setCode === selectedSetCode);
+            if (targetSisterSet) {
+              await uploadDeptSetDocument(selectedExamId, sister.id, targetSisterSet.id, uploadFile, uploadDocType);
+            }
+          } catch (syncErr) {
+            console.warn(`Could not sync document to sister dept ${sister.name}:`, syncErr);
+          }
+        }
+      }
+
+      setNotice({ type: "success", message: `File "${res.originalFilename}" uploaded successfully for Set ${selectedSetCode} across all enrolled ${currentIsNonTech ? "Non-Technical" : "Technical"} roles!` });
       setUploadFile(null);
       fetchDepartmentSets();
     } catch (err: unknown) {
