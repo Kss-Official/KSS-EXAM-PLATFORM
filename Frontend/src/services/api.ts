@@ -1,5 +1,17 @@
-export const API_BASE_URL: string =
-  (import.meta.env.VITE_API_BASE_URL as string) || "/api";
+function getSanitizedApiBaseUrl(): string {
+  let raw = (import.meta.env.VITE_API_BASE_URL as string)?.trim() || "/api";
+  if (raw === "/api" || raw === "") return "/api";
+  if (!raw.startsWith("http://") && !raw.startsWith("https://") && !raw.startsWith("/")) {
+    raw = `https://${raw}`;
+  }
+  raw = raw.replace(/\/+$/, "");
+  if (raw !== "/api" && !raw.endsWith("/api")) {
+    raw = `${raw}/api`;
+  }
+  return raw;
+}
+
+export const API_BASE_URL: string = getSanitizedApiBaseUrl();
 
 export interface AuthUser {
   id: number;
