@@ -7,6 +7,7 @@ class Candidate(Base):
     __tablename__ = "candidates"
     __table_args__ = (
         Index("ix_candidates_department_id", "department_id"),
+        Index("ix_candidates_college_id", "college_id"),
         Index("ix_candidates_assigned_set", "assigned_set"),
     )
 
@@ -16,11 +17,13 @@ class Candidate(Base):
     email = Column(String(150), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=True)
     department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
+    college_id = Column(BigInteger, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
     assigned_set = Column(String(10), nullable=True)  # Set A, Set B, Set C, Set D, or None
     status = Column(String(20), default="ACTIVE")
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     department = relationship("Department", back_populates="candidates")
+    college = relationship("College", back_populates="candidates")
     attempts = relationship("ExamAttempt", back_populates="candidate", cascade="all, delete-orphan")
     access_codes = relationship("CandidateAccessCode", back_populates="candidate", cascade="all, delete-orphan", order_by="CandidateAccessCode.created_at.desc()")
 

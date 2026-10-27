@@ -16,15 +16,26 @@ def _init_engine():
             probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
             with probe_engine.connect() as conn:
                 pass
+            probe_engine.dispose()  # Prevent socket leak from probe connection
             logger.info("Successfully connected to primary PostgreSQL database.")
+
+            # Optimized PostgreSQL pool for high concurrent load (800+ candidates)
+            pg_connect_args = {
+                "connect_timeout": 15,
+                "keepalives": 1,
+                "keepalives_idle": 30,
+                "keepalives_interval": 10,
+                "keepalives_count": 5
+            }
+
             return create_engine(
                 db_url,
                 pool_size=settings.DB_POOL_SIZE,
                 max_overflow=settings.DB_MAX_OVERFLOW,
                 pool_recycle=settings.DB_POOL_RECYCLE,
                 pool_pre_ping=settings.DB_POOL_PRE_PING,
-                pool_timeout=30,
-                connect_args={"connect_timeout": 15},
+                pool_timeout=settings.DB_POOL_TIMEOUT,
+                connect_args=pg_connect_args,
                 echo=False
             )
         except Exception as exc:

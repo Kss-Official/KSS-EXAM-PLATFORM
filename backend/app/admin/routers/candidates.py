@@ -1,20 +1,43 @@
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, Body, HTTPException, status
+from typing import List, Dict, Any, Optional, Union
+from fastapi import APIRouter, Depends, UploadFile, File, Body, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core import get_db, require_super_admin
 from app.models import AppUser
-from app.schemas import CandidateDto
+from app.schemas import CandidateDto, PaginatedCandidatesResponse
 from app.admin.services import CandidateService
 
 router = APIRouter(prefix="/api/admin/candidates", tags=["Admin Candidates"])
 
-@router.get("", response_model=List[CandidateDto])
-def get_all_candidates(
+@router.get("", response_model=Union[PaginatedCandidatesResponse, List[CandidateDto]])
+def get_candidates(
+    page: Optional[int] = Query(None, ge=1, description="Page number (1-indexed)"),
+    limit: Optional[int] = Query(None, ge=1, le=200, description="Page size (records per page)"),
+    search: Optional[str] = Query(None, description="Search by name, reg number, email, or department"),
+    department_id: Optional[int] = Query(None, alias="departmentId", description="Filter by department ID"),
+    college_id: Optional[int] = Query(None, alias="collegeId", description="Filter by college ID"),
+    status: Optional[str] = Query(None, description="Filter by status (COMPLETED, GOING ON, PENDING, ALL)"),
+    sort_by: str = Query("registration_number", alias="sortBy", description="Sort field"),
+    sort_order: str = Query("asc", alias="sortOrder", description="Sort order (asc or desc)"),
+    all: bool = Query(False, description="Return all candidates unpaginated"),
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return CandidateService.get_all_candidates(db)
+    if all:
+        return CandidateService.get_all_candidates(db)
+    p = page if page is not None else 1
+    l = limit if limit is not None else 30
+    return CandidateService.get_paginated_candidates(
+        db,
+        page=p,
+        limit=l,
+        search=search,
+        department_id=department_id,
+        college_id=college_id,
+        status=status,
+        sort_by=sort_by,
+        sort_order=sort_order
+    )
 
 @router.post("", response_model=CandidateDto)
 def create_candidate(

@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   Search, 
-  FileSpreadsheet, 
   FileText,
   PlusCircle,
   RotateCcw,
@@ -9,25 +8,47 @@ import {
   Users,
   CheckCircle2,
   AlertCircle,
-  Info
+  Info,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Loader2,
+  Building2,
+  GraduationCap
 } from "lucide-react";
 import { 
-  getAllCandidates, 
+  getCandidates,
   createCandidate, 
   uploadCandidatesCsv, 
   getAllDepartments,
+  getColleges,
   type CandidateDto, 
-  type DepartmentDto 
+  type DepartmentDto,
+  type CollegeDto 
 } from "../../services/api";
 
-const LOCAL_STORAGE_CANDIDATES_KEY = "examsecure_cached_candidates_v2";
+const PAGE_SIZE = 30;
 
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateDto[]>([]);
+  const [totalCandidates, setTotalCandidates] = useState<number>(0);
+  const [page, setPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+
+  // Search & Filter state
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const [debouncedSearch, setDebouncedSearch] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
+  const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
+  const [sortBy, setSortBy] = useState<string>("registration_number");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  // Distinct Lists from separate Colleges and Departments tables
+  const [colleges, setColleges] = useState<CollegeDto[]>([]);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL");
   const [notice, setNotice] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
   // New Candidate Modal
@@ -35,6 +56,7 @@ export default function CandidatesPage() {
   const [newRegNum, setNewRegNum] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
 
   // CSV Import Modal
@@ -42,69 +64,159 @@ export default function CandidatesPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadingCsv, setUploadingCsv] = useState(false);
 
-  // Save candidates to local cache for resilience
-  const cacheCandidatesLocally = (cands: CandidateDto[]) => {
+  // IntersectionObserver sentinel for progressive infinite scrolling
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+
+  // Fetch both Colleges and Academic Departments from their separate tables
+  useEffect(() => {
     try {
-      localStorage.setItem(LOCAL_STORAGE_CANDIDATES_KEY, JSON.stringify(cands));
+      localStorage.removeItem("examsecure_cached_candidates_v2");
     } catch {
       // ignore
     }
-  };
+    getColleges().then(setColleges).catch(() => {});
+    getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
+  }, []);
 
-  const getCachedCandidates = (): CandidateDto[] => {
-    try {
-      const raw = localStorage.getItem(LOCAL_STORAGE_CANDIDATES_KEY);
-      if (raw) return JSON.parse(raw);
-    } catch {
-      // ignore
-    }
-    return [];
-  };
+  // Debounce search input by 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
-  const fetchCandidates = async () => {
+  // Fetch initial screen (Page 1) whenever filters, debounced search, or sort parameters change
+  const fetchPage1 = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getAllCandidates();
-      if (data && data.length > 0) {
-        setCandidates(data);
-        cacheCandidatesLocally(data);
-      } else {
-        const cached = getCachedCandidates();
-        setCandidates(cached);
-      }
+      const res = await getCandidates({
+        page: 1,
+        limit: PAGE_SIZE,
+        search: debouncedSearch,
+        collegeId: collegeFilter,
+        departmentId: departmentFilter,
+        status: statusFilter,
+        sortBy,
+        sortOrder
+      });
+      setCandidates(res.items);
+      setTotalCandidates(res.total);
+      setPage(1);
+      setHasMore(res.hasMore);
     } catch (e: unknown) {
       const errorObj = e as Error;
-      console.warn("[CandidatesPage] Backend fetch failed:", errorObj.message);
-      const cached = getCachedCandidates();
-      setCandidates(cached);
+      console.warn("[CandidatesPage] Server fetch failed:", errorObj.message);
       setNotice({
-        text: `Loaded ${cached.length} candidates from local directory.`,
-        type: "info"
+        text: `Failed to fetch candidate records: ${errorObj.message}`,
+        type: "error"
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [debouncedSearch, collegeFilter, departmentFilter, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
-    fetchCandidates();
-    getAllDepartments().then(setDepartments).catch(() => {});
-  }, []);
+    fetchPage1();
+  }, [fetchPage1]);
 
-  // Filter by search term and status
-  const filtered = useMemo(() => {
-    return candidates.filter(c => {
-      const matchesSearch = 
-        c.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.registrationNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        ((c.collegeName || c.departmentName) && (c.collegeName || c.departmentName)!.toLowerCase().includes(searchTerm.toLowerCase()));
+  // Progressively fetch next page as the user scrolls towards the bottom
+  const loadMoreCandidates = useCallback(async () => {
+    if (loading || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const nextPage = page + 1;
+    try {
+      const res = await getCandidates({
+        page: nextPage,
+        limit: PAGE_SIZE,
+        search: debouncedSearch,
+        collegeId: collegeFilter,
+        departmentId: departmentFilter,
+        status: statusFilter,
+        sortBy,
+        sortOrder
+      });
+      setCandidates(prev => {
+        const existingIds = new Set(prev.map(c => c.id));
+        const newRecords = res.items.filter(c => !existingIds.has(c.id));
+        return [...prev, ...newRecords];
+      });
+      setTotalCandidates(res.total);
+      setPage(nextPage);
+      setHasMore(res.hasMore);
+    } catch (e: unknown) {
+      const errorObj = e as Error;
+      console.warn("[CandidatesPage] Progressive fetch error:", errorObj.message);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, statusFilter, sortBy, sortOrder]);
 
-      const matchesStatus = statusFilter === "ALL" || c.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
-  }, [candidates, searchTerm, statusFilter]);
+  // Attach IntersectionObserver to sentinel element for infinite scrolling
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
 
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+          loadMoreCandidates();
+        }
+      },
+      {
+        root: null,
+        rootMargin: "250px", // Trigger fetch 250px before bottom is reached for seamless scrolling
+        threshold: 0.1
+      }
+    );
+
+    observer.observe(sentinel);
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMore, loading, loadingMore, loadMoreCandidates]);
+
+  // Format status badge
+  const formatStatus = (rawStatus?: string) => {
+    const s = (rawStatus || "").toUpperCase().replace(/_/g, " ");
+    if (s === "COMPLETED" || s === "SUBMITTED") return "COMPLETED";
+    if (s === "GOING ON" || s === "IN PROGRESS") return "GOING ON";
+    if (s === "PENDING" || s === "ASSIGNED" || s === "NOT ATTEMPTED" || s === "ACTIVE") return "PENDING";
+    if (s === "DISABLED") return "DISABLED";
+    return s || "PENDING";
+  };
+
+  const getStatusClass = (rawStatus?: string) => {
+    const s = formatStatus(rawStatus);
+    if (s === "COMPLETED") return "completed";
+    if (s === "GOING ON") return "going_on";
+    if (s === "PENDING") return "pending";
+    if (s === "DISABLED") return "disabled";
+    return "pending";
+  };
+
+  // Toggle sorting
+  const handleSort = (colKey: string) => {
+    if (sortBy === colKey) {
+      setSortOrder(prev => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortBy(colKey);
+      setSortOrder("asc");
+    }
+  };
+
+  const renderSortIndicator = (colKey: string) => {
+    if (sortBy !== colKey) {
+      return <ArrowUpDown size={12} color="#94a3b8" style={{ marginLeft: "4px", opacity: 0.6 }} />;
+    }
+    return sortOrder === "asc" ? (
+      <ArrowUp size={12} color="#017846" style={{ marginLeft: "4px" }} />
+    ) : (
+      <ArrowDown size={12} color="#017846" style={{ marginLeft: "4px" }} />
+    );
+  };
+
+  // Handle manual candidate creation
   const handleCreateCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim() || !newEmail.trim()) {
@@ -113,58 +225,51 @@ export default function CandidatesPage() {
     }
 
     const regUpper = newRegNum.trim() ? newRegNum.trim().toUpperCase() : `CAND-${Date.now().toString().slice(-6)}`;
-    const deptObj = departments.find(d => d.id === newDeptId);
-
-    const localNewCand: CandidateDto = {
-      id: Date.now(),
-      registrationNumber: regUpper,
-      fullName: newName.trim(),
-      email: newEmail.trim().toLowerCase(),
-      departmentId: newDeptId,
-      departmentName: deptObj?.name || (newDeptId ? `Department #${newDeptId}` : "Developer"),
-      status: "ACTIVE"
-    };
 
     try {
       const created = await createCandidate({
         registrationNumber: regUpper,
         fullName: newName.trim(),
         email: newEmail.trim().toLowerCase(),
+        collegeId: newCollegeId,
         departmentId: newDeptId
       });
 
-      const updatedList = [created, ...candidates];
-      setCandidates(updatedList);
-      cacheCandidatesLocally(updatedList);
-      setNotice({ text: `Candidate ${created.fullName} (${created.registrationNumber}) created successfully in PostgreSQL.`, type: "success" });
+      setCandidates(prev => [created, ...prev]);
+      setTotalCandidates(prev => prev + 1);
+      setNotice({
+        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL.`,
+        type: "success"
+      });
     } catch (err: unknown) {
       const errorObj = err as Error;
-      console.warn("[CandidatesPage] Candidate creation API error:", errorObj.message);
-      const updatedList = [localNewCand, ...candidates];
-      setCandidates(updatedList);
-      cacheCandidatesLocally(updatedList);
-      setNotice({ text: `Candidate created locally: ${localNewCand.fullName}.`, type: "info" });
+      setNotice({ text: "Candidate registration failed: " + errorObj.message, type: "error" });
     } finally {
       setIsNewModalOpen(false);
       setNewRegNum("");
       setNewName("");
       setNewEmail("");
+      setNewCollegeId(undefined);
       setNewDeptId(undefined);
     }
   };
 
+  // Batch CSV Upload
   const handleUploadCsv = async () => {
     if (!csvFile) return;
     setUploadingCsv(true);
     try {
       const res = await uploadCandidatesCsv(csvFile);
-      setNotice({ text: `CSV batch processed successfully. Imported ${res.totalImported} candidates.`, type: "success" });
+      setNotice({
+        text: `Roster processed successfully. Imported ${res.totalImported} candidates.`,
+        type: "success"
+      });
       setIsCsvModalOpen(false);
       setCsvFile(null);
-      fetchCandidates();
+      fetchPage1();
     } catch (e: unknown) {
       const errorObj = e as Error;
-      setNotice({ text: "Failed to upload CSV: " + errorObj.message, type: "error" });
+      setNotice({ text: "Failed to upload roster document: " + errorObj.message, type: "error" });
     } finally {
       setUploadingCsv(false);
     }
@@ -172,6 +277,28 @@ export default function CandidatesPage() {
 
   return (
     <div className="admin-page">
+      <style>{`
+        @keyframes shimmerPulse {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+        .skeleton-cell {
+          background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+          background-size: 200% 100%;
+          animation: shimmerPulse 1.5s infinite;
+          border-radius: 4px;
+          height: 16px;
+        }
+        .sortable-th {
+          cursor: pointer;
+          user-select: none;
+          transition: background-color 0.15s ease;
+        }
+        .sortable-th:hover {
+          background-color: #f1f5f9;
+        }
+      `}</style>
+
       {/* Header bar */}
       <div className="admin-page-header">
         <div>
@@ -182,109 +309,81 @@ export default function CandidatesPage() {
             </strong>
           </div>
           <p style={{ margin: "3px 0 0", fontSize: "12.5px", color: "#64748b" }}>
-            Manage registered candidates, college allocations, and student authentication credentials
+            Manage registered candidates, college affiliations, and academic department specializations
           </p>
         </div>
 
-        {/* Action Buttons */}
-        <div className="admin-page-actions" style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+        <div className="header-actions">
           <button 
             type="button" 
-            className="admin-btn secondary" 
-            onClick={fetchCandidates}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+            className="secondary" 
+            onClick={() => {
+              setSearchTerm("");
+              setDebouncedSearch("");
+              setStatusFilter("ALL");
+              setCollegeFilter(undefined);
+              setDepartmentFilter(undefined);
+              fetchPage1();
+            }}
+            title="Reset Filters & Refresh Records"
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <RotateCcw size={14} /> Refresh
           </button>
-
           <button 
             type="button" 
-            className="admin-btn secondary" 
+            className="secondary" 
             onClick={() => setIsCsvModalOpen(true)}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", fontSize: "12px", fontWeight: 600, cursor: "pointer" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
-            <FileText size={15} color="#017846" /> Add document
+            <FileText size={15} color="#017846" /> Add Document
           </button>
-
           <button 
             type="button" 
-            className="admin-btn primary" 
+            className="primary" 
             onClick={() => setIsNewModalOpen(true)}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #017846, #01663C)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(1, 120, 70, 0.25)" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
-            <PlusCircle size={15} /> Register Candidate
+            <PlusCircle size={15} /> Add Candidate
           </button>
         </div>
       </div>
 
-      {/* Alert Notices */}
       {notice && (
-        <div 
-          style={{ 
-            padding: "12px 16px", 
-            background: notice.type === "error" ? "#fef2f2" : notice.type === "info" ? "#eff6ff" : "#f0fdf4", 
-            border: `1px solid ${notice.type === "error" ? "#fecaca" : notice.type === "info" ? "#bfdbfe" : "#bbf7d0"}`, 
-            color: notice.type === "error" ? "#991b1b" : notice.type === "info" ? "#1e40af" : "#166534", 
-            borderRadius: "10px", 
-            fontSize: "13px", 
-            marginBottom: "16px", 
-            display: "flex", 
-            justifyContent: "space-between", 
-            alignItems: "center" 
-          }}
-        >
+        <div className={`admin-notice ${notice.type}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            {notice.type === "error" ? <AlertCircle size={16} /> : notice.type === "info" ? <Info size={16} /> : <CheckCircle2 size={16} />}
+            {notice.type === "success" && <CheckCircle2 size={16} />}
+            {notice.type === "error" && <AlertCircle size={16} />}
+            {notice.type === "info" && <Info size={16} />}
             <span>{notice.text}</span>
           </div>
-          <button type="button" onClick={() => setNotice(null)} style={{ background: "none", border: "none", cursor: "pointer", fontWeight: 700, color: "inherit" }}>✕</button>
+          <button type="button" onClick={() => setNotice(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", fontWeight: 700 }}>✕</button>
         </div>
       )}
 
-      {/* Roster Overview Banner */}
-      <div
-        style={{
-          background: "#f0fdf4",
-          border: "1px solid #bbf7d0",
-          borderRadius: "12px",
-          padding: "12px 18px",
-          marginBottom: "16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: "12px"
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 800,
-              padding: "3px 8px",
-              borderRadius: "6px",
-              background: "#017846",
-              color: "#ffffff",
-              letterSpacing: "0.5px"
-            }}
-          >
-            EXAMINATION ROSTER
-          </span>
-          <span style={{ fontSize: "12.5px", color: "#166534", fontWeight: 500 }}>
-            Candidates authenticate securely using their Full Name, College Name, and Email Address.
-          </span>
+      {/* KPI Cards Row */}
+      <div className="candidate-kpi-grid">
+        <div className="kpi-mini-card">
+          <span className="kpi-mini-label">Total Registered</span>
+          <span className="kpi-mini-value" style={{ color: "#017846" }}>{totalCandidates}</span>
         </div>
-
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <span style={{ fontSize: "12px", color: "#64748b" }}>
-            Total Registered Candidates: <strong>{candidates.length}</strong>
-          </span>
+        <div className="kpi-mini-card">
+          <span className="kpi-mini-label">Affiliated Colleges</span>
+          <span className="kpi-mini-value" style={{ color: "#2563eb" }}>{colleges.length}</span>
+        </div>
+        <div className="kpi-mini-card">
+          <span className="kpi-mini-label">Academic Departments</span>
+          <span className="kpi-mini-value" style={{ color: "#7c3aed" }}>{departments.length}</span>
+        </div>
+        <div className="kpi-mini-card">
+          <span className="kpi-mini-label">Records Visible</span>
+          <span className="kpi-mini-value" style={{ color: "#0f172a" }}>{candidates.length}</span>
         </div>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="filter-search-row">
-        <div className="search-input-wrapper">
+      <div className="filter-search-row" style={{ flexWrap: "wrap", gap: "10px" }}>
+        <div className="search-input-wrapper" style={{ flex: "1 1 240px" }}>
           <Search size={16} className="search-icon" />
           <input 
             type="text" 
@@ -293,8 +392,37 @@ export default function CandidatesPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+
+        {/* College Filter Dropdown */}
+        <div style={{ minWidth: "180px" }}>
+          <select
+            value={collegeFilter ?? ""}
+            onChange={e => setCollegeFilter(e.target.value ? Number(e.target.value) : undefined)}
+            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", height: "40px" }}
+          >
+            <option value="">🏫 All Colleges ({colleges.length})</option>
+            {colleges.map(c => (
+              <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ""}{c.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Academic Department Filter Dropdown */}
+        <div style={{ minWidth: "180px" }}>
+          <select
+            value={departmentFilter ?? ""}
+            onChange={e => setDepartmentFilter(e.target.value ? Number(e.target.value) : undefined)}
+            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", height: "40px" }}
+          >
+            <option value="">🎓 All Departments ({departments.length})</option>
+            {departments.map(d => (
+              <option key={d.id} value={d.id}>{d.code ? `[${d.code}] ` : ""}{d.name}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="status-filter-pills">
-          {["ALL", "ACTIVE", "DISABLED"].map(st => (
+          {["ALL", "COMPLETED", "GOING ON", "PENDING"].map(st => (
             <button
               key={st}
               type="button"
@@ -313,34 +441,87 @@ export default function CandidatesPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>SL. No / Register No.</th>
-                <th>Candidate Name</th>
-                <th>Email Address</th>
-                <th>College Name</th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("registration_number")}
+                  title="Sort by SL. No / Register Number"
+                  style={{ width: "120px" }}
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    SL. No / Reg No.
+                    {renderSortIndicator("registration_number")}
+                  </div>
+                </th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("full_name")}
+                  title="Sort by Candidate Name"
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    Candidate Name
+                    {renderSortIndicator("full_name")}
+                  </div>
+                </th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("email")}
+                  title="Sort by Email Address"
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    Email Address
+                    {renderSortIndicator("email")}
+                  </div>
+                </th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("college")}
+                  title="Sort by College Name"
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    Affiliated College
+                    {renderSortIndicator("college")}
+                  </div>
+                </th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("department")}
+                  title="Sort by Academic Department"
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    Department Track
+                    {renderSortIndicator("department")}
+                  </div>
+                </th>
                 <th>Account Status</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
+                // Shimmer Skeleton Rows for initial screen
+                Array.from({ length: 6 }).map((_, idx) => (
+                  <tr key={`skel-${idx}`}>
+                    <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "80px" }} /></td>
+                    <td><div className="skeleton-cell" style={{ width: "160px" }} /></td>
+                    <td><div className="skeleton-cell" style={{ width: "200px" }} /></td>
+                    <td><div className="skeleton-cell" style={{ width: "140px" }} /></td>
+                    <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
+                    <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
+                  </tr>
+                ))
+              ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
-                    Loading candidate records from PostgreSQL...
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={6} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
                     </p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                      Register a candidate or use "Add document" to load student rosters.
+                      Try adjusting your search query, college, or department filters.
                     </small>
                   </td>
                 </tr>
               ) : (
-                filtered.map((cand, index) => {
+                candidates.map((cand, index) => {
                   return (
                     <tr key={cand.id}>
                       <td>
@@ -353,28 +534,48 @@ export default function CandidatesPage() {
                         <small style={{ color: "#64748b" }}>{cand.email}</small>
                       </td>
                       <td>
-                        {(cand.collegeName || cand.departmentName) ? (
+                        {cand.collegeName ? (
                           <span 
                             className="admin-dept-chip"
                             style={{
-                              background: "#eef2ff",
-                              color: "#3730a3",
-                              border: "1px solid #c7d2fe",
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              border: "1px solid #bfdbfe",
                               fontWeight: 600,
                               fontSize: "12px",
-                              padding: "4px 10px",
+                              padding: "4px 8px",
                               borderRadius: "6px"
                             }}
                           >
-                            {cand.collegeName || cand.departmentName}
+                            {cand.collegeName}
                           </span>
                         ) : (
                           <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
                         )}
                       </td>
                       <td>
-                        <span className={`status-pill ${cand.status.toLowerCase()}`}>
-                          {cand.status}
+                        {cand.departmentName ? (
+                          <span 
+                            className="admin-dept-chip"
+                            style={{
+                              background: "#f5f3ff",
+                              color: "#6d28d9",
+                              border: "1px solid #ddd6fe",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                              padding: "4px 8px",
+                              borderRadius: "6px"
+                            }}
+                          >
+                            {cand.departmentName}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`status-pill ${getStatusClass(cand.status)}`}>
+                          {formatStatus(cand.status)}
                         </span>
                       </td>
                     </tr>
@@ -383,6 +584,44 @@ export default function CandidatesPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Bottom Progressive Loading Indicator & Sentinel */}
+        <div ref={sentinelRef} style={{ minHeight: "10px" }}>
+          {loadingMore && (
+            <div 
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                justifyContent: "center", 
+                gap: "8px", 
+                padding: "16px", 
+                color: "#017846", 
+                fontSize: "13px", 
+                fontWeight: 600,
+                background: "#f8fafc",
+                borderTop: "1px solid #e2e8f0"
+              }}
+            >
+              <Loader2 size={16} className="animate-spin" />
+              <span>Loading more candidates...</span>
+            </div>
+          )}
+
+          {!hasMore && !loading && candidates.length > 0 && (
+            <div 
+              style={{ 
+                textAlign: "center", 
+                padding: "12px", 
+                color: "#64748b", 
+                fontSize: "12px", 
+                background: "#f8fafc",
+                borderTop: "1px solid #f1f5f9"
+              }}
+            >
+              ✓ All {totalCandidates} candidate records loaded
+            </div>
+          )}
         </div>
       </div>
 
@@ -408,11 +647,20 @@ export default function CandidatesPage() {
                 <input type="email" placeholder="e.g. aarav@campus.edu" value={newEmail} onChange={e => setNewEmail(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
               </div>
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600 }}>College Name *</label>
-                <select value={newDeptId || ""} onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
-                  <option value="">-- Select College Name --</option>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Affiliated College *</label>
+                <select value={newCollegeId || ""} onChange={e => setNewCollegeId(e.target.value ? Number(e.target.value) : undefined)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
+                  <option value="">-- Select College --</option>
+                  {colleges.map(c => (
+                    <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ""}{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Academic Department / Specialization Track</label>
+                <select value={newDeptId || ""} onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
+                  <option value="">-- Select Department Track (Optional) --</option>
                   {departments.map(d => (
-                    <option key={d.id} value={d.id}>{d.name}</option>
+                    <option key={d.id} value={d.id}>{d.code ? `[${d.code}] ` : ""}{d.name}</option>
                   ))}
                 </select>
               </div>

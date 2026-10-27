@@ -217,11 +217,12 @@ def test_admin_candidate_management(admin_token):
     assert cand["fullName"] == "Admin Workflow Test Candidate"
     assert cand["email"] == f"{reg_num.lower()}@example.com"
 
-    # 2. Query candidates list
-    list_resp = client.get("/api/admin/candidates", headers=headers)
+    # 2. Query candidates list (supports both paginated items and ?all=true)
+    list_resp = client.get("/api/admin/candidates?all=true", headers=headers)
     assert list_resp.status_code == 200
     all_cands = list_resp.json()
-    assert any(c["registrationNumber"] == reg_num for c in all_cands)
+    cand_items = all_cands if isinstance(all_cands, list) else all_cands.get("items", [])
+    assert any(c["registrationNumber"] == reg_num for c in cand_items)
 
 def test_admin_results_and_publishing_toggle(admin_token):
     """Verifies results querying and result publication status toggling."""
@@ -233,12 +234,18 @@ def test_admin_results_and_publishing_toggle(admin_token):
     results = res_resp.json()
     assert isinstance(results, list)
 
-    # Publish results for Exam 17
-    pub_resp = client.post("/api/admin/results/exam/17/publish", headers=headers, json={"published": True})
+    # Find active exam ID dynamically
+    exams_resp = client.get("/api/admin/exams", headers=headers)
+    assert exams_resp.status_code == 200
+    exams = exams_resp.json()
+    exam_id = exams[0]["id"] if exams else 72
+
+    # Publish results for exam
+    pub_resp = client.post(f"/api/admin/results/exam/{exam_id}/publish", headers=headers, json={"published": True})
     assert pub_resp.status_code == 200
     assert pub_resp.json()["resultsPublished"] is True
 
     # Unpublish results
-    unpub_resp = client.post("/api/admin/results/exam/17/publish", headers=headers, json={"published": False})
+    unpub_resp = client.post(f"/api/admin/results/exam/{exam_id}/publish", headers=headers, json={"published": False})
     assert unpub_resp.status_code == 200
     assert unpub_resp.json()["resultsPublished"] is False

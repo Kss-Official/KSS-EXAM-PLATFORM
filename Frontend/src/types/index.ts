@@ -1,9 +1,13 @@
-﻿export interface AdminDashboardResponse {
+export interface AdminDashboardResponse {
   application: string;
   status: string;
   totalExams: number;
   totalCandidates: number;
   activeExams: number;
+  totalDepartments?: number;
+  totalAttempts?: number;
+  submittedAttempts?: number;
+  qualifiedCandidates?: number;
   message: string;
 }
 

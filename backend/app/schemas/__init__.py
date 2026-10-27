@@ -1,6 +1,7 @@
 from app.schemas.base import CamelModel
 from app.schemas.auth import LoginRequest, AuthUser, AuthResponseDto
 from app.schemas.department import DepartmentDto, DepartmentSetSummary, ExamDepartmentSummary
+from app.schemas.college import CollegeDto, CollegeCreateDto
 from app.schemas.exam import ExamDto, ExamSlotDto, CreateExamFromParsedDto
 from app.schemas.question import (
     QuestionOptionDto, QuestionDto, QuestionSetSummary,
@@ -10,7 +11,7 @@ from app.schemas.candidate import (
     CandidateDto, CandidateAccessCodeDto, CandidateVerifyRequest, CandidateVerifyResponse,
     CandidateOptionDto, CandidateQuestionDto, CandidateStartAttemptResponse,
     AnswerSaveRequest, CandidateAssignSetRequest, CandidateBatchAssignSetRequest,
-    CandidateBatchGenerateSelectedRequest
+    CandidateBatchGenerateSelectedRequest, PaginatedCandidatesResponse
 )
 from app.schemas.result import SubmissionResponse, ExamResultDto
 from app.schemas.dashboard import AdminDashboardResponse, AuditLogDto, AuditLogResponse
@@ -29,6 +30,8 @@ __all__ = [
     "DepartmentDto",
     "DepartmentSetSummary",
     "ExamDepartmentSummary",
+    "CollegeDto",
+    "CollegeCreateDto",
     "ExamDto",
     "ExamSlotDto",
     "CreateExamFromParsedDto",
@@ -60,4 +63,5 @@ __all__ = [
     "CodeSubmitResponse",
     "TestCaseResultItem",
     "BatchEmailDispatchRequest",
+    "PaginatedCandidatesResponse",
 ]

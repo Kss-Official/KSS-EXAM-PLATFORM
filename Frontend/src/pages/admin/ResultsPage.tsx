@@ -94,7 +94,7 @@ export default function ResultsPage() {
 
   const downloadCsvReport = () => {
     if (selectedCandidates.length === 0) return;
-    const headers = ["Candidate Name", "Registration Number", "Department", "Exam Title", "Set", "Score", "Total Marks", "Percentage", "Qualification Status", "Submitted At"];
+    const headers = ["Candidate Name", "Registration Number", "Department", "Exam Title", "Set", "Score", "Total Marks", "Percentage", "Time Taken", "Qualification Status", "Submitted At"];
     const rows = selectedCandidates.map(c => [
       `"${c.candidateName}"`,
       `"${c.registrationNumber}"`,
@@ -104,6 +104,7 @@ export default function ResultsPage() {
       c.score ?? 0,
       c.totalMarks,
       `${c.percentage ?? 0}%`,
+      `"${c.durationSeconds ? `${Math.floor(c.durationSeconds / 60)}m ${c.durationSeconds % 60}s` : "-"}"`,
       `"${c.qualificationStatus || "QUALIFIED"}"`,
       `"${c.submittedAt ? new Date(c.submittedAt).toLocaleString() : "-"}"`
     ]);
@@ -587,11 +588,16 @@ export default function ResultsPage() {
                         </span>
                       </td>
                       <td>
-                        <small style={{ color: "#64748b", display: "block" }}>
+                        <small style={{ color: "#0f172a", fontWeight: 600, display: "block" }}>
                           {r.submittedAt ? new Date(r.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (
                             <span style={{ color: "#d97706", fontWeight: 600 }}>{r.attemptStatus === "IN_PROGRESS" ? "In Progress • Live" : (r.attemptStatus || "Pending")}</span>
                           )}
                         </small>
+                        {r.durationSeconds !== undefined && r.durationSeconds !== null && r.durationSeconds > 0 && (
+                          <small style={{ color: "#64748b", display: "block", fontSize: "11px", marginTop: "2px" }}>
+                            ⏱️ {Math.floor(r.durationSeconds / 60)}m {r.durationSeconds % 60}s
+                          </small>
+                        )}
                         {r.receiptId && (
                           <span style={{ fontSize: "10px", color: "#017846", fontFamily: "JetBrains Mono, monospace", display: "block", marginTop: "2px" }} title="Submission Receipt ID">
                             {r.receiptId}

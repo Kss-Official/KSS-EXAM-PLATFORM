@@ -8,9 +8,8 @@ def ensure_indexes_and_constraints():
     """
     Ensures critical high-concurrency indexes and unique constraints exist
     in PostgreSQL / SQLite to eliminate race conditions and avoid full table scans.
+    Also ensures the colleges table and candidates.college_id reference exist.
     """
-    dialect = engine.dialect.name
-
     cleanup_statements = [
         # Clean any legacy duplicate rows before applying unique indexes
         """
@@ -45,27 +44,41 @@ def ensure_indexes_and_constraints():
             logger.debug(f"Cleanup notice (non-fatal): {e}")
 
     column_statements = [
-        "ALTER TABLE exam_attempts ADD COLUMN candidate_code VARCHAR(64);",
-        "ALTER TABLE exam_attempts ADD COLUMN question_set_code VARCHAR(20);",
-        "ALTER TABLE exam_attempts ADD COLUMN total_questions INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN questions_answered INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN correct_answers INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN incorrect_answers INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN unanswered_questions INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN duration_seconds INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS candidate_code VARCHAR(64);",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS question_set_code VARCHAR(20);",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS total_questions INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS questions_answered INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS correct_answers INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS incorrect_answers INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS unanswered_questions INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS duration_seconds INTEGER DEFAULT 0;",
+        # Colleges separation
+        """
+        CREATE TABLE IF NOT EXISTS colleges (
+            id BIGSERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL UNIQUE,
+            code VARCHAR(50) UNIQUE,
+            description TEXT,
+            active BOOLEAN NOT NULL DEFAULT TRUE,
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        );
+        """,
+        "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS college_id BIGINT REFERENCES colleges(id) ON DELETE SET NULL;",
     ]
 
-    for col_stmt in column_statements:
-        try:
-            with engine.begin() as conn:
+    with engine.begin() as conn:
+        for col_stmt in column_statements:
+            try:
                 conn.execute(text(col_stmt))
-        except Exception as e:
-            logger.debug(f"Column addition notice (non-fatal): {e}")
+            except Exception as e:
+                logger.debug(f"Column/table statement notice (non-fatal): {e}")
 
     ddl_statements = [
         # Risk 2: Unique constraint and index for attempt answers to guarantee idempotent upserts
         "CREATE UNIQUE INDEX IF NOT EXISTS uq_attempt_answer_attempt_question ON attempt_answers (attempt_id, question_id);",
-        "CREATE INDEX IF NOT EXISTS ix_attempt_answer_attempt_q ON attempt_answers (attempt_id, question_id);",
+        "CREATE INDEX IF NOT EXISTS ix_attempt_answers_attempt_id ON attempt_answers (attempt_id);",
+        "CREATE INDEX IF NOT EXISTS ix_attempt_answers_question_id ON attempt_answers (question_id);",
 
         # Risk 1: Fast attempt lookups by candidate and exam to prevent unbounded scans
         "CREATE INDEX IF NOT EXISTS ix_exam_attempts_candidate_exam ON exam_attempts (candidate_id, exam_id);",
@@ -87,7 +100,10 @@ def ensure_indexes_and_constraints():
         "CREATE INDEX IF NOT EXISTS ix_question_sets_exam_id ON question_sets (exam_id);",
         "CREATE INDEX IF NOT EXISTS ix_question_sets_exam_dept ON question_sets (exam_id, department_id);",
 
-        # Candidate lookup & Department filtering
+        # Candidate lookup & College & Department filtering
+        "CREATE INDEX IF NOT EXISTS ix_colleges_code ON colleges (code);",
+        "CREATE INDEX IF NOT EXISTS ix_colleges_active ON colleges (active);",
+        "CREATE INDEX IF NOT EXISTS ix_candidates_college_id ON candidates (college_id);",
         "CREATE INDEX IF NOT EXISTS ix_candidates_department_id ON candidates (department_id);",
         "CREATE INDEX IF NOT EXISTS ix_candidates_email_lower ON candidates (lower(email));",
         "CREATE INDEX IF NOT EXISTS ix_candidates_assigned_set ON candidates (assigned_set);",
@@ -100,11 +116,11 @@ def ensure_indexes_and_constraints():
         "CREATE INDEX IF NOT EXISTS ix_stored_documents_exam_id ON stored_documents (exam_id);"
     ]
 
-    for stmt in ddl_statements:
-        try:
-            with engine.begin() as conn:
+    with engine.begin() as conn:
+        for stmt in ddl_statements:
+            try:
                 conn.execute(text(stmt))
-        except Exception as e:
-            logger.warning(f"Notice applying DDL statement ({stmt[:50]}...): {e}")
+            except Exception as e:
+                logger.debug(f"Index statement notice: {e}")
 
-    logger.info("High-concurrency database constraints and indexes verified successfully.")
+    logger.info("High-concurrency database constraints, indexes, and schema verified successfully.")

@@ -44,6 +44,7 @@ def init_super_admin(db: Session) -> AppUser:
 
 DEFAULT_DEPARTMENTS = [
     {"name": "Developer", "code": "DEV", "description": "Software Engineering & Full Stack Development"},
+    {"name": "AI/ML Developer", "code": "AIML", "description": "Machine Learning, Deep Learning, NLP & AI Model Architecture"},
     {"name": "Computer Science and Engineering", "code": "CSE", "description": "Core Computing, Algorithms, Systems & Software"},
     {"name": "Information Technology", "code": "IT", "description": "Network Systems, Cloud Infrastructure & IT Solutions"},
     {"name": "Electronics & Communication Engineering", "code": "ECE", "description": "Embedded Systems, Signals, IoT & Hardware"},
@@ -51,8 +52,10 @@ DEFAULT_DEPARTMENTS = [
     {"name": "Mechanical Engineering", "code": "MECH", "description": "Applied Mechanics, Design, Manufacturing & Robotics"},
     {"name": "Civil Engineering", "code": "CIVIL", "description": "Structural Analysis, Planning & Infrastructure Engineering"},
     {"name": "Quality Assurance & Testing", "code": "QA", "description": "Automated Testing, Test Scenarios & Quality Control"},
+    {"name": "DevOps", "code": "DEVOPS", "description": "Cloud Infrastructure, CI/CD Automations, Kubernetes & SRE"},
     {"name": "UI/UX Design & Product", "code": "UIUX", "description": "User Interface Design, Interaction Design & Prototyping"},
     {"name": "Human Resources", "code": "HR", "description": "Talent Acquisition, People Operations & Candidate Engagement"},
+    {"name": "Sales & Marketing", "code": "SALES_MKT", "description": "Enterprise Sales, Digital Marketing, Growth & Account Strategy"},
 ]
 
 def init_default_departments(db: Session) -> None:
@@ -104,25 +107,20 @@ def init_default_candidates(db: Session) -> None:
     if db.query(Candidate).count() > 0:
         logger.info("Candidate roster already present in database. Skipping default demo candidate provisioning.")
         return
-        dept = dept_cache.get(item["dept_code"])
-        if not c:
-            c = Candidate(
-                registration_number=item["reg"],
-                full_name=item["name"],
-                email=item["email"],
-                department_id=dept.id if dept else None,
-                status="ACTIVE",
-                created_at=datetime.now(timezone.utc)
-            )
-            db.add(c)
-            db.commit()
-            db.refresh(c)
-        else:
-            if dept and c.department_id != dept.id:
-                c.department_id = dept.id
-                db.commit()
-                db.refresh(c)
 
+    dept_cache = {d.code: d for d in db.query(Department).all()}
+    for item in DEFAULT_CANDIDATES:
+        dept = dept_cache.get(item["dept_code"])
+        c = Candidate(
+            registration_number=item["reg"],
+            full_name=item["name"],
+            email=item["email"],
+            department_id=dept.id if dept else None,
+            status="ACTIVE",
+            created_at=datetime.now(timezone.utc)
+        )
+        db.add(c)
+    db.commit()
     logger.info("Default candidates and access codes verified.")
 
 

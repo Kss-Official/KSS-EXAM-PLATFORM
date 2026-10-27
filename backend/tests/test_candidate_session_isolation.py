@@ -26,15 +26,37 @@ def test_multi_candidate_session_isolation():
     dept_name = dev_dept["name"]
     dept_id = dev_dept["id"]
 
-    # 2. Verify Candidate A (Aarav Sharma - REG001)
+    from app.core.database import SessionLocal
+    from app.models.candidate import Candidate
+    from app.models.attempt import ExamAttempt
+    from sqlalchemy.orm import joinedload
+    db = SessionLocal()
+    available_cands = db.query(Candidate).options(joinedload(Candidate.department)).filter(
+        Candidate.status == "ACTIVE",
+        ~Candidate.attempts.any()
+    ).limit(2).all()
+    if len(available_cands) < 2:
+        db.close()
+        pytest.skip("Not enough unsubmitted candidates available for session isolation test")
+
+    c1, c2 = available_cands[0], available_cands[1]
+    c1_dept_name = c1.department.name if c1.department else dept_name
+    c1_dept_id = c1.department_id or dept_id
+    c2_dept_name = c2.department.name if c2.department else dept_name
+    c2_dept_id = c2.department_id or dept_id
+    c1_name, c1_email, c1_reg = c1.full_name, c1.email, c1.registration_number
+    c2_name, c2_email, c2_reg = c2.full_name, c2.email, c2.registration_number
+    db.close()
+
+    # 2. Verify Candidate A
     cand_a_payload = {
-        "fullName": "Aarav Sharma",
-        "name": "Aarav Sharma",
-        "email": "aarav.sharma@campus.edu",
-        "registrationNumber": "MCQ-REG001",
-        "uniqueId": "MCQ-REG001",
-        "department": dept_name,
-        "departmentId": dept_id
+        "fullName": c1_name,
+        "name": c1_name,
+        "email": c1_email,
+        "registrationNumber": c1_reg,
+        "uniqueId": c1_reg,
+        "department": c1_dept_name,
+        "departmentId": c1_dept_id
     }
     ver_a_res = requests.post(f"{BASE_URL}/candidate/verify", json=cand_a_payload)
     assert ver_a_res.status_code == 200, f"Candidate A verify failed: {ver_a_res.text}"
@@ -45,15 +67,15 @@ def test_multi_candidate_session_isolation():
     assert cand_a_id is not None
     assert exam_id is not None
 
-    # 3. Verify Candidate B (Jingyasa Priyadarsini - REG008)
+    # 3. Verify Candidate B
     cand_b_payload = {
-        "fullName": "Jingyasa Priyadarsini",
-        "name": "Jingyasa Priyadarsini",
-        "email": "jingyasa.p@campus.edu",
-        "registrationNumber": "MCQ-REG008",
-        "uniqueId": "MCQ-REG008",
-        "department": dept_name,
-        "departmentId": dept_id
+        "fullName": c2_name,
+        "name": c2_name,
+        "email": c2_email,
+        "registrationNumber": c2_reg,
+        "uniqueId": c2_reg,
+        "department": c2_dept_name,
+        "departmentId": c2_dept_id
     }
     ver_b_res = requests.post(f"{BASE_URL}/candidate/verify", json=cand_b_payload)
     assert ver_b_res.status_code == 200, f"Candidate B verify failed: {ver_b_res.text}"
@@ -72,7 +94,8 @@ def test_multi_candidate_session_isolation():
     assert len(questions_a) > 0
 
     # 5. Start Exam for Candidate B simultaneously
-    start_b_res = requests.post(f"{BASE_URL}/candidate/start", json={"candidateId": cand_b_id, "examId": exam_id})
+    exam_id_b = cand_b["assignedExamId"] or cand_b["examId"]
+    start_b_res = requests.post(f"{BASE_URL}/candidate/start", json={"candidateId": cand_b_id, "examId": exam_id_b})
     assert start_b_res.status_code == 200, f"Candidate B start failed: {start_b_res.text}"
     attempt_b = start_b_res.json()
     attempt_b_id = attempt_b["attemptId"]

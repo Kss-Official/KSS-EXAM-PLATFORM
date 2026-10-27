@@ -24,10 +24,11 @@ class Settings(BaseSettings):
 
     # Database Connection (overridden by DATABASE_URL in .env)
     DATABASE_URL: str = "sqlite:///./examsecure.db"
-    DB_POOL_SIZE: int = 20
-    DB_MAX_OVERFLOW: int = 10
-    DB_POOL_RECYCLE: int = 1800
+    DB_POOL_SIZE: int = 50
+    DB_MAX_OVERFLOW: int = 100
+    DB_POOL_RECYCLE: int = 300  # 5 min recycling to prevent stale Neon serverless connections
     DB_POOL_PRE_PING: bool = True
+    DB_POOL_TIMEOUT: int = 45   # 45s timeout under heavy concurrent burst
 
     # Security & Cryptography
     SECRET_KEY: str = "examsecure-enterprise-jwt-super-secret-key-production-grade-2026-min-64-bytes-entropy-kalpanaaa-software"

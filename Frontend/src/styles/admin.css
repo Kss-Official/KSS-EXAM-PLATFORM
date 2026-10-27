@@ -1,4 +1,4 @@
-﻿/* ========================================================
+/* ========================================================
    ADMIN DASHBOARD STYLES
    Harmonized with DM Sans, Manrope, and existing theme tokens
    ======================================================== */
@@ -1228,9 +1228,30 @@
 }
 
 .status-pill.completed {
-  background: #f5f3ff;
-  color: #6d28d9;
-  border-color: #ddd6fe;
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #a7f3d0;
+}
+
+.status-pill.going_on,
+.status-pill.going-on {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.status-pill.going_on::before,
+.status-pill.going-on::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d97706;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
 }
 
 .status-pill.active {

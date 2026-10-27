@@ -13,6 +13,22 @@ from app.admin.services import QuestionService, DocumentStorageService
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Question Bank & Sets"])
 
+def is_academic_department(d: Department) -> bool:
+    desc = (d.description or "").strip().lower()
+    name = (d.name or "").strip().lower()
+    code = (d.code or "").strip().upper()
+    college_codes = {
+        "AJIET", "AIT", "AIET", "CEC", "KIT", "LBS", "SCEM", 
+        "SSIT", "SIT", "SUIET", "SJEC", "VCET", "YIT", "TESTINSTIT", "DEMOCOLLEG"
+    }
+    if code in college_codes:
+        return False
+    if desc.startswith("college:"):
+        return False
+    if "institute" in name or "college" in name:
+        return False
+    return True
+
 # 1. Departments for Exam
 @router.get("/exams/{exam_id}/departments", response_model=List[ExamDepartmentSummary])
 def get_exam_departments(
@@ -24,30 +40,41 @@ def get_exam_departments(
     if not exam:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
 
-    depts = set(exam.departments) if exam.departments else set()
+    # Filter out colleges: Question Bank is strictly organized by academic/engineering departments
+    raw_depts = set(exam.departments) if exam.departments else set()
     q_sets = db.query(QuestionSet).filter(QuestionSet.exam_id == exam_id).all()
     for qs in q_sets:
         if qs.department:
-            depts.add(qs.department)
+            raw_depts.add(qs.department)
 
-    # If exam has no specific department restriction, include all active departments so admin can configure sets for any department
-    if not depts:
-        active_depts = db.query(Department).filter(Department.active == True).all()
-        for d in active_depts:
-            depts.add(d)
+    academic_depts = [d for d in raw_depts if is_academic_department(d)]
+
+    # If exam has no specific academic departments, include all active academic departments
+    if not academic_depts:
+        all_active = db.query(Department).filter(Department.active == True).all()
+        academic_depts = [d for d in all_active if is_academic_department(d)]
+
+    # Check if universal sets exist with questions for this exam
+    universal_sets = db.query(QuestionSet).filter(
+        QuestionSet.exam_id == exam_id,
+        QuestionSet.department_id == None
+    ).all()
+    has_universal_sets = len(universal_sets) >= 4 and any(len(qs.questions) > 0 for qs in universal_sets)
 
     summaries = []
-    for d in sorted(list(depts), key=lambda x: x.name):
+    for d in sorted(academic_depts, key=lambda x: x.name):
         cnt = db.query(QuestionSet).filter(
             QuestionSet.exam_id == exam_id,
             QuestionSet.department_id == d.id
         ).count()
+        display_cnt = cnt if cnt > 0 else (4 if has_universal_sets else 0)
+
         summaries.append(ExamDepartmentSummary(
             id=d.id,
             name=d.name,
             code=d.code,
-            description=d.description,
-            configured_sets_count=cnt
+            description=d.description or "Academic & engineering department curriculum",
+            configured_sets_count=display_cnt
         ))
     return summaries
 
@@ -63,6 +90,13 @@ def get_department_sets(
         QuestionSet.exam_id == exam_id,
         QuestionSet.department_id == department_id
     ).order_by(QuestionSet.set_code.asc()).all()
+
+    # Check universal sets for this exam
+    universal_sets = db.query(QuestionSet).filter(
+        QuestionSet.exam_id == exam_id,
+        QuestionSet.department_id == None
+    ).order_by(QuestionSet.set_code.asc()).all()
+    univ_map = {qs.set_code.upper(): qs for qs in universal_sets if qs.questions and len(qs.questions) > 0}
 
     if len(q_sets) < 4:
         existing_codes = {qs.set_code for qs in q_sets}
@@ -88,18 +122,22 @@ def get_department_sets(
 
     result = []
     for qs in q_sets:
-        q_count = len(qs.questions) if qs.questions else 0
+        target_qs = qs
+        if (not qs.questions or len(qs.questions) == 0) and qs.set_code.upper() in univ_map:
+            target_qs = univ_map[qs.set_code.upper()]
+
+        q_count = len(target_qs.questions) if target_qs.questions else 0
         qp_doc = db.query(StoredDocument).filter(
-            StoredDocument.question_set_id == qs.id,
+            StoredDocument.question_set_id == target_qs.id,
             StoredDocument.document_type == "QUESTION_PAPER"
         ).order_by(StoredDocument.created_at.desc()).first()
         ak_doc = db.query(StoredDocument).filter(
-            StoredDocument.question_set_id == qs.id,
+            StoredDocument.question_set_id == target_qs.id,
             StoredDocument.document_type == "ANSWER_KEY"
         ).order_by(StoredDocument.created_at.desc()).first()
 
         result.append(DepartmentSetSummary(
-            id=qs.id,
+            id=target_qs.id,
             set_code=qs.set_code,
             name=qs.name,
             question_count=q_count,

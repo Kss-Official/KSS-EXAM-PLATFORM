@@ -17,14 +17,23 @@ import type {
   CategoryQuestionBankState, 
   SetCode 
 } from "../../types/departmentHierarchy";
+import type { DepartmentDto } from "../../services/api";
 
 interface PrimaryDepartmentOverviewProps {
   technicalSubDepts: SubDepartmentItem[];
   nonTechnicalSubDepts: SubDepartmentItem[];
   technicalBank: CategoryQuestionBankState;
   nonTechnicalBank: CategoryQuestionBankState;
+  availableDepartments?: DepartmentDto[];
   onOpenCategory: (category: PrimaryDepartmentType) => void;
-  onAddSubDeptQuick: (category: PrimaryDepartmentType, name: string, code: string) => boolean;
+  onAddSubDeptQuick: (
+    category: PrimaryDepartmentType, 
+    name: string, 
+    code: string, 
+    description?: string,
+    existingDeptId?: number
+  ) => { success: boolean; error?: string };
+  onRemoveSubDept?: (tempId: string) => void;
 }
 
 export default function PrimaryDepartmentOverview({
@@ -32,13 +41,19 @@ export default function PrimaryDepartmentOverview({
   nonTechnicalSubDepts,
   technicalBank,
   nonTechnicalBank,
+  availableDepartments = [],
   onOpenCategory,
-  onAddSubDeptQuick
+  onAddSubDeptQuick,
+  onRemoveSubDept
 }: PrimaryDepartmentOverviewProps) {
   // Quick-add modal state from overview
   const [quickAddCategory, setQuickAddCategory] = useState<PrimaryDepartmentType | null>(null);
+  const [quickMode, setQuickMode] = useState<"existing" | "new">("existing");
+  const [selectedDeptId, setSelectedDeptId] = useState<string>("");
   const [quickName, setQuickName] = useState("");
   const [quickCode, setQuickCode] = useState("");
+  const [quickDesc, setQuickDesc] = useState("");
+  const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
 
   const getSetStats = (bank: CategoryQuestionBankState) => {
@@ -60,26 +75,66 @@ export default function PrimaryDepartmentOverview({
   const techStats = getSetStats(technicalBank);
   const nonTechStats = getSetStats(nonTechnicalBank);
 
+  const handleNameChange = (val: string) => {
+    setQuickName(val);
+    setQuickError(null);
+    if (!codeManuallyEdited) {
+      const clean = val.trim();
+      if (!clean) {
+        setQuickCode("");
+      } else {
+        const parts = clean.split(/\s+/);
+        if (parts.length === 1) {
+          setQuickCode(parts[0].substring(0, 8).toUpperCase().replace(/[^A-Z0-9_]/g, ""));
+        } else {
+          setQuickCode(parts.map(p => p[0]).join("").toUpperCase().substring(0, 8).replace(/[^A-Z0-9_]/g, ""));
+        }
+      }
+    }
+  };
+
   const handleQuickAddSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!quickAddCategory) return;
     setQuickError(null);
 
-    const trimmedName = quickName.trim();
-    const trimmedCode = quickCode.trim().toUpperCase();
-
-    if (!trimmedName || !trimmedCode) {
-      setQuickError("Both Sub-Department Name and Code are required.");
+    if (quickMode === "existing") {
+      if (!selectedDeptId) {
+        setQuickError("Please select a department from the list.");
+        return;
+      }
+      const dept = availableDepartments.find(d => String(d.id) === selectedDeptId);
+      if (!dept) {
+        setQuickError("Selected department could not be found.");
+        return;
+      }
+      const res = onAddSubDeptQuick(quickAddCategory, dept.name, dept.code, dept.description, dept.id);
+      if (res.success) {
+        setSelectedDeptId("");
+        setQuickAddCategory(null);
+      } else {
+        setQuickError(res.error || `Department "${dept.name}" could not be added.`);
+      }
       return;
     }
 
-    const success = onAddSubDeptQuick(quickAddCategory, trimmedName, trimmedCode);
-    if (success) {
+    const trimmedName = quickName.trim();
+    const trimmedCode = quickCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+
+    if (!trimmedName) {
+      setQuickError("Sub-Department Name is required.");
+      return;
+    }
+
+    const res = onAddSubDeptQuick(quickAddCategory, trimmedName, trimmedCode, quickDesc.trim() || undefined);
+    if (res.success) {
       setQuickName("");
       setQuickCode("");
+      setQuickDesc("");
+      setCodeManuallyEdited(false);
       setQuickAddCategory(null);
     } else {
-      setQuickError(`A sub-department named "${trimmedName}" already exists in this category.`);
+      setQuickError(res.error || `A sub-department named "${trimmedName}" already exists.`);
     }
   };
 
@@ -324,6 +379,32 @@ export default function PrimaryDepartmentOverview({
                     >
                       {sub.code}
                     </span>
+                    {onRemoveSubDept && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveSubDept(sub.tempId);
+                        }}
+                        title={`Remove ${sub.name} from examination`}
+                        style={{
+                          border: "none",
+                          background: "none",
+                          color: "#94a3b8",
+                          cursor: "pointer",
+                          padding: "0 2px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          lineHeight: 1
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -553,6 +634,32 @@ export default function PrimaryDepartmentOverview({
                     >
                       {sub.code}
                     </span>
+                    {onRemoveSubDept && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onRemoveSubDept(sub.tempId);
+                        }}
+                        title={`Remove ${sub.name} from examination`}
+                        style={{
+                          border: "none",
+                          background: "none",
+                          color: "#94a3b8",
+                          cursor: "pointer",
+                          padding: "0 2px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          lineHeight: 1
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = "#dc2626")}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = "#94a3b8")}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -679,7 +786,7 @@ export default function PrimaryDepartmentOverview({
             >
               <div>
                 <h4 style={{ margin: 0, fontSize: "15px", color: "#0f172a", fontWeight: 700 }}>
-                  Add New {quickAddCategory === "TECHNICAL" ? "Technical" : "Non-Technical"} Sub-Department
+                  Add {quickAddCategory === "TECHNICAL" ? "Technical" : "Non-Technical"} Sub-Department
                 </h4>
                 <small style={{ color: "#64748b", fontSize: "11.5px" }}>
                   This specialization will share the common {quickAddCategory === "TECHNICAL" ? "Technical" : "Non-Technical"} question bank.
@@ -694,58 +801,156 @@ export default function PrimaryDepartmentOverview({
               </button>
             </div>
 
-            <form onSubmit={handleQuickAddSubmit} style={{ padding: "20px" }}>
-              {quickError && (
-                <div style={{ color: "#dc2626", fontSize: "12px", background: "#fef2f2", border: "1px solid #fecaca", padding: "8px 12px", borderRadius: "6px", marginBottom: "14px" }}>
-                  {quickError}
-                </div>
-              )}
+            {/* Mode Selector Tabs */}
+            {(() => {
+              const configuredCodes = new Set([...technicalSubDepts, ...nonTechnicalSubDepts].map(s => s.code.toUpperCase()));
+              const selectableExisting = availableDepartments.filter(d => !configuredCodes.has(d.code.toUpperCase()));
 
-              <div style={{ marginBottom: "14px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
-                  Sub-Department Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder={quickAddCategory === "TECHNICAL" ? "e.g. Cloud Security Architect" : "e.g. Talent Acquisition Lead"}
-                  value={quickName}
-                  onChange={e => setQuickName(e.target.value)}
-                  style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
-                  autoFocus
-                />
-              </div>
+              return (
+                <form onSubmit={handleQuickAddSubmit} style={{ padding: "20px" }}>
+                  {quickError && (
+                    <div style={{ color: "#dc2626", fontSize: "12px", background: "#fef2f2", border: "1px solid #fecaca", padding: "8px 12px", borderRadius: "6px", marginBottom: "14px" }}>
+                      {quickError}
+                    </div>
+                  )}
 
-              <div style={{ marginBottom: "18px" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
-                  Department Code * (Unique within track)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. SEC, BD, CRM"
-                  value={quickCode}
-                  onChange={e => setQuickCode(e.target.value.toUpperCase())}
-                  style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
-                />
-              </div>
+                  <div style={{ display: "flex", gap: "8px", marginBottom: "16px", borderBottom: "1px solid #e2e8f0", paddingBottom: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={() => { setQuickMode("existing"); setQuickError(null); }}
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        fontWeight: quickMode === "existing" ? 700 : 500,
+                        borderRadius: "6px",
+                        border: "none",
+                        cursor: "pointer",
+                        background: quickMode === "existing" ? (quickAddCategory === "TECHNICAL" ? "#EAF6EF" : "#eff6ff") : "transparent",
+                        color: quickMode === "existing" ? (quickAddCategory === "TECHNICAL" ? "#017846" : "#0284c7") : "#64748b"
+                      }}
+                    >
+                      Choose Existing Academic Dept ({selectableExisting.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setQuickMode("new"); setQuickError(null); }}
+                      style={{
+                        padding: "6px 12px",
+                        fontSize: "12px",
+                        fontWeight: quickMode === "new" ? 700 : 500,
+                        borderRadius: "6px",
+                        border: "none",
+                        cursor: "pointer",
+                        background: quickMode === "new" ? (quickAddCategory === "TECHNICAL" ? "#EAF6EF" : "#eff6ff") : "transparent",
+                        color: quickMode === "new" ? (quickAddCategory === "TECHNICAL" ? "#017846" : "#0284c7") : "#64748b"
+                      }}
+                    >
+                      + Create New Custom Sub-Dept
+                    </button>
+                  </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => setQuickAddCategory(null)}
-                  style={{ padding: "8px 16px", fontSize: "12.5px" }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="primary"
-                  style={{ padding: "8px 20px", fontSize: "12.5px", background: "#017846" }}
-                >
-                  Add to Examination
-                </button>
-              </div>
-            </form>
+                  {quickMode === "existing" ? (
+                    <div style={{ marginBottom: "18px" }}>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                        Select Academic Department *
+                      </label>
+                      {selectableExisting.length === 0 ? (
+                        <div style={{ padding: "12px", background: "#f8fafc", borderRadius: "6px", border: "1px dashed #cbd5e1", fontSize: "12px", color: "#64748b" }}>
+                          All existing academic departments are already configured in this exam. Switch to "Create New Custom Sub-Dept" to add a new specialization.
+                        </div>
+                      ) : (
+                        <select
+                          value={selectedDeptId}
+                          onChange={e => {
+                            setSelectedDeptId(e.target.value);
+                            setQuickError(null);
+                          }}
+                          style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px", background: "#ffffff" }}
+                          autoFocus
+                        >
+                          <option value="">-- Choose from Database Catalog --</option>
+                          {selectableExisting.map(d => (
+                            <option key={d.id} value={String(d.id)}>
+                              {d.name} ({d.code})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      <small style={{ color: "#64748b", fontSize: "11px", marginTop: "4px", display: "block" }}>
+                        Select an existing active department to enroll candidates into this category track.
+                      </small>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ marginBottom: "14px" }}>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
+                          Sub-Department Name *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={quickAddCategory === "TECHNICAL" ? "e.g. Cloud Security Architect" : "e.g. Talent Acquisition Lead"}
+                          value={quickName}
+                          onChange={e => handleNameChange(e.target.value)}
+                          style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
+                          autoFocus
+                        />
+                      </div>
+
+                      <div style={{ marginBottom: "14px" }}>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
+                          Department Code * (Unique alphanumeric)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="e.g. SEC, BD, CRM"
+                          value={quickCode}
+                          onChange={e => {
+                            setCodeManuallyEdited(true);
+                            setQuickCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""));
+                          }}
+                          style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
+                        />
+                        <small style={{ color: "#64748b", fontSize: "11px", marginTop: "4px", display: "block" }}>
+                          Auto-suggested from name. You can customize it if needed.
+                        </small>
+                      </div>
+
+                      <div style={{ marginBottom: "18px" }}>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "5px" }}>
+                          Description (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Scope, candidate role, or syllabus notes"
+                          value={quickDesc}
+                          onChange={e => setQuickDesc(e.target.value)}
+                          style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setQuickAddCategory(null)}
+                      style={{ padding: "8px 16px", fontSize: "12.5px" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary"
+                      disabled={quickMode === "existing" && selectableExisting.length === 0}
+                      style={{ padding: "8px 20px", fontSize: "12.5px", background: "#017846" }}
+                    >
+                      Add to Examination
+                    </button>
+                  </div>
+                </form>
+              );
+            })()}
           </div>
         </div>
       )}

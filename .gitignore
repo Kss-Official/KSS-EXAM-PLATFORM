@@ -80,3 +80,7 @@ documents/
 .DS_Store
 Thumbs.db
 .neon
+
+# JMeter Test Suite & Reports
+jmeter_tests/
+*.jtl

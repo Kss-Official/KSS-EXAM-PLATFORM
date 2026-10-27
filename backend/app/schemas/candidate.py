@@ -22,6 +22,7 @@ class CandidateDto(CamelModel):
     email: str
     department_id: Optional[int] = None
     department_name: Optional[str] = None
+    college_id: Optional[int] = None
     college_name: Optional[str] = None
     status: Optional[str] = "ACTIVE"
     created_at: Optional[datetime] = None
@@ -52,6 +53,9 @@ class CandidateVerifyRequest(CamelModel):
     department: Optional[str] = None
     department_name: Optional[str] = None
     department_id: Optional[int] = None
+    college: Optional[str] = None
+    college_name: Optional[str] = None
+    college_id: Optional[int] = None
     registration_number: Optional[str] = None
 
 class CandidateVerifyResponse(CamelModel):
@@ -63,6 +67,7 @@ class CandidateVerifyResponse(CamelModel):
     candidate_name: Optional[str] = None
     email: Optional[str] = None
     department_name: Optional[str] = None
+    college_name: Optional[str] = None
     exam_id: Optional[int] = None
     assigned_exam_id: Optional[int] = None
     exam_title: Optional[str] = None
@@ -106,3 +111,11 @@ class CandidateStartAttemptResponse(CamelModel):
 class AnswerSaveRequest(CamelModel):
     question_id: int
     selected_option_id: Optional[int] = None
+
+class PaginatedCandidatesResponse(CamelModel):
+    items: List[CandidateDto]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+    has_more: bool

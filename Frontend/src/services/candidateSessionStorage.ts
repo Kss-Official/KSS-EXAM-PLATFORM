@@ -130,6 +130,8 @@ export function finalizeCandidateSession(
   // Idempotency check: if already submitted, do not re-finalize or generate new receipt
   if (session.isSubmitted && session.receiptId && session.submittedAt) {
     const answeredCount = Object.keys(session.answers).length;
+    const timeTakenSeconds = session.timeTakenSeconds ?? 
+      (session.startTime ? Math.max(0, Math.round((session.submittedAt - session.startTime) / 1000)) : undefined);
     const receipt: SubmissionReceipt = {
       receiptId: session.receiptId,
       sessionId: session.sessionId,
@@ -142,6 +144,7 @@ export function finalizeCandidateSession(
       unansweredCount: Math.max(0, DEMO_TOTAL_QUESTIONS - answeredCount),
       totalQuestions: DEMO_TOTAL_QUESTIONS,
       submittedAt: session.submittedAt,
+      timeTakenSeconds,
       submissionReason: session.submissionReason || reason,
       isDemoReceipt: true
     };
@@ -150,13 +153,15 @@ export function finalizeCandidateSession(
 
   const now = Date.now();
   const receiptId = `DEMO-REC-2026-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  const elapsedSec = session.startTime ? Math.max(0, Math.round((now - session.startTime) / 1000)) : 0;
 
   const finalizedSession: CandidateSession = {
     ...session,
     isSubmitted: true,
     submittedAt: now,
     receiptId,
-    submissionReason: reason
+    submissionReason: reason,
+    timeTakenSeconds: elapsedSec
   };
 
   saveCandidateSession(finalizedSession);
@@ -174,6 +179,7 @@ export function finalizeCandidateSession(
     unansweredCount: Math.max(0, DEMO_TOTAL_QUESTIONS - answeredCount),
     totalQuestions: DEMO_TOTAL_QUESTIONS,
     submittedAt: now,
+    timeTakenSeconds: elapsedSec,
     submissionReason: reason,
     isDemoReceipt: true
   };
@@ -183,11 +189,27 @@ export function finalizeCandidateSession(
 
 /**
  * Removes the candidate session from storage to allow demo restart.
- * Can only be called upon user confirmation outside active exam.
+ * Purges all attempt-scoped pending answer queues to prevent cross-candidate data leakage in shared computer labs.
  */
 export function clearCandidateSession(): void {
   try {
     localStorage.removeItem(CANDIDATE_STORAGE_KEY);
+
+    // Collect all candidate-scoped pending answer and session keys
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith("examsecure_pending_answers") ||
+        key.startsWith("secureexam:") ||
+        key.startsWith("examsecure_")
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(k => {
+      try { localStorage.removeItem(k); } catch {}
+    });
   } catch (error) {
     console.error("[CandidateSession] Failed to clear localStorage:", error);
   }

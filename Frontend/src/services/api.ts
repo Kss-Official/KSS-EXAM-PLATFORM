@@ -157,9 +157,41 @@ export interface CandidateDto {
   email: string;
   departmentId?: number;
   departmentName?: string;
+  collegeId?: number;
   collegeName?: string;
   status: string;
   createdAt?: string;
+}
+
+export interface CollegeDto {
+  id: number;
+  name: string;
+  code?: string;
+  description?: string;
+  active: boolean;
+  createdAt?: string;
+  candidatesCount?: number;
+}
+
+export interface PaginatedCandidatesResponse {
+  items: CandidateDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  hasMore: boolean;
+}
+
+export interface CandidateQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  departmentId?: number;
+  collegeId?: number;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: "asc" | "desc";
+  all?: boolean;
 }
 
 export interface CandidateVerifyRequest {
@@ -169,6 +201,9 @@ export interface CandidateVerifyRequest {
   name?: string;
   departmentName?: string;
   departmentId?: number;
+  college?: string;
+  collegeName?: string;
+  collegeId?: number;
   registrationNumber?: string;
 }
 
@@ -181,6 +216,7 @@ export interface CandidateVerifyResponse {
   candidateName?: string;
   email?: string;
   departmentName?: string;
+  collegeName?: string;
   examId?: number;
   assignedExamId?: number;
   examTitle?: string;
@@ -350,7 +386,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     let errorDetail = "";
     try {
       const data = await response.json();
-      errorDetail = data.message || data.error || JSON.stringify(data);
+      const detailStr = typeof data.detail === "string" 
+        ? data.detail 
+        : (Array.isArray(data.detail) ? data.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join("; ") : null);
+      errorDetail = detailStr || data.message || data.error || JSON.stringify(data);
     } catch {
       try {
         errorDetail = await response.text();
@@ -434,12 +473,18 @@ export async function getAdminDashboard(): Promise<AdminDashboardResponse> {
    3. DEPARTMENT MANAGEMENT APIS
    ========================================================================= */
 
-export async function getAllDepartments(): Promise<DepartmentDto[]> {
-  return request<DepartmentDto[]>("admin/departments");
+export async function getAllDepartments(params?: { type?: "academic" | "college" | "all" }): Promise<DepartmentDto[]> {
+  const query = params?.type ? `?type=${params.type}` : "";
+  return request<DepartmentDto[]>(`admin/departments${query}`);
 }
 
-export async function getActiveDepartments(): Promise<DepartmentDto[]> {
-  return request<DepartmentDto[]>("admin/departments/active");
+export async function getActiveDepartments(params?: { type?: "academic" | "college" | "all" }): Promise<DepartmentDto[]> {
+  const query = params?.type ? `?type=${params.type}` : "";
+  return request<DepartmentDto[]>(`admin/departments/active${query}`);
+}
+
+export async function getAllColleges(): Promise<DepartmentDto[]> {
+  return request<DepartmentDto[]>("admin/departments/colleges");
 }
 
 export async function createDepartment(dept: Partial<DepartmentDto>): Promise<DepartmentDto> {
@@ -460,6 +505,40 @@ export async function updateDepartment(id: number, dept: Partial<DepartmentDto>)
 
 export async function deleteDepartment(id: number): Promise<{ success: boolean; message: string }> {
   return request<{ success: boolean; message: string }>(`admin/departments/${id}`, {
+    method: "DELETE"
+  });
+}
+
+/* =========================================================================
+   3b. COLLEGE / INSTITUTION MANAGEMENT APIS
+   ========================================================================= */
+
+export async function getColleges(): Promise<CollegeDto[]> {
+  return request<CollegeDto[]>("admin/colleges");
+}
+
+export async function getActiveColleges(): Promise<CollegeDto[]> {
+  return request<CollegeDto[]>("admin/colleges/active");
+}
+
+export async function createCollege(college: Partial<CollegeDto>): Promise<CollegeDto> {
+  return request<CollegeDto>("admin/colleges", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(college)
+  });
+}
+
+export async function updateCollege(id: number, college: Partial<CollegeDto>): Promise<CollegeDto> {
+  return request<CollegeDto>(`admin/colleges/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(college)
+  });
+}
+
+export async function deleteCollege(id: number): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>(`admin/colleges/${id}`, {
     method: "DELETE"
   });
 }
@@ -685,8 +764,26 @@ export async function uploadSetDocument(
    6. CANDIDATE MANAGEMENT APIS
    ========================================================================= */
 
+export async function getCandidates(params?: CandidateQueryParams): Promise<PaginatedCandidatesResponse> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.limit) query.set("limit", String(params.limit));
+  if (params?.search && params.search.trim()) query.set("search", params.search.trim());
+  if (params?.departmentId !== undefined) query.set("departmentId", String(params.departmentId));
+  if (params?.collegeId !== undefined) query.set("collegeId", String(params.collegeId));
+  if (params?.status && params.status !== "ALL") query.set("status", params.status);
+  if (params?.sortBy) query.set("sortBy", params.sortBy);
+  if (params?.sortOrder) query.set("sortOrder", params.sortOrder);
+  if (params?.all) query.set("all", "true");
+
+  const qs = query.toString();
+  return request<PaginatedCandidatesResponse>(`admin/candidates${qs ? `?${qs}` : ""}`);
+}
+
 export async function getAllCandidates(): Promise<CandidateDto[]> {
-  return request<CandidateDto[]>("admin/candidates");
+  const res = await request<PaginatedCandidatesResponse | CandidateDto[]>("admin/candidates?all=true");
+  if (Array.isArray(res)) return res;
+  return res.items || [];
 }
 
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
@@ -777,22 +874,28 @@ export async function startCandidateAttempt(candidateId: number, examId: number)
   });
 }
 
-export async function saveCandidateAnswer(attemptId: number, questionId: number, selectedOptionId: number | null): Promise<any> {
+export async function saveCandidateAnswer(
+  attemptId: number,
+  questionId: number,
+  selectedOptionId: number | null,
+  candidateId?: number | null
+): Promise<any> {
   return request<any>(`candidate/answers?attemptId=${attemptId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ questionId, selectedOptionId })
+    body: JSON.stringify({ questionId, selectedOptionId, candidateId })
   });
 }
 
 export async function submitCandidateAttempt(
   attemptId: number,
-  answers?: Record<number, number>
+  answers?: Record<number, number>,
+  candidateId?: number | null
 ): Promise<SubmissionResponse> {
   return request<SubmissionResponse>(`candidate/submit?attemptId=${attemptId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ attemptId, answers })
+    body: JSON.stringify({ attemptId, answers, candidateId })
   });
 }
 

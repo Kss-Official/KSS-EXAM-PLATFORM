@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { 
   BookOpen, 
   ChevronLeft, 
@@ -737,24 +737,55 @@ export default function CandidateExamPage({
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
   const [submitting, setSubmitting] = useState(false);
 
-  // Risk 3: Retain pending saves in browser localStorage for offline resilience
+  // Attempt-scoped storage key prevents cross-candidate data leakage in shared computer lab terminals
+  const getAttemptStorageKey = useCallback((aid?: number | null) => {
+    return aid ? `examsecure_pending_answers_${aid}` : "examsecure_pending_answers_session";
+  }, []);
+
   const [pendingQueue, setPendingQueue] = useState<Array<{ qNum: number; qId: number; optId: number }>>(() => {
     try {
-      const stored = localStorage.getItem("examsecure_pending_answers");
+      const aid = initialSession?.backendAttemptId;
+      const stored = localStorage.getItem(getAttemptStorageKey(aid));
       return stored ? JSON.parse(stored) : [];
     } catch {
       return [];
     }
   });
 
-  // Persist pendingQueue to localStorage whenever it changes
+  // Debounce refs to prevent high-frequency request storm on rapid option clicking
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingSaveRef = useRef<{ aid: number; qNum: number; qId: number; optId: number; cid?: number | null } | null>(null);
+
+  // Flush any pending debounced save immediately to avoid lost answers on navigate/submit
+  const flushDebouncedSave = useCallback(async () => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (pendingSaveRef.current) {
+      const toSave = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      try {
+        await saveCandidateAnswer(toSave.aid, toSave.qId, toSave.optId, toSave.cid);
+        setPendingQueue(prev => prev.filter(item => item.qNum !== toSave.qNum));
+        setAutosaveStatus("saved");
+      } catch (err) {
+        console.warn("[CandidateExamPage] Debounced save failed to sync, retained in queue:", err);
+      }
+    }
+  }, []);
+
+  // Persist pendingQueue to attempt-scoped localStorage whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem("examsecure_pending_answers", JSON.stringify(pendingQueue));
+      const aid = backendAttemptId || session?.backendAttemptId;
+      if (aid) {
+        localStorage.setItem(getAttemptStorageKey(aid), JSON.stringify(pendingQueue));
+      }
     } catch {
       // Local storage quota or security restriction handled safely
     }
-  }, [pendingQueue]);
+  }, [pendingQueue, backendAttemptId, session?.backendAttemptId, getAttemptStorageKey]);
 
   // Safe retry and background sync for offline pending saves
   useEffect(() => {
@@ -762,6 +793,7 @@ export default function CandidateExamPage({
 
     const flushPendingQueue = async () => {
       const aid = backendAttemptId || session?.backendAttemptId;
+      const cid = session?.profile?.dbCandidateId;
       if (!aid || pendingQueue.length === 0) return;
 
       const itemsToSync = [...pendingQueue];
@@ -769,7 +801,7 @@ export default function CandidateExamPage({
 
       for (const item of itemsToSync) {
         try {
-          await saveCandidateAnswer(aid, item.qId, item.optId);
+          await saveCandidateAnswer(aid, item.qId, item.optId, cid);
         } catch {
           remaining.push(item);
         }
@@ -797,7 +829,7 @@ export default function CandidateExamPage({
       window.removeEventListener("online", handleOnline);
       clearInterval(intervalId);
     };
-  }, [backendAttemptId, session?.backendAttemptId, pendingQueue]);
+  }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId, pendingQueue]);
 
   // Load questions from backend attempt on mount
   useEffect(() => {
@@ -994,11 +1026,12 @@ export default function CandidateExamPage({
       const qId = currentQuestion.id ?? currentQuestion.questionId ?? questionNum;
       const chosenOpt = currentQuestion.options?.[optionIndex];
       const optId = chosenOpt?.id ?? chosenOpt?.optionId ?? optionIndex;
+      const cid = session?.profile?.dbCandidateId;
 
       if (qId !== undefined && optId !== undefined) {
         setAutosaveStatus("saving");
 
-        // Retain pending save locally
+        // Retain pending save locally immediately
         setPendingQueue(prev => [
           ...prev.filter(item => item.qNum !== questionNum),
           { qNum: questionNum, qId, optId }
@@ -1009,15 +1042,25 @@ export default function CandidateExamPage({
           return;
         }
 
-        try {
-          await saveCandidateAnswer(activeAid, qId, optId);
-          // On successful server save, dequeue item
-          setPendingQueue(prev => prev.filter(item => item.qNum !== questionNum));
-          setAutosaveStatus("saved");
-        } catch (saveErr) {
-          console.warn("[CandidateExamPage] Save interrupted. Answer safely buffered locally:", saveErr);
-          setAutosaveStatus("offline");
+        // 300ms debounce: rapidly clicking options won't flood backend workers
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
         }
+        pendingSaveRef.current = { aid: activeAid, qNum: questionNum, qId, optId, cid };
+
+        debounceTimerRef.current = setTimeout(async () => {
+          if (!pendingSaveRef.current) return;
+          const toSave = pendingSaveRef.current;
+          pendingSaveRef.current = null;
+          try {
+            await saveCandidateAnswer(toSave.aid, toSave.qId, toSave.optId, toSave.cid);
+            setPendingQueue(prev => prev.filter(item => item.qNum !== toSave.qNum));
+            setAutosaveStatus("saved");
+          } catch (saveErr) {
+            console.warn("[CandidateExamPage] Save interrupted. Answer safely buffered locally:", saveErr);
+            setAutosaveStatus("offline");
+          }
+        }, 300);
       }
     }
   }, [idx, session, backendAttemptId, flags, currentQuestion]);
@@ -1044,9 +1087,10 @@ export default function CandidateExamPage({
     });
   }, [idx, session, backendAttemptId]);
 
-  const handleNavigateQuestion = useCallback((targetIndex: number) => {
+  const handleNavigateQuestion = useCallback(async (targetIndex: number) => {
     const maxAllowed = Math.max(total, questions.length, 60);
     if (targetIndex >= 0 && targetIndex < maxAllowed) {
+      await flushDebouncedSave();
       setIdx(targetIndex);
       saveCandidateSession({
         ...session,
@@ -1056,22 +1100,27 @@ export default function CandidateExamPage({
         currentQuestionIndex: targetIndex
       });
     }
-  }, [total, questions.length, session, backendAttemptId, answers, flags]);
+  }, [total, questions.length, session, backendAttemptId, answers, flags, flushDebouncedSave]);
 
   const triggerFinalization = useCallback(async (reason: "manual_submit" | "timer_expired" | "candidate_exit") => {
     if (submitting) return;
     setSubmitting(true);
+    await flushDebouncedSave();
     let backendResult: SubmissionResponse | undefined;
     const aid = backendAttemptId || session?.backendAttemptId;
+    const cid = session?.profile?.dbCandidateId;
     if (aid) {
       try {
-        backendResult = await submitCandidateAttempt(aid, answers);
+        backendResult = await submitCandidateAttempt(aid, answers, cid);
+        try {
+          localStorage.removeItem(getAttemptStorageKey(aid));
+        } catch {}
       } catch (err) {
         console.warn("[CandidateExamPage] Live backend submit attempt error:", err);
       }
     }
     onFinalize(reason, backendResult);
-  }, [submitting, backendAttemptId, session, answers, onFinalize]);
+  }, [submitting, backendAttemptId, session, answers, onFinalize, flushDebouncedSave, getAttemptStorageKey]);
 
   return (
     <main className="exam-fullscreen-view">

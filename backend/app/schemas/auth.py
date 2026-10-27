@@ -3,7 +3,7 @@ from app.schemas.base import CamelModel
 
 class LoginRequest(CamelModel):
     email: str
-    password: str
+    password: Optional[str] = None
 
 class AuthUser(CamelModel):
     id: int

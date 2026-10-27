@@ -131,6 +131,7 @@ export default function CandidateEntryPage({
         email: verifyRes.email || email.trim().toLowerCase(),
         department: verifyRes.departmentName || (department as Department),
         departmentId: departmentId,
+        collegeName: verifyRes.collegeName,
         candidateId: verifyRes.registrationNumber || "CAND-001",
         dbCandidateId: verifyRes.candidateId,
         assignedExamId: verifyRes.assignedExamId,

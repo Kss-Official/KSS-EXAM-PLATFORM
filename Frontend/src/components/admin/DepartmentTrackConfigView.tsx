@@ -26,16 +26,23 @@ import type {
   CategoryQuestionBankState, 
   SetCode 
 } from "../../types/departmentHierarchy";
-import type { ParsedQuestionDto } from "../../services/api";
+import type { ParsedQuestionDto, DepartmentDto } from "../../services/api";
 
 interface DepartmentTrackConfigViewProps {
   category: PrimaryDepartmentType;
   subDepartments: SubDepartmentItem[];
+  availableDepartments?: DepartmentDto[];
   bank: CategoryQuestionBankState;
   onBackToOverview: () => void;
   onSwitchCategory: (newCategory: PrimaryDepartmentType) => void;
-  onAddSubDept: (category: PrimaryDepartmentType, name: string, code: string, description?: string) => boolean;
-  onUpdateSubDept: (tempId: string, name: string, code: string, description?: string) => boolean;
+  onAddSubDept: (
+    category: PrimaryDepartmentType, 
+    name: string, 
+    code: string, 
+    description?: string,
+    existingDeptId?: number
+  ) => { success: boolean; error?: string };
+  onUpdateSubDept: (tempId: string, name: string, code: string, description?: string) => { success: boolean; error?: string };
   onRemoveSubDept: (tempId: string) => void;
   onToggleRandomize: (category: PrimaryDepartmentType, enabled: boolean) => void;
   onSetFileChange: (
@@ -50,6 +57,7 @@ interface DepartmentTrackConfigViewProps {
 export default function DepartmentTrackConfigView({
   category,
   subDepartments,
+  availableDepartments = [],
   bank,
   onBackToOverview,
   onSwitchCategory,
@@ -71,8 +79,11 @@ export default function DepartmentTrackConfigView({
 
   // Add sub-department state
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addMode, setAddMode] = useState<"existing" | "custom">("existing");
+  const [selectedDeptId, setSelectedDeptId] = useState<string>("");
   const [newName, setNewName] = useState("");
   const [newCode, setNewCode] = useState("");
+  const [newCodeEdited, setNewCodeEdited] = useState(false);
   const [newDesc, setNewDesc] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
 
@@ -87,6 +98,8 @@ export default function DepartmentTrackConfigView({
   const [deletingSubDept, setDeletingSubDept] = useState<SubDepartmentItem | null>(null);
 
   const categorySubDepts = subDepartments.filter(s => s.category === category);
+  const configuredCodes = new Set(subDepartments.map(s => s.code.toUpperCase()));
+  const selectableExisting = availableDepartments.filter(d => !configuredCodes.has(d.code.toUpperCase()));
 
   const handleStartEdit = (sub: SubDepartmentItem) => {
     setEditingTempId(sub.tempId);
@@ -109,18 +122,40 @@ export default function DepartmentTrackConfigView({
     if (!editingTempId) return;
 
     const trimmedName = editName.trim();
-    const trimmedCode = editCode.trim().toUpperCase();
+    const trimmedCode = editCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
 
-    if (!trimmedName || !trimmedCode) {
-      setEditError("Name and Code cannot be empty.");
+    if (!trimmedName) {
+      setEditError("Sub-Department Name cannot be empty.");
+      return;
+    }
+    if (!trimmedCode) {
+      setEditError("Department Code cannot be empty.");
       return;
     }
 
-    const success = onUpdateSubDept(editingTempId, trimmedName, trimmedCode, editDesc.trim());
-    if (success) {
+    const res = onUpdateSubDept(editingTempId, trimmedName, trimmedCode, editDesc.trim());
+    if (res.success) {
       handleCancelEdit();
     } else {
-      setEditError(`A sub-department named "${trimmedName}" already exists in this category.`);
+      setEditError(res.error || `A sub-department named "${trimmedName}" already exists.`);
+    }
+  };
+
+  const handleNewNameChange = (val: string) => {
+    setNewName(val);
+    setAddError(null);
+    if (!newCodeEdited) {
+      const clean = val.trim();
+      if (!clean) {
+        setNewCode("");
+      } else {
+        const parts = clean.split(/\s+/);
+        if (parts.length === 1) {
+          setNewCode(parts[0].substring(0, 8).toUpperCase().replace(/[^A-Z0-9_]/g, ""));
+        } else {
+          setNewCode(parts.map(p => p[0]).join("").toUpperCase().substring(0, 8).replace(/[^A-Z0-9_]/g, ""));
+        }
+      }
     }
   };
 
@@ -128,22 +163,43 @@ export default function DepartmentTrackConfigView({
     e.preventDefault();
     setAddError(null);
 
-    const trimmedName = newName.trim();
-    const trimmedCode = newCode.trim().toUpperCase();
-
-    if (!trimmedName || !trimmedCode) {
-      setAddError("Name and Department Code are required.");
+    if (addMode === "existing") {
+      if (!selectedDeptId) {
+        setAddError("Please select an academic department from the list.");
+        return;
+      }
+      const dept = availableDepartments.find(d => String(d.id) === selectedDeptId);
+      if (!dept) {
+        setAddError("Selected department could not be found.");
+        return;
+      }
+      const res = onAddSubDept(category, dept.name, dept.code, dept.description, dept.id);
+      if (res.success) {
+        setSelectedDeptId("");
+        setShowAddForm(false);
+      } else {
+        setAddError(res.error || `Department "${dept.name}" could not be added.`);
+      }
       return;
     }
 
-    const success = onAddSubDept(category, trimmedName, trimmedCode, newDesc.trim());
-    if (success) {
+    const trimmedName = newName.trim();
+    const trimmedCode = newCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+
+    if (!trimmedName) {
+      setAddError("Sub-Department Name is required.");
+      return;
+    }
+
+    const res = onAddSubDept(category, trimmedName, trimmedCode, newDesc.trim() || undefined);
+    if (res.success) {
       setNewName("");
       setNewCode("");
+      setNewCodeEdited(false);
       setNewDesc("");
       setShowAddForm(false);
     } else {
-      setAddError(`A sub-department named "${trimmedName}" already exists in this category.`);
+      setAddError(res.error || `A sub-department named "${trimmedName}" already exists.`);
     }
   };
 
@@ -342,12 +398,48 @@ export default function DepartmentTrackConfigView({
               marginBottom: "18px"
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-              <strong style={{ fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
-                <FolderPlus size={15} color={primaryBrand} />
-                Create New {isTech ? "Technical" : "Non-Technical"} Sub-Department
-              </strong>
-              <small style={{ color: "#64748b", fontSize: "11px" }}>Duplicate names within this category are strictly prevented.</small>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <strong style={{ fontSize: "13px", color: "#0f172a", display: "flex", alignItems: "center", gap: "6px" }}>
+                  <FolderPlus size={15} color={primaryBrand} />
+                  Add {isTech ? "Technical" : "Non-Technical"} Sub-Department
+                </strong>
+                <div style={{ display: "flex", background: "#ffffff", padding: "2px", borderRadius: "6px", border: "1px solid #cbd5e1" }}>
+                  <button
+                    type="button"
+                    onClick={() => { setAddMode("existing"); setAddError(null); }}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: "11px",
+                      fontWeight: addMode === "existing" ? 700 : 500,
+                      borderRadius: "4px",
+                      border: "none",
+                      cursor: "pointer",
+                      background: addMode === "existing" ? lightBg : "transparent",
+                      color: addMode === "existing" ? primaryBrand : "#64748b"
+                    }}
+                  >
+                    From Database ({selectableExisting.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setAddMode("custom"); setAddError(null); }}
+                    style={{
+                      padding: "4px 10px",
+                      fontSize: "11px",
+                      fontWeight: addMode === "custom" ? 700 : 500,
+                      borderRadius: "4px",
+                      border: "none",
+                      cursor: "pointer",
+                      background: addMode === "custom" ? lightBg : "transparent",
+                      color: addMode === "custom" ? primaryBrand : "#64748b"
+                    }}
+                  >
+                    + New Custom Role
+                  </button>
+                </div>
+              </div>
+              <small style={{ color: "#64748b", fontSize: "11px" }}>Duplicate codes or names are strictly prevented.</small>
             </div>
 
             {addError && (
@@ -356,54 +448,43 @@ export default function DepartmentTrackConfigView({
               </div>
             )}
 
-            <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr 2fr auto", gap: "10px", alignItems: "flex-end" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                  Sub-Department Name *
-                </label>
-                <input
-                  type="text"
-                  placeholder={isTech ? "e.g. Data Engineer, Cybersecurity" : "e.g. Operations Manager, PR"}
-                  value={newName}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewName(e.target.value)}
-                  style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                  autoFocus
-                />
-              </div>
+            {addMode === "existing" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: "10px", alignItems: "flex-end" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Select Academic Department *
+                  </label>
+                  {selectableExisting.length === 0 ? (
+                    <div style={{ padding: "8px 12px", background: "#ffffff", borderRadius: "6px", border: "1px dashed #cbd5e1", fontSize: "12px", color: "#64748b" }}>
+                      All existing academic departments are already enrolled. Switch to "+ New Custom Role" above to create a new specialization.
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedDeptId}
+                      onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                        setSelectedDeptId(e.target.value);
+                        setAddError(null);
+                      }}
+                      style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px", background: "#ffffff" }}
+                      autoFocus
+                    >
+                      <option value="">-- Choose from Database Catalog --</option>
+                      {selectableExisting.map(d => (
+                        <option key={d.id} value={String(d.id)}>
+                          {d.name} ({d.code})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
 
-              <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                  Code *
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. DATA, OPS"
-                  value={newCode}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewCode(e.target.value.toUpperCase())}
-                  style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                />
-              </div>
-
-              <div>
-                <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
-                  Description (Optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Scope, candidate role, or syllabus notes"
-                  value={newDesc}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDesc(e.target.value)}
-                  style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
-                />
-              </div>
-
-              <div style={{ display: "flex", gap: "6px" }}>
                 <button
                   type="submit"
                   className="primary"
+                  disabled={selectableExisting.length === 0}
                   style={{ padding: "8px 16px", fontSize: "12px", background: primaryBrand, height: "35px" }}
                 >
-                  Save & Add
+                  Add to Track
                 </button>
                 <button
                   type="button"
@@ -414,7 +495,70 @@ export default function DepartmentTrackConfigView({
                   Cancel
                 </button>
               </div>
-            </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1.8fr 1fr 2fr auto", gap: "10px", alignItems: "flex-end" }}>
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Sub-Department Name *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder={isTech ? "e.g. Data Engineer, Cybersecurity" : "e.g. Operations Manager, PR"}
+                    value={newName}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleNewNameChange(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Code * (Auto-suggested)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DATA, OPS"
+                    value={newCode}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setNewCodeEdited(true);
+                      setNewCode(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ""));
+                    }}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: "#334155", marginBottom: "4px" }}>
+                    Description (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Scope, candidate role, or syllabus notes"
+                    value={newDesc}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewDesc(e.target.value)}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: "12px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                  />
+                </div>
+
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <button
+                    type="submit"
+                    className="primary"
+                    style={{ padding: "8px 16px", fontSize: "12px", background: primaryBrand, height: "35px" }}
+                  >
+                    Save & Add
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => setShowAddForm(false)}
+                    style={{ padding: "8px 12px", fontSize: "12px", height: "35px" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         )}
 
@@ -554,7 +698,7 @@ export default function DepartmentTrackConfigView({
                     </span>
 
                     <div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                         <strong style={{ fontSize: "13.5px", color: "#0f172a" }}>{sub.name}</strong>
                         <span 
                           style={{
@@ -568,6 +712,15 @@ export default function DepartmentTrackConfigView({
                         >
                           {sub.code}
                         </span>
+                        {sub.id ? (
+                          <span style={{ fontSize: "9.5px", color: "#166534", background: "#dcfce7", padding: "1px 6px", borderRadius: "3px", fontWeight: 700 }}>
+                            ✓ Active in DB
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "9.5px", color: "#0284c7", background: "#e0f2fe", padding: "1px 6px", borderRadius: "3px", fontWeight: 700 }}>
+                            Specialization
+                          </span>
+                        )}
                         {sub.isDefault && (
                           <span style={{ fontSize: "9.5px", color: "#64748b", background: "#f1f5f9", padding: "1px 5px", borderRadius: "3px" }}>
                             Standard Role

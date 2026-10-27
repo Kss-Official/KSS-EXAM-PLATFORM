@@ -24,4 +24,10 @@ def test_department_endpoints_with_auth():
     res_active = client.get("/api/admin/departments/active")
     assert res_active.status_code == 200
     assert isinstance(res_active.json(), list)
+
+    # Fetch colleges
+    res_colleges = client.get("/api/admin/departments/colleges")
+    assert res_colleges.status_code == 200
+    assert isinstance(res_colleges.json(), list)
+
     client.cookies.clear()

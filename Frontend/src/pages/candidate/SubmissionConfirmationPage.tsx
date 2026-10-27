@@ -49,14 +49,37 @@ export default function SubmissionConfirmationPage({
     }
   };
 
-  // Format elapsed time taken
+  // Format elapsed time taken accurately per individual candidate
   const formatTimeTaken = () => {
-    if (receipt?.timeTakenSeconds && receipt.timeTakenSeconds > 0) {
-      const mins = Math.floor(receipt.timeTakenSeconds / 60);
-      const secs = receipt.timeTakenSeconds % 60;
+    let totalSecs = receipt?.timeTakenSeconds;
+    if (totalSecs === undefined || totalSecs === null) {
+      try {
+        const stored = localStorage.getItem("candidate_session");
+        if (stored) {
+          const sess = JSON.parse(stored);
+          if (sess.timeTakenSeconds !== undefined && sess.timeTakenSeconds !== null) {
+            totalSecs = sess.timeTakenSeconds;
+          } else if (sess.submittedAt && sess.startTime) {
+            totalSecs = Math.max(0, Math.round((Number(sess.submittedAt) - Number(sess.startTime)) / 1000));
+          }
+        }
+      } catch {
+        // ignore storage parse errors
+      }
+    }
+
+    if (totalSecs !== undefined && totalSecs !== null && totalSecs >= 0) {
+      const mins = Math.floor(totalSecs / 60);
+      const secs = totalSecs % 60;
+      if (mins === 0 && secs === 0) {
+        return "< 1 min";
+      }
+      if (mins === 0) {
+        return `${secs} sec`;
+      }
       return `${mins} min ${secs} sec`;
     }
-    return "52 min 18 sec";
+    return "—";
   };
 
   const getReasonLabel = (reason: SubmissionReceipt["submissionReason"]) => {

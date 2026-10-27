@@ -4,6 +4,7 @@ import type { CandidateProfile, SubmissionReceipt } from "../../types/candidate"
 import type { SubmissionResponse } from "../../services/api";
 import {
   loadCandidateSession,
+  saveCandidateSession,
   createCandidateSession,
   finalizeCandidateSession,
   clearCandidateSession,
@@ -30,6 +31,11 @@ export default function CandidatePortal() {
     const answeredCount = Object.keys(sess?.answers || {}).length;
     const isBackend = typeof sess?.receiptId === "string" && (sess.receiptId.startsWith("SEB-") || sess.backendAttemptId !== undefined);
     const totalQ = isBackend ? 60 : DEMO_TOTAL_QUESTIONS;
+    const timeTakenSeconds = sess?.timeTakenSeconds ?? 
+      (sess?.submittedAt && sess?.startTime 
+        ? Math.max(0, Math.round((sess.submittedAt - sess.startTime) / 1000)) 
+        : undefined);
+
     return {
       receiptId: String(sess?.receiptId || `DEMO-REC-2026-${String(sess?.sessionId || "000000").slice(-6).toUpperCase()}`),
       sessionId: String(sess?.sessionId || ""),
@@ -42,6 +48,7 @@ export default function CandidatePortal() {
       unansweredCount: Math.max(0, totalQ - answeredCount),
       totalQuestions: totalQ,
       submittedAt: typeof sess?.submittedAt === "number" ? sess.submittedAt : Date.now(),
+      timeTakenSeconds,
       submissionReason: sess?.submissionReason || "manual_submit",
       isDemoReceipt: !isBackend,
       score: sess?.score,
@@ -123,6 +130,10 @@ export default function CandidatePortal() {
         result.session.percentage = backendResult.percentage;
         result.session.qualificationStatus = backendResult.qualificationStatus;
         result.session.isPublished = backendResult.isPublished;
+        if (backendResult.durationSeconds !== undefined && backendResult.durationSeconds !== null) {
+          result.session.durationSeconds = backendResult.durationSeconds;
+          result.session.timeTakenSeconds = backendResult.durationSeconds;
+        }
         if (backendResult.submittedAt) {
           try {
             result.session.submittedAt = new Date(backendResult.submittedAt).getTime();
@@ -131,6 +142,10 @@ export default function CandidatePortal() {
           }
         }
       }
+      if (result.session.timeTakenSeconds === undefined && result.session.startTime && result.session.submittedAt) {
+        result.session.timeTakenSeconds = Math.max(0, Math.round((result.session.submittedAt - result.session.startTime) / 1000));
+      }
+      saveCandidateSession(result.session);
       setActiveSession({ ...result.session });
     }
     navigate("/candidate/submitted");

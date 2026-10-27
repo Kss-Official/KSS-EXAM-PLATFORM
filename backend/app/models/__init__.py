@@ -1,6 +1,7 @@
 from app.core.database import Base
 from app.models.user import AppUser
 from app.models.department import Department, exam_departments
+from app.models.college import College
 from app.models.exam import Exam, ExamSlot
 from app.models.question import QuestionSet, Question, QuestionOption
 from app.models.candidate import Candidate, CandidateAccessCode
@@ -18,6 +19,7 @@ __all__ = [
     "AppUser",
     "Department",
     "exam_departments",
+    "College",
     "Exam",
     "ExamSlot",
     "QuestionSet",

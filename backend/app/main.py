@@ -51,6 +51,8 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+from starlette.middleware.gzip import GZipMiddleware
+
 # CORS configuration matching frontend Vite origin
 app.add_middleware(
     CORSMiddleware,
@@ -60,6 +62,9 @@ app.add_middleware(
     allow_headers=["*"],
     max_age=3600
 )
+
+# High-performance GZip response compression for JSON payloads > 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Exception handlers ensuring uniform error payload format { success: False, message, statusCode }
 @app.exception_handler(StarletteHTTPException)
@@ -77,13 +82,18 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    error_msg = "; ".join([f"{err['loc'][-1]}: {err['msg']}" for err in exc.errors()])
+    error_msg = "; ".join([f"{err.get('loc', ['field'])[-1]}: {err.get('msg', 'Invalid')}" for err in exc.errors()])
+    from fastapi.encoders import jsonable_encoder
+    safe_errors = [
+        {"loc": [str(l) for l in err.get("loc", [])], "msg": str(err.get("msg", "")), "type": str(err.get("type", ""))}
+        for err in exc.errors()
+    ]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
             "message": f"Validation failed: {error_msg}",
-            "errors": exc.errors(),
+            "errors": safe_errors,
             "statusCode": 422
         }
     )

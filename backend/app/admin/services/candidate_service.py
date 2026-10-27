@@ -4,20 +4,36 @@ import re
 import secrets
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile, status
 
 from app.models import (
-    Candidate, CandidateAccessCode, Department, Exam, ExamSlot, QuestionSet, ExamAttempt, AuditLog
+    Candidate, CandidateAccessCode, Department, College, Exam, ExamSlot, QuestionSet, ExamAttempt, AuditLog
 )
-from app.schemas import CandidateDto, CandidateAccessCodeDto
+from app.schemas import CandidateDto, CandidateAccessCodeDto, PaginatedCandidatesResponse
 from app.core import EmailService
 
 class CandidateService:
     @staticmethod
-    def _to_dto(c: Candidate) -> CandidateDto:
+    def _to_dto(c: Candidate, attempt_status: Optional[str] = None) -> CandidateDto:
         dept_name = c.department.name if c.department else None
+        college_name = c.college.name if c.college else None
+
+        # Determine real-time exam / account status: COMPLETED, GOING ON, PENDING, or DISABLED
+        if c.status and c.status.upper() == "DISABLED":
+            computed_status = "DISABLED"
+        elif attempt_status:
+            att = attempt_status.upper()
+            if att == "SUBMITTED":
+                computed_status = "COMPLETED"
+            elif att == "IN_PROGRESS":
+                computed_status = "GOING ON"
+            else:
+                computed_status = "PENDING"
+        else:
+            computed_status = "PENDING"
+
         return CandidateDto(
             id=c.id,
             registration_number=c.registration_number,
@@ -25,8 +41,9 @@ class CandidateService:
             email=c.email,
             department_id=c.department_id,
             department_name=dept_name,
-            college_name=dept_name,
-            status=c.status or "ACTIVE",
+            college_id=c.college_id,
+            college_name=college_name,
+            status=computed_status,
             created_at=c.created_at,
             assigned_set=c.assigned_set
         )
@@ -34,19 +51,175 @@ class CandidateService:
     @classmethod
     def get_all_candidates(cls, db: Session) -> List[CandidateDto]:
         """
-        Retrieves all registered candidates with eager-loaded departments and access codes in a single query.
+        Retrieves all registered candidates with eager-loaded departments, colleges, and access codes in a single query.
         """
         cands = db.query(Candidate).options(
             joinedload(Candidate.department),
+            joinedload(Candidate.college),
             joinedload(Candidate.access_codes)
         ).all()
+
+        # Query all attempts to accurately determine candidate progress in real time
+        attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).all()
+        attempt_map: Dict[int, str] = {}
+        for cand_id, att_st in attempts:
+            if not cand_id:
+                continue
+            if att_st == "SUBMITTED":
+                attempt_map[cand_id] = "SUBMITTED"
+            elif att_st == "IN_PROGRESS" and attempt_map.get(cand_id) != "SUBMITTED":
+                attempt_map[cand_id] = "IN_PROGRESS"
+            elif cand_id not in attempt_map:
+                attempt_map[cand_id] = att_st or "PENDING"
+
         # Natural ordering: numerical Register No. (1, 2, ... 282) first, followed by others
         cands.sort(key=lambda c: (
             0 if c.registration_number and c.registration_number.isdigit() else 1,
             int(c.registration_number) if c.registration_number and c.registration_number.isdigit() else 0,
             c.id or 0
         ))
-        return [cls._to_dto(c) for c in cands]
+        return [cls._to_dto(c, attempt_status=attempt_map.get(c.id)) for c in cands]
+
+    @classmethod
+    def get_paginated_candidates(
+        cls,
+        db: Session,
+        page: int = 1,
+        limit: int = 30,
+        search: Optional[str] = None,
+        department_id: Optional[int] = None,
+        college_id: Optional[int] = None,
+        status: Optional[str] = None,
+        sort_by: str = "registration_number",
+        sort_order: str = "asc"
+    ) -> PaginatedCandidatesResponse:
+        """
+        High-performance server-side paginated candidate query.
+        Filters, sorts, and limits at the SQL level, loading only the visible page
+        and querying attempt status strictly for the returned candidate slice.
+        Supports both Academic Department and College institution filters.
+        """
+        page = max(1, page)
+        limit = max(1, min(200, limit))
+
+        query = db.query(Candidate).outerjoin(Candidate.department).outerjoin(Candidate.college)
+
+        # 1. Server-side Search filter across registration number, full name, email, department, or college
+        if search and search.strip():
+            s = f"%{search.strip()}%"
+            query = query.filter(
+                or_(
+                    Candidate.full_name.ilike(s),
+                    Candidate.registration_number.ilike(s),
+                    Candidate.email.ilike(s),
+                    Department.name.ilike(s),
+                    Department.code.ilike(s),
+                    College.name.ilike(s),
+                    College.code.ilike(s)
+                )
+            )
+
+        # 2. Server-side Department filter
+        if department_id is not None:
+            query = query.filter(Candidate.department_id == department_id)
+
+        # 3. Server-side College filter
+        if college_id is not None:
+            query = query.filter(Candidate.college_id == college_id)
+
+        # 4. Server-side Real-time Status filter (COMPLETED, GOING ON, PENDING, DISABLED)
+        if status and status.strip() and status.strip().upper() != "ALL":
+            st = status.strip().upper()
+            if st in ("COMPLETED", "SUBMITTED"):
+                query = query.filter(
+                    Candidate.id.in_(
+                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
+                    )
+                )
+            elif st in ("GOING ON", "IN_PROGRESS", "IN PROGRESS"):
+                query = query.filter(
+                    Candidate.id.in_(
+                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "IN_PROGRESS")
+                    ),
+                    Candidate.id.not_in(
+                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
+                    )
+                )
+            elif st == "DISABLED":
+                query = query.filter(Candidate.status == "DISABLED")
+            elif st == "PENDING":
+                query = query.filter(
+                    Candidate.status != "DISABLED",
+                    Candidate.id.not_in(
+                        db.query(ExamAttempt.candidate_id).filter(
+                            ExamAttempt.status.in_(["SUBMITTED", "IN_PROGRESS"])
+                        )
+                    )
+                )
+
+        # 5. Total record count via fast scalar count
+        has_filter = (
+            bool(search and search.strip()) or 
+            (department_id is not None) or 
+            (college_id is not None) or 
+            bool(status and status.strip() and status.strip().upper() != "ALL")
+        )
+        if not has_filter:
+            total = db.query(func.count(Candidate.id)).scalar() or 0
+        else:
+            total = query.with_entities(func.count(Candidate.id)).scalar() or 0
+
+        # 6. Server-side Sorting
+        is_desc = (sort_order.lower() == "desc")
+        if sort_by == "full_name":
+            query = query.order_by(Candidate.full_name.desc() if is_desc else Candidate.full_name.asc())
+        elif sort_by == "email":
+            query = query.order_by(Candidate.email.desc() if is_desc else Candidate.email.asc())
+        elif sort_by in ("department", "department_name"):
+            query = query.order_by(Department.name.desc() if is_desc else Department.name.asc())
+        elif sort_by in ("college", "college_name"):
+            query = query.order_by(College.name.desc() if is_desc else College.name.asc())
+        elif sort_by == "created_at":
+            query = query.order_by(Candidate.created_at.desc() if is_desc else Candidate.created_at.asc())
+        else:  # registration_number or default
+            query = query.order_by(Candidate.id.desc() if is_desc else Candidate.id.asc())
+
+        # 7. Slice only the requested page with both department and college eager-loaded
+        offset_val = (page - 1) * limit
+        cands = query.options(
+            joinedload(Candidate.department),
+            joinedload(Candidate.college)
+        ).offset(offset_val).limit(limit).all()
+
+        # 7. Query attempts ONLY for the current page slice (eliminates loading all attempts in database)
+        cand_ids = [c.id for c in cands]
+        attempt_map: Dict[int, str] = {}
+        if cand_ids:
+            attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).filter(
+                ExamAttempt.candidate_id.in_(cand_ids)
+            ).all()
+            for cid, att_st in attempts:
+                if not cid:
+                    continue
+                if att_st == "SUBMITTED":
+                    attempt_map[cid] = "SUBMITTED"
+                elif att_st == "IN_PROGRESS" and attempt_map.get(cid) != "SUBMITTED":
+                    attempt_map[cid] = "IN_PROGRESS"
+                elif cid not in attempt_map:
+                    attempt_map[cid] = att_st or "PENDING"
+
+        total_pages = max(1, (total + limit - 1) // limit) if total > 0 else 1
+        has_more = page < total_pages
+        items = [cls._to_dto(c, attempt_status=attempt_map.get(c.id)) for c in cands]
+
+        return PaginatedCandidatesResponse(
+            items=items,
+            total=total,
+            page=page,
+            limit=limit,
+            total_pages=total_pages,
+            has_more=has_more
+        )
 
     @classmethod
     def create_candidate(cls, db: Session, dto: CandidateDto, performed_by: str) -> CandidateDto:
@@ -68,11 +241,19 @@ class CandidateService:
         if dto.department_id:
             dept = db.query(Department).filter(Department.id == dto.department_id).first()
 
+        college = None
+        if dto.college_id:
+            college = db.query(College).filter(College.id == dto.college_id).first()
+        elif dto.college_name:
+            cname = dto.college_name.strip()
+            college = db.query(College).filter(func.lower(College.name) == cname.lower()).first()
+
         c = Candidate(
             registration_number=reg_num,
             full_name=dto.full_name.strip(),
             email=email,
             department_id=dept.id if dept else None,
+            college_id=college.id if college else None,
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )

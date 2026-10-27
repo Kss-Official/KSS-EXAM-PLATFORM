@@ -18,7 +18,8 @@ import {
   ChevronDown,
   Mail,
   Shield,
-  Briefcase
+  Briefcase,
+  Building2
 } from "lucide-react";
 import { useRouter, Link } from "../../router";
 import type { AdminDashboardResponse } from "../../types";
@@ -95,9 +96,9 @@ export default function AdminLayout({
       return "/admin/exams/new";
     }
 
-    // 2. Department configuration (renders exam creation workflow)
+    // 2. Department configuration
     if (normalized === "/admin/departments" || normalized.startsWith("/admin/departments/")) {
-      return "/admin/exams/new";
+      return "/admin/departments";
     }
 
     // 3. Exams list and nested exam routes, explicitly excluding /admin/exams/new
@@ -140,6 +141,7 @@ export default function AdminLayout({
     { label: "Exams", to: "/admin/exams", icon: FileText, badge: dashboardData ? String(dashboardData.totalExams) : undefined },
     { label: "Create Exam", to: "/admin/exams/new", icon: PlusCircle },
     { label: "Question Bank", to: "/admin/questions", icon: HelpCircle },
+    { label: "Departments", to: "/admin/departments", icon: Building2, badge: dashboardData ? String(dashboardData.totalDepartments) : undefined },
     { label: "Candidates", to: "/admin/candidates", icon: Users, badge: dashboardData ? String(dashboardData.totalCandidates) : undefined },
     { label: "Results", to: "/admin/results", icon: BarChart3 },
     { label: "Settings", to: "/admin/settings", icon: Settings },

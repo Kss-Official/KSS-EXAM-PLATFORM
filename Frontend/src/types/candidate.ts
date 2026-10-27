@@ -10,6 +10,8 @@ export interface CandidateProfile {
   email: string;
   department: Department;
   departmentId?: number;
+  collegeName?: string;
+  collegeId?: number;
   candidateId?: string;
   dbCandidateId?: number;
   assignedExamId?: number;
@@ -57,6 +59,7 @@ export interface CandidateSession {
   receiptId: string | null;
   /** Reason for finalization (manual_submit, timer_expired, candidate_exit) */
   submissionReason: "manual_submit" | "timer_expired" | "candidate_exit" | null;
+  timeTakenSeconds?: number;
   score?: number;
   totalMarks?: number;
   percentage?: number;

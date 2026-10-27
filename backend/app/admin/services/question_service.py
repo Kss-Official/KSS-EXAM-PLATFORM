@@ -63,8 +63,8 @@ class QuestionService:
             QuestionSet.department_id == dept_id,
             QuestionSet.set_code == set_code.upper()
         ).first()
-        if not q_set:
-            # Fallback to exam-level set
+        if not q_set or not q_set.questions or len(q_set.questions) == 0:
+            # Fallback to exam-level universal set
             return cls.get_questions_by_exam_and_set_code(db, exam_id, set_code)
         return cls.get_questions_by_set_id(db, q_set.id)
 
@@ -270,9 +270,10 @@ class QuestionService:
         if not q_set:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question Set not found")
 
-        result = []
+        curr_count = db.query(Question).filter(Question.question_set_id == question_set_id).count()
+        new_questions = []
         try:
-            for dto in dtos:
+            for idx, dto in enumerate(dtos):
                 if dto.id:
                     q = db.query(Question).options(joinedload(Question.options)).filter(Question.id == dto.id).first()
                     if q:
@@ -280,7 +281,6 @@ class QuestionService:
                         q.marks = dto.marks or q.marks
                         q.negative_marks = dto.negative_marks or q.negative_marks
                         q.display_order = dto.display_order or q.display_order
-                        # update options
                         if dto.options:
                             for opt_dto in dto.options:
                                 if opt_dto.id:
@@ -288,16 +288,52 @@ class QuestionService:
                                     if opt:
                                         opt.option_text = opt_dto.option_text
                                         opt.is_correct = opt_dto.correct
-                        result.append(cls._to_dto(q))
                 else:
-                    created = cls.create_question(db, question_set_id, dto, performed_by)
-                    result.append(created)
+                    order = dto.display_order if dto.display_order else (curr_count + idx + 1)
+                    q = Question(
+                        question_set_id=question_set_id,
+                        question_text=dto.question_text.strip(),
+                        marks=dto.marks or Decimal("1.00"),
+                        negative_marks=dto.negative_marks or Decimal("0.00"),
+                        display_order=order,
+                        created_at=datetime.now(timezone.utc)
+                    )
+                    db.add(q)
+                    db.flush()
 
+                    if dto.options:
+                        has_explicit_correct = any(
+                            (dto.correct_option_id is not None and dto.correct_option_id == opt.id) or getattr(opt, "correct", False)
+                            for opt in dto.options
+                        )
+                        for o_idx, opt_dto in enumerate(dto.options):
+                            if has_explicit_correct:
+                                is_corr = (dto.correct_option_id is not None and dto.correct_option_id == opt_dto.id) or opt_dto.correct
+                            else:
+                                is_corr = (o_idx == 0)
+                            o = QuestionOption(
+                                question_id=q.id,
+                                option_text=opt_dto.option_text.strip(),
+                                is_correct=is_corr,
+                                display_order=o_idx + 1
+                            )
+                            db.add(o)
+                    new_questions.append(q)
+
+            db.add(AuditLog(
+                action="BULK_UPDATE_QUESTIONS",
+                entity_type="QuestionSet",
+                entity_id=str(question_set_id),
+                performed_by=performed_by,
+                details=f"Bulk updated/added {len(dtos)} MCQs to Question Set {q_set.set_code}"
+            ))
             db.commit()
+
+            # Return updated list of questions for this set
+            return cls.get_questions_by_set_id(db, question_set_id)
         except Exception:
             db.rollback()
             raise
-        return result
 
     @classmethod
     def delete_all_questions_in_set(cls, db: Session, question_set_id: int, performed_by: str) -> None:

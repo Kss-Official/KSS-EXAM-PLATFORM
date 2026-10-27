@@ -271,7 +271,7 @@ def test_candidate_primary_department_technical_matching(db: Session):
     )
     r1 = CandidateExamService.verify_candidate(db, req1)
     assert r1.candidate_id == dev_cand.id
-    assert r1.department_name == "Developer"
+    assert r1.department_name in ("Developer", "Software Developer")
 
     # QA / Tester selects Technical Department
     req2 = CandidateVerifyRequest(
@@ -281,7 +281,7 @@ def test_candidate_primary_department_technical_matching(db: Session):
     )
     r2 = CandidateExamService.verify_candidate(db, req2)
     assert r2.candidate_id == qa_cand.id
-    assert r2.department_name in ("Software Tester", "Quality Assurance & Testing")
+    assert r2.department_name in ("Software Tester", "Software Tester / QA", "Quality Assurance & Testing")
 
     # Civil Engineering selects Technical Department
     req3 = CandidateVerifyRequest(

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { 
   ArrowLeft,
   UploadCloud,
@@ -91,6 +91,23 @@ export default function QuestionBankPage() {
   // Active exam entity
   const selectedExam = exams.find(e => e.id === selectedExamId);
   const activeSet = departmentSets.find(s => s.setCode === selectedSetCode);
+
+  // Filter out any colleges/institutions: Question Bank is strictly organized by academic/engineering departments
+  const displayedDepts = useMemo(() => {
+    const collegeCodes = new Set([
+      "AJIET", "AIT", "AIET", "CEC", "KIT", "LBS", "SCEM", 
+      "SSIT", "SIT", "SUIET", "SJEC", "VCET", "YIT", "TESTINSTIT", "DEMOCOLLEG"
+    ]);
+    return departments.filter(d => {
+      const desc = (d.description || "").trim().toLowerCase();
+      const name = (d.name || "").trim().toLowerCase();
+      const code = (d.code || "").trim().toUpperCase();
+      if (collegeCodes.has(code)) return false;
+      if (desc.startsWith("college:")) return false;
+      if (name.includes("institute") || name.includes("college")) return false;
+      return true;
+    });
+  }, [departments]);
 
   // 1. Fetch All Exams on Mount
   useEffect(() => {
@@ -573,7 +590,7 @@ export default function QuestionBankPage() {
                   Select Department to Manage Question Bank
                 </strong>
                 <span style={{ fontSize: "12px", color: "#64748b" }}>
-                  Showing {departments.length} department(s) associated with this examination
+                  Showing {displayedDepts.length} department(s) associated with this examination
                 </span>
               </div>
 
@@ -581,7 +598,7 @@ export default function QuestionBankPage() {
                 <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
                   Loading departments for examination...
                 </div>
-              ) : departments.length === 0 ? (
+              ) : displayedDepts.length === 0 ? (
                 <div style={{
                   padding: "40px",
                   background: "#ffffff",
@@ -601,7 +618,7 @@ export default function QuestionBankPage() {
                   gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
                   gap: "16px"
                 }}>
-              {departments.map(dept => (
+              {displayedDepts.map(dept => (
                 <div
                   key={dept.id}
                   onClick={() => setSelectedDept(dept)}

@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
@@ -21,6 +23,10 @@ from app.schemas import (
 )
 
 secure_random = random.SystemRandom()
+
+# High-concurrency in-memory cache for question sets during 800-candidate submit spikes
+_QUESTION_SET_CACHE: Dict[int, Any] = {}
+_QUESTION_SET_CACHE_TTL = 120.0  # seconds
 
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
@@ -52,7 +58,10 @@ class CandidateExamService:
             return resp
 
         # 2. Strict Database Validation: Look up Candidate by registered Email or Registration Number (Sl. No.)
-        cand_query = db.query(Candidate).options(joinedload(Candidate.department))
+        cand_query = db.query(Candidate).options(
+            joinedload(Candidate.department),
+            joinedload(Candidate.college)
+        )
         candidate = None
 
         if input_email:
@@ -189,6 +198,7 @@ class CandidateExamService:
         resp.candidate_name = candidate.full_name
         resp.email = candidate.email
         resp.department_name = candidate.department.name
+        resp.college_name = candidate.college.name if candidate.college else None
 
         # Eager load attempt relationships
         existing_attempt = db.query(ExamAttempt).options(
@@ -472,35 +482,36 @@ class CandidateExamService:
             shuffled_questions = list(raw_questions)
             secure_random.shuffle(shuffled_questions)
 
-            # Batch creation of randomized entities
+            # Batch creation of randomized entities using high-speed bulk mappings
+            # to collapse 300 individual ORM INSERT statements down to 2 batch operations.
             new_arqs = []
             new_aros = []
             labels = ["A", "B", "C", "D"]
 
             for i, q in enumerate(shuffled_questions):
-                arq = AttemptRandomizedQuestion(
-                    attempt_id=attempt.id,
-                    question_id=q.id,
-                    display_order=i + 1
-                )
-                new_arqs.append(arq)
+                new_arqs.append({
+                    "attempt_id": attempt.id,
+                    "question_id": q.id,
+                    "display_order": i + 1
+                })
 
                 raw_options = list(q.options)
                 secure_random.shuffle(raw_options)
 
                 for j, opt in enumerate(raw_options):
                     lbl = labels[j] if j < len(labels) else chr(ord('A') + j)
-                    aro = AttemptRandomizedOption(
-                        attempt_id=attempt.id,
-                        question_id=q.id,
-                        option_id=opt.id,
-                        display_order=j + 1,
-                        display_label=lbl
-                    )
-                    new_aros.append(aro)
+                    new_aros.append({
+                        "attempt_id": attempt.id,
+                        "question_id": q.id,
+                        "option_id": opt.id,
+                        "display_order": j + 1,
+                        "display_label": lbl
+                    })
 
-            db.add_all(new_arqs)
-            db.add_all(new_aros)
+            if new_arqs:
+                db.bulk_insert_mappings(AttemptRandomizedQuestion, new_arqs)
+            if new_aros:
+                db.bulk_insert_mappings(AttemptRandomizedOption, new_aros)
 
             db.add(AuditLog(
                 action="START_EXAM_ATTEMPT",
@@ -594,10 +605,24 @@ class CandidateExamService:
         )
 
     @classmethod
-    def save_answer(cls, db: Session, attempt_id: int, question_id: int, selected_option_id: Optional[int]) -> Dict[str, Any]:
+    def save_answer(
+        cls,
+        db: Session,
+        attempt_id: int,
+        question_id: int,
+        selected_option_id: Optional[int],
+        candidate_id: Optional[int] = None
+    ) -> Dict[str, Any]:
         attempt = db.query(ExamAttempt).filter(ExamAttempt.id == attempt_id).first()
         if not attempt:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
+
+        # Session & Candidate Isolation: prevent cross-candidate tampering
+        if candidate_id is not None and attempt.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: attempt does not belong to the current candidate"
+            )
 
         now = datetime.now(timezone.utc)
         if attempt.status != "IN_PROGRESS":
@@ -665,28 +690,58 @@ class CandidateExamService:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected option does not belong to question")
 
         try:
-            # Idempotent upsert with short transaction duration (< 5ms)
-            existing_answer = db.query(AttemptAnswer).filter(
-                AttemptAnswer.attempt_id == attempt_id,
-                AttemptAnswer.question_id == real_q_id
-            ).first()
-
-            if existing_answer:
-                existing_answer.selected_option_id = real_opt_id
-                existing_answer.answered_at = now
-            else:
-                answer = AttemptAnswer(
+            dialect_name = db.bind.dialect.name if db.bind else ""
+            if dialect_name == "postgresql":
+                # Single-roundtrip atomic O(1) upsert via Postgres ON CONFLICT DO UPDATE
+                stmt = pg_insert(AttemptAnswer).values(
                     attempt_id=attempt_id,
                     question_id=real_q_id,
                     selected_option_id=real_opt_id,
                     answered_at=now
+                ).on_conflict_do_update(
+                    index_elements=["attempt_id", "question_id"],
+                    set_=dict(
+                        selected_option_id=real_opt_id,
+                        answered_at=now
+                    )
                 )
-                db.add(answer)
+                db.execute(stmt)
+                db.commit()
+            elif dialect_name == "sqlite":
+                stmt = sqlite_insert(AttemptAnswer).values(
+                    attempt_id=attempt_id,
+                    question_id=real_q_id,
+                    selected_option_id=real_opt_id,
+                    answered_at=now
+                ).on_conflict_do_update(
+                    index_elements=["attempt_id", "question_id"],
+                    set_=dict(
+                        selected_option_id=real_opt_id,
+                        answered_at=now
+                    )
+                )
+                db.execute(stmt)
+                db.commit()
+            else:
+                existing_answer = db.query(AttemptAnswer).filter(
+                    AttemptAnswer.attempt_id == attempt_id,
+                    AttemptAnswer.question_id == real_q_id
+                ).first()
 
-            db.commit()
+                if existing_answer:
+                    existing_answer.selected_option_id = real_opt_id
+                    existing_answer.answered_at = now
+                else:
+                    answer = AttemptAnswer(
+                        attempt_id=attempt_id,
+                        question_id=real_q_id,
+                        selected_option_id=real_opt_id,
+                        answered_at=now
+                    )
+                    db.add(answer)
+                db.commit()
         except Exception as exc:
             db.rollback()
-            # If concurrent inserts raced on the unique constraint, resolve idempotently
             try:
                 conflicted = db.query(AttemptAnswer).filter(
                     AttemptAnswer.attempt_id == attempt_id,
@@ -709,7 +764,13 @@ class CandidateExamService:
         }
 
     @classmethod
-    def submit_attempt(cls, db: Session, attempt_id: int, answers_payload: Optional[Dict[str, Any]] = None) -> SubmissionResponse:
+    def submit_attempt(
+        cls,
+        db: Session,
+        attempt_id: int,
+        answers_payload: Optional[Dict[str, Any]] = None,
+        candidate_id: Optional[int] = None
+    ) -> SubmissionResponse:
         attempt = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.exam),
             joinedload(ExamAttempt.candidate),
@@ -717,6 +778,12 @@ class CandidateExamService:
         ).filter(ExamAttempt.id == attempt_id).first()
         if not attempt:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attempt not found")
+        # Session & Candidate Isolation: prevent cross-candidate tampering
+        if candidate_id is not None and attempt.candidate_id != candidate_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied: attempt does not belong to the current candidate"
+            )
         return cls.finalize_submission(db, attempt, answers_payload=answers_payload)
 
     @classmethod
@@ -790,7 +857,7 @@ class CandidateExamService:
             calculated_score = Decimal("0.00")
             answered_questions_set = set()
 
-            # Load question set questions with options for accurate evaluation
+            # Load question set questions with options bound to current db session
             set_questions = db.query(Question).options(
                 joinedload(Question.options)
             ).filter(

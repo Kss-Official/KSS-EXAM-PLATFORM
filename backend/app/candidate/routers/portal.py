@@ -12,12 +12,23 @@ from app.candidate.services import CandidateExamService
 
 router = APIRouter(prefix="/api/candidate", tags=["Candidate Examination Portal"])
 
+import time
+
+_DEPT_CACHE = None
+_DEPT_CACHE_TIME = 0.0
+
 @router.get("/departments", response_model=List[DepartmentDto])
 def get_eligible_departments(db: Session = Depends(get_db)):
     """
     Returns the department and college options for candidate entry:
     The two primary tracks (Technical and Non-Technical) followed by all registered colleges.
+    Cached in-memory for 60 seconds to sustain high-concurrency bursts (500+ concurrent users).
     """
+    global _DEPT_CACHE, _DEPT_CACHE_TIME
+    now = time.time()
+    if _DEPT_CACHE is not None and (now - _DEPT_CACHE_TIME) < 60.0:
+        return _DEPT_CACHE
+
     primary = [
         DepartmentDto(
             id=1,
@@ -46,13 +57,22 @@ def get_eligible_departments(db: Session = Depends(get_db)):
         for c in colleges
         if c.name not in ("Technical Department", "Non-Technical Department")
     ]
-    return primary + college_dtos
+    result = primary + college_dtos
+    _DEPT_CACHE = result
+    _DEPT_CACHE_TIME = now
+    return result
 
 @router.post("/verify", response_model=CandidateVerifyResponse)
+@router.post("/login", response_model=CandidateVerifyResponse)
 def verify_candidate(
     req: CandidateVerifyRequest,
     db: Session = Depends(get_db)
 ):
+    """
+    Candidate verification & login endpoint.
+    Accepts candidate credentials (fullName, email, department/college) and returns examination eligibility.
+    Available at both /api/candidate/verify and /api/candidate/login for full compatibility with load testing suites.
+    """
     return CandidateExamService.verify_candidate(db, req)
 
 @router.post("/start", response_model=CandidateStartAttemptResponse)
@@ -83,25 +103,34 @@ def save_answer(
     if qid is None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="questionId is required")
     opt_id = payload.get("selectedOptionId") if "selectedOptionId" in payload else payload.get("selected_option_id")
+    cid = payload.get("candidateId") or payload.get("candidate_id")
     return CandidateExamService.save_answer(
-        db, int(aid), int(qid), int(opt_id) if opt_id is not None else None
+        db, int(aid), int(qid), int(opt_id) if opt_id is not None else None,
+        candidate_id=int(cid) if cid is not None else None
     )
 
 @router.post("/submit", response_model=SubmissionResponse)
 def submit_attempt(
     attemptId: Optional[int] = Query(None, alias="attemptId"),
     attempt_id: Optional[int] = Query(None, alias="attempt_id"),
+    candidateId: Optional[int] = Query(None, alias="candidateId"),
+    candidate_id: Optional[int] = Query(None, alias="candidate_id"),
     payload: Optional[Dict[str, Any]] = Body(None),
     db: Session = Depends(get_db)
 ):
     aid = attemptId or attempt_id
+    cid = candidateId or candidate_id
     answers_payload = None
     if payload:
         aid = aid or payload.get("attemptId") or payload.get("attempt_id")
+        cid = cid or payload.get("candidateId") or payload.get("candidate_id")
         answers_payload = payload.get("answers")
     if not aid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="attemptId is required")
-    return CandidateExamService.submit_attempt(db, int(aid), answers_payload=answers_payload)
+    return CandidateExamService.submit_attempt(
+        db, int(aid), answers_payload=answers_payload,
+        candidate_id=int(cid) if cid is not None else None
+    )
 
 @router.post("/proctor/warning")
 def record_proctor_warning(

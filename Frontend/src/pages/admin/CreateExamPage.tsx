@@ -58,7 +58,7 @@ export default function CreateExamPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [timingMode, setTimingMode] = useState<"DURATION_FROM_START" | "SCHEDULED">("DURATION_FROM_START");
-  const [examDate, setExamDate] = useState("2026-10-25");
+  const [examDate, setExamDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [startTime, setStartTime] = useState("10:00");
   const [durationMinutes, setDurationMinutes] = useState("60");
   const [totalQuestions, setTotalQuestions] = useState("50");
@@ -110,10 +110,7 @@ export default function CreateExamPage() {
         setTechnicalSubDepts(prev => prev.map(sub => {
           const matched = data.find(d => 
             d.code.toUpperCase() === sub.code.toUpperCase() ||
-            d.name.toLowerCase() === sub.name.toLowerCase() ||
-            (sub.code === "AIML" && d.code === "DEV") ||
-            (sub.code === "QA" && d.code === "QA") ||
-            (sub.code === "UIUX" && d.code === "UIUX")
+            d.name.toLowerCase() === sub.name.toLowerCase()
           );
           return matched ? { ...sub, id: matched.id } : sub;
         }));
@@ -122,9 +119,7 @@ export default function CreateExamPage() {
         setNonTechnicalSubDepts(prev => prev.map(sub => {
           const matched = data.find(d => 
             d.code.toUpperCase() === sub.code.toUpperCase() ||
-            d.name.toLowerCase() === sub.name.toLowerCase() ||
-            (sub.code === "HR" && d.code === "HR") ||
-            (sub.code === "SALES_MKT" && (d.code === "MKT" || d.name.toLowerCase().includes("marketing")))
+            d.name.toLowerCase() === sub.name.toLowerCase()
           );
           return matched ? { ...sub, id: matched.id } : sub;
         }));
@@ -140,25 +135,52 @@ export default function CreateExamPage() {
     loadDepartments();
   }, []);
 
-  // Sub-Department Operations (Category-isolated, duplicate-prevented)
+  // Sub-Department Operations (Cross-category checked & collision prevented)
   const handleAddSubDepartment = (
     category: PrimaryDepartmentType, 
     name: string, 
     code: string, 
-    description?: string
-  ): boolean => {
-    const list = category === "TECHNICAL" ? technicalSubDepts : nonTechnicalSubDepts;
-    const isDuplicate = list.some(
-      s => s.name.trim().toLowerCase() === name.trim().toLowerCase() ||
-           s.code.trim().toUpperCase() === code.trim().toUpperCase()
-    );
+    description?: string,
+    existingDeptId?: number
+  ): { success: boolean; error?: string } => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return { success: false, error: "Sub-Department Name is required." };
+    }
 
-    if (isDuplicate) return false;
+    let trimmedCode = code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+    if (!trimmedCode) {
+      const parts = trimmedName.split(/\s+/);
+      if (parts.length === 1) {
+        trimmedCode = parts[0].substring(0, 8).toUpperCase();
+      } else {
+        trimmedCode = parts.map(p => p[0]).join("").toUpperCase().substring(0, 8);
+      }
+    }
+
+    const allConfigured = [...technicalSubDepts, ...nonTechnicalSubDepts];
+    const nameExists = allConfigured.some(s => s.name.trim().toLowerCase() === trimmedName.toLowerCase());
+    if (nameExists) {
+      return { success: false, error: `A sub-department named "${trimmedName}" is already configured in this examination.` };
+    }
+
+    const codeExists = allConfigured.some(s => s.code.trim().toUpperCase() === trimmedCode);
+    if (codeExists) {
+      return { success: false, error: `Department code "${trimmedCode}" is already in use by another sub-department in this examination.` };
+    }
+
+    const matchedBackend = existingDeptId 
+      ? departments.find(d => d.id === existingDeptId)
+      : departments.find(d => 
+          d.code.toUpperCase() === trimmedCode ||
+          d.name.toLowerCase() === trimmedName.toLowerCase()
+        );
 
     const newItem: SubDepartmentItem = {
+      id: existingDeptId || matchedBackend?.id,
       tempId: `${category.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      name: name.trim(),
-      code: code.trim().toUpperCase(),
+      name: trimmedName,
+      code: trimmedCode,
       description: description?.trim() || undefined,
       category,
       isDefault: false
@@ -170,7 +192,7 @@ export default function CreateExamPage() {
       setNonTechnicalSubDepts(prev => [...prev, newItem]);
     }
 
-    return true;
+    return { success: true };
   };
 
   const handleUpdateSubDepartment = (
@@ -178,30 +200,52 @@ export default function CreateExamPage() {
     name: string, 
     code: string, 
     description?: string
-  ): boolean => {
-    const isTech = technicalSubDepts.some(s => s.tempId === tempId);
-    const list = isTech ? technicalSubDepts : nonTechnicalSubDepts;
-
-    const isDuplicate = list.some(
-      s => s.tempId !== tempId && (
-        s.name.trim().toLowerCase() === name.trim().toLowerCase() ||
-        s.code.trim().toUpperCase() === code.trim().toUpperCase()
-      )
-    );
-
-    if (isDuplicate) return false;
-
-    if (isTech) {
-      setTechnicalSubDepts(prev => prev.map(s => 
-        s.tempId === tempId ? { ...s, name: name.trim(), code: code.trim().toUpperCase(), description: description?.trim() || undefined } : s
-      ));
-    } else {
-      setNonTechnicalSubDepts(prev => prev.map(s => 
-        s.tempId === tempId ? { ...s, name: name.trim(), code: code.trim().toUpperCase(), description: description?.trim() || undefined } : s
-      ));
+  ): { success: boolean; error?: string } => {
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      return { success: false, error: "Sub-Department Name cannot be empty." };
+    }
+    const trimmedCode = code.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+    if (!trimmedCode) {
+      return { success: false, error: "Department Code cannot be empty." };
     }
 
-    return true;
+    const isTech = technicalSubDepts.some(s => s.tempId === tempId);
+    const allConfigured = [...technicalSubDepts, ...nonTechnicalSubDepts];
+
+    const duplicateName = allConfigured.some(s => s.tempId !== tempId && s.name.trim().toLowerCase() === trimmedName.toLowerCase());
+    if (duplicateName) {
+      return { success: false, error: `A sub-department named "${trimmedName}" already exists.` };
+    }
+
+    const duplicateCode = allConfigured.some(s => s.tempId !== tempId && s.code.trim().toUpperCase() === trimmedCode);
+    if (duplicateCode) {
+      return { success: false, error: `Department code "${trimmedCode}" is already in use by another sub-department.` };
+    }
+
+    const matchedBackend = departments.find(d => 
+      d.code.toUpperCase() === trimmedCode ||
+      d.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+
+    const updater = (s: SubDepartmentItem) => {
+      if (s.tempId !== tempId) return s;
+      return {
+        ...s,
+        id: matchedBackend?.id,
+        name: trimmedName,
+        code: trimmedCode,
+        description: description?.trim() || undefined
+      };
+    };
+
+    if (isTech) {
+      setTechnicalSubDepts(prev => prev.map(updater));
+    } else {
+      setNonTechnicalSubDepts(prev => prev.map(updater));
+    }
+
+    return { success: true };
   };
 
   const handleRemoveSubDepartment = (tempId: string) => {
@@ -229,14 +273,14 @@ export default function CreateExamPage() {
     });
   };
 
-  // Live In-Memory PDF Question Extraction for Category
+  // Live In-Memory Document Question Extraction for Category
   const triggerCategorySetExtraction = async (
     category: PrimaryDepartmentType,
     qpFile: File,
     akFile?: File | null
   ) => {
     const ext = qpFile.name.split(".").pop()?.toLowerCase();
-    if (ext !== "pdf") return;
+    if (!["pdf", "docx", "txt", "csv", "xlsx", "xls"].includes(ext || "")) return;
 
     const setter = category === "TECHNICAL" ? setTechnicalBank : setNonTechnicalBank;
     const currentBank = category === "TECHNICAL" ? technicalBank : nonTechnicalBank;
@@ -293,9 +337,13 @@ export default function CreateExamPage() {
           const mpq = parseFloat(marksPerQuestion) || 1;
           return String(Math.max(cur, qCount * mpq));
         });
+      } else {
+        console.warn(`Extraction returned 0 questions for ${category} document.`);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.warn(`Extraction failed for ${category} Question Paper:`, err);
+      const errMsg = err instanceof Error ? err.message : "Document parsing failed";
+      setServerError(`Question extraction error (${category}): ${errMsg}`);
     } finally {
       updateExtracting(false);
     }
@@ -361,7 +409,8 @@ export default function CreateExamPage() {
   };
 
   // Validation
-  const validate = () => {
+  // Step 1 Validation
+  const validateStep1 = () => {
     const errs: Record<string, string> = {};
     if (!title.trim()) errs.title = "Exam title is required";
     if (!description.trim()) errs.description = "Exam description is required";
@@ -371,6 +420,18 @@ export default function CreateExamPage() {
       errs.durationMinutes = "Duration must be between 5 and 360 minutes";
     }
 
+    if (timingMode === "SCHEDULED") {
+      if (!examDate) errs.examDate = "Exam date is required for scheduled exams";
+      if (!startTime) errs.startTime = "Start time is required for scheduled exams";
+    }
+
+    setErrors(prev => ({ ...prev, ...errs }));
+    return Object.keys(errs).length === 0;
+  };
+
+  // Step 2 Validation
+  const validateStep2 = () => {
+    const errs: Record<string, string> = {};
     const tq = parseInt(totalQuestions, 10);
     if (isNaN(tq) || tq < 1 || tq > 500) {
       errs.totalQuestions = "Total questions must be between 1 and 500";
@@ -396,13 +457,31 @@ export default function CreateExamPage() {
       errs.qualificationThreshold = "Qualification threshold must be greater than 0";
     }
 
+    setErrors(prev => ({ ...prev, ...errs }));
+    return Object.keys(errs).length === 0;
+  };
+
+  // Step 3 Validation
+  const validateStep3 = () => {
     const totalSubDepts = technicalSubDepts.length + nonTechnicalSubDepts.length;
     if (totalSubDepts === 0) {
-      errs.departments = "Please configure at least one sub-department under Technical or Non-Technical.";
+      setErrors(prev => ({ ...prev, departments: "Please configure at least one sub-department under Technical or Non-Technical." }));
+      return false;
     }
+    setErrors(prev => {
+      const copy = { ...prev };
+      delete copy.departments;
+      return copy;
+    });
+    return true;
+  };
 
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+  // Complete Validation
+  const validate = () => {
+    const s1 = validateStep1();
+    const s2 = validateStep2();
+    const s3 = validateStep3();
+    return s1 && s2 && s3;
   };
 
   // Submit Examination & Persist Question Sets
@@ -411,45 +490,81 @@ export default function CreateExamPage() {
     setServerError(null);
     setSuccessNotice(null);
 
-    if (!validate()) return;
+    if (!validateStep1()) {
+      setWizardStep(1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setServerError("Please complete the required Examination Details in Step 1.");
+      return;
+    }
+    if (!validateStep2()) {
+      setWizardStep(2);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setServerError("Please resolve the Marking Scheme configuration in Step 2.");
+      return;
+    }
+    if (!validateStep3()) {
+      setWizardStep(3);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setServerError("Please configure at least one sub-department under Technical or Non-Technical in Step 3.");
+      return;
+    }
 
     setSubmitting(true);
     setSubmissionProgress("Resolving department blueprints in PostgreSQL...");
 
     try {
-      const scheduledStart = timingMode === "SCHEDULED" ? `${examDate}T${startTime}:00Z` : undefined;
+      const scheduledStart = timingMode === "SCHEDULED" 
+        ? new Date(`${examDate}T${startTime}:00`).toISOString() 
+        : undefined;
 
       // 1. Resolve or Create Sub-Departments in Backend
       const allSubDepts = [...technicalSubDepts, ...nonTechnicalSubDepts];
       const resolvedSubDepts: Array<SubDepartmentItem & { backendId: number }> = [];
 
-      for (const sub of allSubDepts) {
-        if (sub.id) {
-          resolvedSubDepts.push({ ...sub, backendId: sub.id });
-        } else {
-          // Check if an existing active department in backend matches by code or name
-          const matched = departments.find(d => 
-            d.code.toUpperCase() === sub.code.toUpperCase() ||
-            d.name.toLowerCase() === sub.name.toLowerCase()
-          );
+      // Eagerly refresh active departments from backend
+      let currentDepts = departments;
+      try {
+        currentDepts = await getActiveDepartments();
+        setDepartments(currentDepts);
+      } catch (deptFetchErr) {
+        console.warn("Could not refresh departments from backend, using cached list:", deptFetchErr);
+      }
 
-          if (matched) {
-            resolvedSubDepts.push({ ...sub, backendId: matched.id });
-          } else {
-            // Attempt to register this sub-department in the database
-            try {
-              const createdDept = await createDepartment({
-                name: sub.name,
-                code: sub.code,
-                description: sub.description,
-                active: true
-              });
-              resolvedSubDepts.push({ ...sub, backendId: createdDept.id });
-            } catch {
-              // If backend has strict rules or offline, fallback to first available department
-              if (departments.length > 0) {
-                resolvedSubDepts.push({ ...sub, backendId: departments[0].id });
-              }
+      for (const sub of allSubDepts) {
+        let matched = currentDepts.find(d => 
+          (sub.id && d.id === sub.id) ||
+          d.code.toUpperCase() === sub.code.toUpperCase() ||
+          d.name.toLowerCase() === sub.name.toLowerCase()
+        );
+
+        if (matched) {
+          resolvedSubDepts.push({ ...sub, backendId: matched.id });
+        } else {
+          // Register this new sub-department in the database
+          try {
+            setSubmissionProgress(`Registering sub-department "${sub.name}" in database...`);
+            const createdDept = await createDepartment({
+              name: sub.name,
+              code: sub.code,
+              description: sub.description,
+              active: true
+            });
+            resolvedSubDepts.push({ ...sub, backendId: createdDept.id });
+            currentDepts = [...currentDepts, createdDept];
+            setDepartments(currentDepts);
+          } catch (createErr) {
+            // Check if department was created or exists in backend despite check
+            const retryDepts = await getActiveDepartments().catch(() => []);
+            const retryMatch = retryDepts.find(d => 
+              d.code.toUpperCase() === sub.code.toUpperCase() ||
+              d.name.toLowerCase() === sub.name.toLowerCase()
+            );
+
+            if (retryMatch) {
+              resolvedSubDepts.push({ ...sub, backendId: retryMatch.id });
+            } else {
+              const errMsg = createErr instanceof Error ? createErr.message : "Database registration error";
+              throw new Error(`Failed to initialize sub-department "${sub.name}" (${sub.code}): ${errMsg}`);
             }
           }
         }
@@ -457,7 +572,9 @@ export default function CreateExamPage() {
 
       // Collect unique department IDs for exam creation
       const uniqueDeptIds = Array.from(new Set(resolvedSubDepts.map(s => s.backendId)));
-      const fallbackDeptIds = uniqueDeptIds.length > 0 ? uniqueDeptIds : departments.map(d => d.id);
+      if (uniqueDeptIds.length === 0) {
+        throw new Error("No valid departments could be configured for this examination.");
+      }
 
       // 2. Create Exam with Assigned Department IDs
       setSubmissionProgress("Creating examination blueprint...");
@@ -473,14 +590,20 @@ export default function CreateExamPage() {
         marksPerQuestion: parseFloat(marksPerQuestion),
         negativeMarks: parseFloat(negativeMarks),
         scheduledStartTime: scheduledStart,
-        departmentIds: fallbackDeptIds
+        departmentIds: uniqueDeptIds
       });
 
       let questionsUploadedCount = 0;
       let deptSetsUploaded = 0;
 
       // 3. Upload Question Sets: Technical Bank -> Technical Sub-Depts, Non-Tech Bank -> Non-Tech Sub-Depts
+      // Deduplicate by department backendId so question sets are never uploaded or populated multiple times
+      const processedDeptIds = new Set<number>();
+
       for (const sub of resolvedSubDepts) {
+        if (processedDeptIds.has(sub.backendId)) continue;
+        processedDeptIds.add(sub.backendId);
+
         const bank = sub.category === "TECHNICAL" ? technicalBank : nonTechnicalBank;
 
         try {
@@ -570,6 +693,28 @@ export default function CreateExamPage() {
     }
   };
 
+  const handleStepClick = (targetStep: 1 | 2 | 3 | 4) => {
+    if (targetStep > wizardStep) {
+      if (wizardStep === 1 && !validateStep1()) return;
+      if (wizardStep === 2 && !validateStep2()) return;
+      if (wizardStep === 3 && !validateStep3()) return;
+      if (targetStep >= 2 && !validateStep1()) {
+        setWizardStep(1);
+        return;
+      }
+      if (targetStep >= 3 && !validateStep2()) {
+        setWizardStep(2);
+        return;
+      }
+      if (targetStep === 4 && !validateStep3()) {
+        setWizardStep(3);
+        return;
+      }
+    }
+    setWizardStep(targetStep);
+    if (targetStep === 3) setCategoryView("OVERVIEW");
+  };
+
   return (
     <div style={{ maxWidth: "1080px", margin: "0 auto", paddingBottom: "60px" }}>
       {/* Top Header Navigation */}
@@ -578,19 +723,11 @@ export default function CreateExamPage() {
           <button 
             type="button" 
             className="secondary" 
-            onClick={() => navigate("/admin/exams/new")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
-            title="Return to Round Selection"
-          >
-            <ArrowLeft size={14} /> Back to Round Selection
-          </button>
-          <button 
-            type="button" 
-            className="secondary" 
             onClick={() => navigate("/admin/exams")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11.5px" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            title="Return to Examinations"
           >
-            All Exams
+            <ArrowLeft size={14} /> Back to Examinations
           </button>
         </div>
 
@@ -671,10 +808,7 @@ export default function CreateExamPage() {
             <button
               key={step.num}
               type="button"
-              onClick={() => {
-                setWizardStep(step.num as any);
-                if (step.num === 3) setCategoryView("OVERVIEW");
-              }}
+              onClick={() => handleStepClick(step.num as 1 | 2 | 3 | 4)}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -815,11 +949,9 @@ export default function CreateExamPage() {
                 type="button"
                 className="primary"
                 onClick={() => {
-                  if (!title.trim()) {
-                    setErrors(prev => ({ ...prev, title: "Examination title is required" }));
-                    return;
+                  if (validateStep1()) {
+                    setWizardStep(2);
                   }
-                  setWizardStep(2);
                 }}
                 style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 22px", fontSize: "13px", background: "#017846" }}
               >
@@ -844,7 +976,15 @@ export default function CreateExamPage() {
                 <input 
                   type="number" 
                   value={totalQuestions}
-                  onChange={e => setTotalQuestions(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setTotalQuestions(val);
+                    const qNum = parseInt(val, 10);
+                    const mNum = parseFloat(marksPerQuestion);
+                    if (!isNaN(qNum) && !isNaN(mNum) && qNum > 0 && mNum > 0) {
+                      setTotalMarks(String(qNum * mNum));
+                    }
+                  }}
                   style={{ width: "100%", padding: "10px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
                 />
                 {errors.totalQuestions && <span style={{ color: "#dc2626", fontSize: "11px" }}>{errors.totalQuestions}</span>}
@@ -869,8 +1009,17 @@ export default function CreateExamPage() {
                 </label>
                 <input 
                   type="number" 
+                  step="0.5"
                   value={marksPerQuestion}
-                  onChange={e => setMarksPerQuestion(e.target.value)}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setMarksPerQuestion(val);
+                    const mNum = parseFloat(val);
+                    const qNum = parseInt(totalQuestions, 10);
+                    if (!isNaN(qNum) && !isNaN(mNum) && qNum > 0 && mNum > 0) {
+                      setTotalMarks(String(qNum * mNum));
+                    }
+                  }}
                   style={{ width: "100%", padding: "10px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
                 />
               </div>
@@ -929,7 +1078,11 @@ export default function CreateExamPage() {
               <button
                 type="button"
                 className="primary"
-                onClick={() => setWizardStep(3)}
+                onClick={() => {
+                  if (validateStep2()) {
+                    setWizardStep(3);
+                  }
+                }}
                 style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 22px", fontSize: "13px", background: "#017846" }}
               >
                 Continue to Department Sets & Questions <ArrowRight size={16} />
@@ -948,8 +1101,10 @@ export default function CreateExamPage() {
                   nonTechnicalSubDepts={nonTechnicalSubDepts}
                   technicalBank={technicalBank}
                   nonTechnicalBank={nonTechnicalBank}
+                  availableDepartments={departments}
                   onOpenCategory={(cat) => setCategoryView(cat)}
                   onAddSubDeptQuick={handleAddSubDepartment}
+                  onRemoveSubDept={handleRemoveSubDepartment}
                 />
 
                 {/* Step 3 Overview Navigation Footer */}
@@ -1001,6 +1156,7 @@ export default function CreateExamPage() {
               <DepartmentTrackConfigView
                 category="TECHNICAL"
                 subDepartments={technicalSubDepts}
+                availableDepartments={departments}
                 bank={technicalBank}
                 onBackToOverview={() => setCategoryView("OVERVIEW")}
                 onSwitchCategory={(cat) => setCategoryView(cat)}
@@ -1019,6 +1175,7 @@ export default function CreateExamPage() {
               <DepartmentTrackConfigView
                 category="NON_TECHNICAL"
                 subDepartments={nonTechnicalSubDepts}
+                availableDepartments={departments}
                 bank={nonTechnicalBank}
                 onBackToOverview={() => setCategoryView("OVERVIEW")}
                 onSwitchCategory={(cat) => setCategoryView(cat)}
@@ -1237,6 +1394,27 @@ export default function CreateExamPage() {
                   : "Draft: The examination will be saved as DRAFT. You can publish it manually later from the Examinations Management table whenever ready."}
               </p>
             </div>
+
+            {/* Step 4 Server Error Alert */}
+            {serverError && (
+              <div 
+                style={{
+                  background: "#fef2f2",
+                  border: "1px solid #fecaca",
+                  color: "#991b1b",
+                  borderRadius: "8px",
+                  padding: "12px 16px",
+                  marginBottom: "16px",
+                  fontSize: "12.5px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}
+              >
+                <AlertCircle size={16} color="#dc2626" />
+                <span>{serverError}</span>
+              </div>
+            )}
 
             {/* Submit Bar */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e2e8f0", paddingTop: "16px", flexWrap: "wrap", gap: "12px" }}>
