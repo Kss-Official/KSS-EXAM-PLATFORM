@@ -66,6 +66,16 @@ def run_verification():
         tech_dept = academic[0]
         non_tech_dept = academic[1]
 
+    # Ensure exam authorizes both departments for multi-track evaluation
+    from app.models.exam import Exam
+    exam_obj = db.query(Exam).filter(Exam.id == exam_id).first()
+    if exam_obj and exam_obj.departments is not None:
+        if tech_dept not in exam_obj.departments:
+            exam_obj.departments.append(tech_dept)
+        if non_tech_dept not in exam_obj.departments:
+            exam_obj.departments.append(non_tech_dept)
+        db.commit()
+
     print(f"[PASS] 3. Department A (Tech): ID={tech_dept.id}, Name='{tech_dept.name}' ({tech_dept.code})")
     print(f"       Department B (Non-Tech): ID={non_tech_dept.id}, Name='{non_tech_dept.name}' ({non_tech_dept.code})")
 

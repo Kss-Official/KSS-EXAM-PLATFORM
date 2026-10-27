@@ -394,28 +394,41 @@ class CandidateExamService:
 
         if not attempt:
             # Auto-provision assigned attempt if candidate and published exam exist
-            cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-            target_exam = db.query(Exam).filter(Exam.id == exam_id, Exam.status == "PUBLISHED").first()
+            cand = db.query(Candidate).options(joinedload(Candidate.department)).filter(Candidate.id == candidate_id).first()
+            target_exam = db.query(Exam).options(joinedload(Exam.departments)).filter(Exam.id == exam_id, Exam.status == "PUBLISHED").first()
             if cand and target_exam:
                 dept_id = cand.department_id
+
+                # Enforce department authorization: candidate department MUST be in exam departments
+                if target_exam.departments:
+                    allowed_dept_ids = {d.id for d in target_exam.departments}
+                    if not dept_id or dept_id not in allowed_dept_ids:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail="Access denied: Candidate's assigned department is not authorized for this examination."
+                        )
+
                 sets = []
                 if dept_id:
                     sets = db.query(QuestionSet).filter(
                         QuestionSet.exam_id == target_exam.id,
                         QuestionSet.department_id == dept_id
                     ).order_by(QuestionSet.set_code.asc()).all()
+
+                # Only fall back to universal sets if no department-specific sets exist
                 if not sets:
                     sets = db.query(QuestionSet).filter(
-                        QuestionSet.exam_id == target_exam.id
+                        QuestionSet.exam_id == target_exam.id,
+                        QuestionSet.department_id == None
                     ).order_by(QuestionSet.set_code.asc()).all()
-                
+
                 target_qs = None
                 if cand.assigned_set and sets:
                     clean_target = cand.assigned_set.replace("SET", "").replace("_", "").replace("-", "").strip().upper()
                     target_qs = next((s for s in sets if s.set_code.strip().upper() == clean_target), None)
                 if not target_qs and sets:
                     target_qs = sets[0]
-                
+
                 if target_qs:
                     slot = db.query(ExamSlot).filter(ExamSlot.exam_id == target_exam.id).first()
                     attempt = ExamAttempt(
@@ -429,6 +442,11 @@ class CandidateExamService:
                     db.add(attempt)
                     db.commit()
                     db.refresh(attempt)
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: No question sets configured for your department in this examination."
+                    )
 
         if not attempt:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No examination assignment found for candidate")
