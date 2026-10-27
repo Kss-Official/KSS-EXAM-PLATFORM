@@ -56,6 +56,16 @@ app = FastAPI(
 
 from starlette.middleware.gzip import GZipMiddleware
 
+# Path normalization middleware: support routes with or without /api prefix
+@app.middleware("http")
+async def normalize_api_paths(request: Request, call_next):
+    path = request.url.path
+    for prefix in ["/candidate", "/admin", "/auth", "/health"]:
+        if path == prefix or path.startswith(f"{prefix}/"):
+            request.scope["path"] = f"/api{path}"
+            break
+    return await call_next(request)
+
 # Security headers middleware
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -136,6 +146,7 @@ app.include_router(admin_router)
 app.include_router(candidate_router)
 
 @app.get("/")
+@app.get("/api")
 def root():
     return {
         "platform": settings.APP_NAME,
