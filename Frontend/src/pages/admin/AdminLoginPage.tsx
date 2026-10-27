@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { 
   ShieldCheck, 
   Lock, 
@@ -100,7 +100,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         } else if (err.statusCode === 429) {
           setErrorMessage("Rate limit exceeded: Too many failed login attempts. Temporarily locked for 15 minutes.");
         } else if (err.isCorsOrNetworkError || err.statusCode === 502 || err.statusCode === 503 || err.statusCode === 504) {
-          setErrorMessage("Cannot reach Spring Boot server at http://localhost:8080. Start the backend with './mvnw.cmd spring-boot:run' in another terminal.");
+          setErrorMessage("Cannot reach backend server. Please verify your network connection or ensure the API service is online.");
           setBackendStatus("offline");
         } else {
           setErrorMessage(err.message || "An authentication error occurred.");
@@ -430,7 +430,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
                 color: backendStatus === "online" ? "#22c55e" : "#ef4444"
               }}
             >
-              {backendStatus === "online" ? "Spring Boot Active (Session Cookie Auth)" : "Backend Offline"}
+              {backendStatus === "online" ? "FastAPI & PostgreSQL Active" : "Backend Offline"}
             </span>
           </div>
         </div>

@@ -101,11 +101,15 @@ class CandidateExamService:
             return resp
 
         # Authoritative mapping of department categories
-        NON_TECHNICAL_CODES = {"HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", "OPS", "MGMT", "NON_TECH"}
+        NON_TECHNICAL_CODES = {
+            "HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", 
+            "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT", "CORPREL", "PR"
+        }
         NON_TECHNICAL_KEYWORDS = [
             "human resource", "hr", "sales", "marketing", "business", "management",
             "non-technical", "non technical", "finance", "accounting", "commerce",
-            "recruitment", "talent acquisition"
+            "recruitment", "talent acquisition", "data and marketing", "data & marketing",
+            "operations", "corporate", "administration", "public relations", "communications"
         ]
 
         def get_department_category(dept_name: str, dept_code: str) -> str:

@@ -47,6 +47,26 @@ export default function PrimaryDepartmentOverview({
   onRemoveSubDept
 }: PrimaryDepartmentOverviewProps) {
   // Quick-add modal state from overview
+  const STANDARD_TECH_ROLES = [
+    { name: "AI/ML Developer", code: "AIML", description: "Machine Learning, Deep Learning, NLP & AI Model Architecture" },
+    { name: "Software Developer", code: "DEV", description: "Full Stack Development, Web & Mobile Applications, Architecture" },
+    { name: "Software Tester", code: "QA", description: "Quality Assurance, Test Automation, Performance & Reliability" },
+    { name: "DevOps", code: "DEVOPS", description: "Cloud Infrastructure, CI/CD Automations, Kubernetes & SRE" },
+    { name: "UI/UX Designer", code: "UIUX", description: "Design Systems, User Experience Research, Prototyping & Figma" },
+    { name: "Cybersecurity & Information Defense", code: "CYBERSEC", description: "Network Security, Penetration Testing & Cryptography" },
+  ];
+
+  const STANDARD_NON_TECH_ROLES = [
+    { name: "Human Resources", code: "HR", description: "Human Resources, Talent Acquisition, People Ops & Compliance" },
+    { name: "Sales & Marketing", code: "SALES_MKT", description: "Enterprise Sales, Digital Marketing, Growth & Account Strategy" },
+    { name: "Talent Acquisition Lead", code: "RECRUIT", description: "Technical Recruiting, Candidate Sourcing & Interview Ops" },
+    { name: "Operations Management", code: "OPS", description: "Business Process Operations, Resource Allocation & QA" },
+    { name: "Business Development", code: "BIZDEV", description: "Strategic Partnerships, Lead Generation & Client Relations" },
+    { name: "Finance & Accounting", code: "FINANCE", description: "Financial Analysis, Corporate Accounting & Budgeting" },
+    { name: "Data & Marketing", code: "DATAMKT", description: "Marketing Analytics, Growth Experiments & Customer Funnels" },
+    { name: "Corporate Relations", code: "CORPREL", description: "Corporate Communications, Campus Placement & Public Relations" },
+  ];
+
   const [quickAddCategory, setQuickAddCategory] = useState<PrimaryDepartmentType | null>(null);
   const [quickMode, setQuickMode] = useState<"existing" | "new">("existing");
   const [selectedDeptId, setSelectedDeptId] = useState<string>("");
@@ -55,6 +75,17 @@ export default function PrimaryDepartmentOverview({
   const [quickDesc, setQuickDesc] = useState("");
   const [codeManuallyEdited, setCodeManuallyEdited] = useState(false);
   const [quickError, setQuickError] = useState<string | null>(null);
+
+  const openQuickAddModal = (cat: PrimaryDepartmentType) => {
+    setQuickAddCategory(cat);
+    setSelectedDeptId("");
+    setQuickName("");
+    setQuickCode("");
+    setQuickDesc("");
+    setCodeManuallyEdited(false);
+    setQuickError(null);
+    setQuickMode("existing");
+  };
 
   const getSetStats = (bank: CategoryQuestionBankState) => {
     const setKeys: SetCode[] = ["A", "B", "C", "D"];
@@ -100,30 +131,51 @@ export default function PrimaryDepartmentOverview({
 
     if (quickMode === "existing") {
       if (!selectedDeptId) {
-        setQuickError("Please select a department from the list.");
+        setQuickError(`Please select a ${quickAddCategory === "TECHNICAL" ? "technical" : "non-technical"} role from the catalog.`);
         return;
       }
-      const dept = availableDepartments.find(d => String(d.id) === selectedDeptId);
-      if (!dept) {
-        setQuickError("Selected department could not be found.");
+
+      // Check database catalog first
+      const dbDept = availableDepartments.find(d => String(d.id) === selectedDeptId);
+      // Check preset catalog
+      const standardList = quickAddCategory === "TECHNICAL" ? STANDARD_TECH_ROLES : STANDARD_NON_TECH_ROLES;
+      const stdPreset = standardList.find(s => s.code === selectedDeptId);
+
+      const targetName = dbDept ? dbDept.name : (stdPreset ? stdPreset.name : "");
+      const targetCode = dbDept ? dbDept.code : (stdPreset ? stdPreset.code : "");
+      const targetDesc = dbDept ? dbDept.description : (stdPreset ? stdPreset.description : undefined);
+      const targetId = dbDept ? dbDept.id : undefined;
+
+      if (!targetName || !targetCode) {
+        setQuickError("Selected department role could not be resolved.");
         return;
       }
-      const res = onAddSubDeptQuick(quickAddCategory, dept.name, dept.code, dept.description, dept.id);
+
+      const res = onAddSubDeptQuick(quickAddCategory, targetName, targetCode, targetDesc, targetId);
       if (res.success) {
         setSelectedDeptId("");
         setQuickAddCategory(null);
       } else {
-        setQuickError(res.error || `Department "${dept.name}" could not be added.`);
+        setQuickError(res.error || `Department "${targetName}" could not be added.`);
       }
       return;
     }
 
     const trimmedName = quickName.trim();
-    const trimmedCode = quickCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+    let trimmedCode = quickCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
 
     if (!trimmedName) {
       setQuickError("Sub-Department Name is required.");
       return;
+    }
+
+    if (!trimmedCode) {
+      const parts = trimmedName.split(/\s+/);
+      if (parts.length === 1) {
+        trimmedCode = parts[0].substring(0, 8).toUpperCase();
+      } else {
+        trimmedCode = parts.map(p => p[0]).join("").toUpperCase().substring(0, 8);
+      }
     }
 
     const res = onAddSubDeptQuick(quickAddCategory, trimmedName, trimmedCode, quickDesc.trim() || undefined);
@@ -326,12 +378,7 @@ export default function PrimaryDepartmentOverview({
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setQuickAddCategory("TECHNICAL");
-                    setQuickName("");
-                    setQuickCode("");
-                    setQuickError(null);
-                  }}
+                  onClick={() => openQuickAddModal("TECHNICAL")}
                   style={{
                     background: "none",
                     border: "none",
@@ -581,12 +628,7 @@ export default function PrimaryDepartmentOverview({
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setQuickAddCategory("NON_TECHNICAL");
-                    setQuickName("");
-                    setQuickCode("");
-                    setQuickError(null);
-                  }}
+                  onClick={() => openQuickAddModal("NON_TECHNICAL")}
                   style={{
                     background: "none",
                     border: "none",
@@ -803,8 +845,54 @@ export default function PrimaryDepartmentOverview({
 
             {/* Mode Selector Tabs */}
             {(() => {
+              const isTech = quickAddCategory === "TECHNICAL";
               const configuredCodes = new Set([...technicalSubDepts, ...nonTechnicalSubDepts].map(s => s.code.toUpperCase()));
-              const selectableExisting = availableDepartments.filter(d => !configuredCodes.has(d.code.toUpperCase()));
+              const configuredNames = new Set([...technicalSubDepts, ...nonTechnicalSubDepts].map(s => s.name.trim().toLowerCase()));
+
+              // Filter database catalog departments
+              const NON_TECH_CODES = new Set(["HR", "SALES_MKT", "MKT", "SALES", "MARKETING", "FIN", "FINANCE", "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT"]);
+              const isDeptNonTech = (d: DepartmentDto) => {
+                const c = (d.code || "").toUpperCase();
+                const n = (d.name || "").toLowerCase();
+                return NON_TECH_CODES.has(c) || n.includes("human resource") || n.includes("hr") || n.includes("marketing") || n.includes("sales") || n.includes("business") || n.includes("finance");
+              };
+
+              const dbTrackDepts = availableDepartments.filter(d => {
+                if (configuredCodes.has(d.code.toUpperCase()) || configuredNames.has(d.name.trim().toLowerCase())) return false;
+                return isTech ? !isDeptNonTech(d) : isDeptNonTech(d);
+              });
+
+              // Standard presets for the category that are not yet added
+              const standardList = isTech ? STANDARD_TECH_ROLES : STANDARD_NON_TECH_ROLES;
+              const unconfiguredPresets = standardList.filter(p => 
+                !configuredCodes.has(p.code.toUpperCase()) && 
+                !configuredNames.has(p.name.trim().toLowerCase()) &&
+                !dbTrackDepts.some(d => d.code.toUpperCase() === p.code.toUpperCase() || d.name.toLowerCase() === p.name.toLowerCase())
+              );
+
+              interface CatalogOption {
+                value: string;
+                name: string;
+                code: string;
+                group: string;
+              }
+
+              const catalogOptions: CatalogOption[] = [
+                ...unconfiguredPresets.map(p => ({
+                  value: p.code,
+                  name: p.name,
+                  code: p.code,
+                  group: isTech ? "Recommended Technical Roles" : "Recommended Non-Technical Roles"
+                })),
+                ...dbTrackDepts.map(d => ({
+                  value: String(d.id),
+                  name: d.name,
+                  code: d.code,
+                  group: "Database Catalog"
+                }))
+              ];
+
+              const totalSelectable = catalogOptions.length;
 
               return (
                 <form onSubmit={handleQuickAddSubmit} style={{ padding: "20px" }}>
@@ -825,11 +913,11 @@ export default function PrimaryDepartmentOverview({
                         borderRadius: "6px",
                         border: "none",
                         cursor: "pointer",
-                        background: quickMode === "existing" ? (quickAddCategory === "TECHNICAL" ? "#EAF6EF" : "#eff6ff") : "transparent",
-                        color: quickMode === "existing" ? (quickAddCategory === "TECHNICAL" ? "#017846" : "#0284c7") : "#64748b"
+                        background: quickMode === "existing" ? (isTech ? "#EAF6EF" : "#eff6ff") : "transparent",
+                        color: quickMode === "existing" ? (isTech ? "#017846" : "#0284c7") : "#64748b"
                       }}
                     >
-                      Choose Existing Academic Dept ({selectableExisting.length})
+                      {isTech ? "Technical Catalog / Roles" : "Non-Technical Catalog / Roles"} ({totalSelectable})
                     </button>
                     <button
                       type="button"
@@ -841,22 +929,22 @@ export default function PrimaryDepartmentOverview({
                         borderRadius: "6px",
                         border: "none",
                         cursor: "pointer",
-                        background: quickMode === "new" ? (quickAddCategory === "TECHNICAL" ? "#EAF6EF" : "#eff6ff") : "transparent",
-                        color: quickMode === "new" ? (quickAddCategory === "TECHNICAL" ? "#017846" : "#0284c7") : "#64748b"
+                        background: quickMode === "new" ? (isTech ? "#EAF6EF" : "#eff6ff") : "transparent",
+                        color: quickMode === "new" ? (isTech ? "#017846" : "#0284c7") : "#64748b"
                       }}
                     >
-                      + Create New Custom Sub-Dept
+                      + Create Custom Sub-Dept
                     </button>
                   </div>
 
                   {quickMode === "existing" ? (
                     <div style={{ marginBottom: "18px" }}>
                       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
-                        Select Academic Department *
+                        Select {isTech ? "Technical" : "Non-Technical"} Role / Department *
                       </label>
-                      {selectableExisting.length === 0 ? (
+                      {totalSelectable === 0 ? (
                         <div style={{ padding: "12px", background: "#f8fafc", borderRadius: "6px", border: "1px dashed #cbd5e1", fontSize: "12px", color: "#64748b" }}>
-                          All existing academic departments are already configured in this exam. Switch to "Create New Custom Sub-Dept" to add a new specialization.
+                          All standard and database {isTech ? "technical" : "non-technical"} departments are already configured in this exam. Switch to "+ Create Custom Sub-Dept" to add a new specialization.
                         </div>
                       ) : (
                         <select
@@ -868,10 +956,10 @@ export default function PrimaryDepartmentOverview({
                           style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px", background: "#ffffff" }}
                           autoFocus
                         >
-                          <option value="">-- Choose from Database Catalog --</option>
-                          {selectableExisting.map(d => (
-                            <option key={d.id} value={String(d.id)}>
-                              {d.name} ({d.code})
+                          <option value="">-- Choose {isTech ? "Technical" : "Non-Technical"} Role --</option>
+                          {catalogOptions.map(opt => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.name} ({opt.code}) - {opt.group}
                             </option>
                           ))}
                         </select>
@@ -888,7 +976,7 @@ export default function PrimaryDepartmentOverview({
                         </label>
                         <input
                           type="text"
-                          placeholder={quickAddCategory === "TECHNICAL" ? "e.g. Cloud Security Architect" : "e.g. Talent Acquisition Lead"}
+                          placeholder={isTech ? "e.g. Cloud Security Architect, Data Engineer" : "e.g. Talent Acquisition Lead, Operations Manager"}
                           value={quickName}
                           onChange={e => handleNameChange(e.target.value)}
                           style={{ width: "100%", padding: "9px 12px", fontSize: "13px", border: "1px solid #cbd5e1", borderRadius: "8px" }}
@@ -902,7 +990,7 @@ export default function PrimaryDepartmentOverview({
                         </label>
                         <input
                           type="text"
-                          placeholder="e.g. SEC, BD, CRM"
+                          placeholder="e.g. SEC, OPS, FIN"
                           value={quickCode}
                           onChange={e => {
                             setCodeManuallyEdited(true);
@@ -942,8 +1030,8 @@ export default function PrimaryDepartmentOverview({
                     <button
                       type="submit"
                       className="primary"
-                      disabled={quickMode === "existing" && selectableExisting.length === 0}
-                      style={{ padding: "8px 20px", fontSize: "12.5px", background: "#017846" }}
+                      disabled={quickMode === "existing" && totalSelectable === 0}
+                      style={{ padding: "8px 20px", fontSize: "12.5px", background: isTech ? "#017846" : "#0284c7" }}
                     >
                       Add to Examination
                     </button>

@@ -91,7 +91,8 @@ export default function ExamsPage() {
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 409) {
         setDeleteNeedsForce(true);
-        setDeleteWarningMsg(err.message || "This examination has recorded candidate attempts. Deleting will permanently remove all candidate records.");
+        const cleanMsg = (err.message || "").replace(/^Backend error 409:\s*/i, "");
+        setDeleteWarningMsg(cleanMsg || "This examination has recorded candidate attempts. Deleting will permanently remove all candidate records.");
       } else {
         const errorObj = err as Error;
         setActionNotice(`Delete failed: ${errorObj.message}`);

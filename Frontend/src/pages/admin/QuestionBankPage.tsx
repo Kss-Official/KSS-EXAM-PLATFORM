@@ -109,6 +109,43 @@ export default function QuestionBankPage() {
     });
   }, [departments]);
 
+  // Track Categorization Helpers: Technical vs Non-Technical
+  const NON_TECH_CODES = useMemo(() => new Set([
+    "HR", "SALES_MKT", "MKT", "SALES", "MARKETING", "FIN", "FINANCE", 
+    "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT", "CORPREL", "PR"
+  ]), []);
+
+  const isDeptNonTech = (d: ExamDepartmentSummary | null) => {
+    if (!d) return false;
+    const c = (d.code || "").toUpperCase();
+    const n = (d.name || "").toLowerCase();
+    return (
+      NON_TECH_CODES.has(c) ||
+      n.includes("human resource") ||
+      n.includes("hr") ||
+      n.includes("marketing") ||
+      n.includes("sales") ||
+      n.includes("business") ||
+      n.includes("finance") ||
+      n.includes("talent acquisition") ||
+      n.includes("recruitment") ||
+      n.includes("operations") ||
+      n.includes("corporate")
+    );
+  };
+
+  const technicalDepts = useMemo(() => displayedDepts.filter(d => !isDeptNonTech(d)), [displayedDepts, NON_TECH_CODES]);
+  const nonTechnicalDepts = useMemo(() => displayedDepts.filter(d => isDeptNonTech(d)), [displayedDepts, NON_TECH_CODES]);
+
+  const pickRepresentativeDept = (deptList: ExamDepartmentSummary[]) => {
+    if (deptList.length === 0) return null;
+    const preferred = deptList.find(d => {
+      const c = (d.code || "").toUpperCase();
+      return c === "DEV" || c === "CSE" || c === "HR";
+    });
+    return preferred || deptList[0];
+  };
+
   // 1. Fetch All Exams on Mount
   useEffect(() => {
     let isCancelled = false;
@@ -225,13 +262,31 @@ export default function QuestionBankPage() {
   };
 
   const handleSaveSetBulk = async () => {
-    if (!activeSet) return;
+    if (!activeSet || !selectedDept) return;
     setSavingSetBulk(true);
     try {
       const updated = await bulkUpdateSetQuestions(activeSet.id, editDraftQuestions);
       setQuestions(updated);
       setIsEditingSet(false);
-      setNotice({ type: "success", message: `Successfully updated ${updated.length} questions in Set ${selectedSetCode}!` });
+
+      // Automatically sync questions to all sister departments in the same track
+      const currentIsNonTech = isDeptNonTech(selectedDept);
+      const sisterDepts = (currentIsNonTech ? nonTechnicalDepts : technicalDepts).filter(d => d.id !== selectedDept.id);
+      if (sisterDepts.length > 0 && selectedSetCode && selectedExamId) {
+        for (const sister of sisterDepts) {
+          try {
+            const sisterSets = await getExamDepartmentSets(selectedExamId, sister.id);
+            const targetSisterSet = sisterSets.find(s => s.setCode === selectedSetCode);
+            if (targetSisterSet) {
+              await bulkUpdateSetQuestions(targetSisterSet.id, editDraftQuestions);
+            }
+          } catch (syncErr) {
+            console.warn(`Could not sync Set ${selectedSetCode} to sister dept ${sister.name}:`, syncErr);
+          }
+        }
+      }
+
+      setNotice({ type: "success", message: `Successfully updated ${updated.length} questions in Set ${selectedSetCode} across all enrolled ${currentIsNonTech ? "Non-Technical" : "Technical"} roles!` });
       fetchDepartmentSets();
     } catch (err: unknown) {
       const errObj = err as Error;
@@ -560,12 +615,12 @@ export default function QuestionBankPage() {
                     background: "none",
                     border: "none",
                     padding: 0,
-                    color: selectedSetCode ? "#017846" : "#0f172a",
+                    color: selectedSetCode ? (isDeptNonTech(selectedDept) ? "#0284c7" : "#017846") : "#0f172a",
                     fontWeight: selectedSetCode ? 600 : 700,
                     cursor: selectedSetCode ? "pointer" : "default"
                   }}
                 >
-                  {selectedDept.name} ({selectedDept.code})
+                  {isDeptNonTech(selectedDept) ? "Non-Technical Track" : "Technical Track"} ({selectedDept.name})
                 </button>
               </>
             )}
@@ -581,22 +636,38 @@ export default function QuestionBankPage() {
           </div>
 
           {/* =========================================================================
-              PAGE 1: DEPARTMENT LIST
+              PAGE 1: 2 PRIMARY TRACKS (TECHNICAL & NON-TECHNICAL)
               ========================================================================= */}
           {!selectedDept && (
             <div>
-              <div style={{ marginBottom: "12px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <strong style={{ fontSize: "14px", color: "#1e293b" }}>
-                  Select Department to Manage Question Bank
-                </strong>
-                <span style={{ fontSize: "12px", color: "#64748b" }}>
-                  Showing {displayedDepts.length} department(s) associated with this examination
-                </span>
+              <div style={{ marginBottom: "18px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+                <div>
+                  <strong style={{ fontSize: "16px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                    Select Examination Track Question Bank
+                  </strong>
+                  <p style={{ margin: "4px 0 0", fontSize: "12.5px", color: "#64748b" }}>
+                    Examinations are organized into 2 isolated Master Question Banks. Candidates are dynamically routed to their respective track.
+                  </p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    background: "#f1f5f9",
+                    color: "#475569",
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid #e2e8f0"
+                  }}>
+                    2 Master Tracks · {displayedDepts.length} Enrolled Specializations
+                  </span>
+                </div>
               </div>
 
               {loadingDepts ? (
-                <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>
-                  Loading departments for examination...
+                <div style={{ padding: "50px", textAlign: "center", color: "#64748b" }}>
+                  <div style={{ display: "inline-block", width: "24px", height: "24px", border: "3px solid #cbd5e1", borderTopColor: "#017846", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  <p style={{ marginTop: "12px", fontSize: "13px" }}>Loading examination tracks & question sets...</p>
                 </div>
               ) : displayedDepts.length === 0 ? (
                 <div style={{
@@ -615,108 +686,393 @@ export default function QuestionBankPage() {
               ) : (
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-                  gap: "16px"
+                  gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+                  gap: "20px"
                 }}>
-              {displayedDepts.map(dept => (
-                <div
-                  key={dept.id}
-                  onClick={() => setSelectedDept(dept)}
-                  style={{
-                    background: "#ffffff",
-                    border: "1px solid #e2e8f0",
-                    borderRadius: "10px",
-                    padding: "16px",
-                    cursor: "pointer",
-                    boxShadow: "0 2px 6px rgba(15, 23, 42, 0.04)",
-                    transition: "all 0.15s ease",
-                    display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "space-between"
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.borderColor = "#3b82f6";
-                    e.currentTarget.style.boxShadow = "0 4px 12px rgba(37, 99, 235, 0.1)";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                    e.currentTarget.style.boxShadow = "0 2px 6px rgba(15, 23, 42, 0.04)";
-                  }}
-                >
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
-                      <b style={{ fontSize: "15px", color: "#0f172a" }}>{dept.name}</b>
-                      <span style={{
-                        fontSize: "11px",
-                        background: "#EAF6EF",
-                        color: "#017846",
-                        padding: "2px 7px",
-                        borderRadius: "4px",
-                        fontWeight: 700
-                      }}>
-                        {dept.code}
-                      </span>
+                  {/* TRACK 1: TECHNICAL DEPARTMENT QUESTION BANK */}
+                  <div
+                    onClick={() => {
+                      const rep = pickRepresentativeDept(technicalDepts);
+                      if (rep) setSelectedDept(rep);
+                    }}
+                    style={{
+                      background: "#ffffff",
+                      border: "2px solid #bbf7d0",
+                      borderRadius: "12px",
+                      padding: "22px",
+                      cursor: technicalDepts.length > 0 ? "pointer" : "not-allowed",
+                      boxShadow: "0 4px 14px rgba(1, 120, 70, 0.06)",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      position: "relative",
+                      opacity: technicalDepts.length > 0 ? 1 : 0.6
+                    }}
+                    onMouseEnter={e => {
+                      if (technicalDepts.length > 0) {
+                        e.currentTarget.style.borderColor = "#017846";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "0 8px 24px rgba(1, 120, 70, 0.15)";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (technicalDepts.length > 0) {
+                        e.currentTarget.style.borderColor = "#bbf7d0";
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(1, 120, 70, 0.06)";
+                      }
+                    }}
+                  >
+                    <div>
+                      {/* Top Badge & Status */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div style={{
+                            width: "38px",
+                            height: "38px",
+                            borderRadius: "10px",
+                            background: "#EAF6EF",
+                            color: "#017846",
+                            display: "grid",
+                            placeItems: "center"
+                          }}>
+                            <Layers size={20} />
+                          </div>
+                          <div>
+                            <span style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              color: "#017846"
+                            }}>
+                              Primary Track · Mandatory
+                            </span>
+                            <h3 style={{ margin: "2px 0 0", fontSize: "17px", color: "#0f172a", fontWeight: 700 }}>
+                              Technical Department
+                            </h3>
+                          </div>
+                        </div>
+
+                        <span style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          background: "#EAF6EF",
+                          color: "#017846",
+                          padding: "4px 10px",
+                          borderRadius: "20px",
+                          border: "1px solid #bbf7d0"
+                        }}>
+                          {technicalDepts.length} Enrolled Roles
+                        </span>
+                      </div>
+
+                      <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#475569", lineHeight: 1.5 }}>
+                        Dedicated master assessment bank for software engineering, web & cloud development, quality assurance, and technical disciplines.
+                      </p>
+
+                      {/* Enrolled Sub-Departments / Roles List */}
+                      <div style={{ marginBottom: "18px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                          Enrolled Technical Specializations:
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                          {technicalDepts.map(d => (
+                            <span
+                              key={d.id}
+                              style={{
+                                fontSize: "11.5px",
+                                background: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                                color: "#334155",
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontWeight: 500
+                              }}
+                            >
+                              {d.name} <b style={{ color: "#017846" }}>({d.code})</b>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    <p style={{ margin: "0 0 12px 0", fontSize: "12px", color: "#64748b", lineHeight: 1.4 }}>
-                      {dept.description || "Academic & functional department question sets"}
-                    </p>
+                    {/* Card Footer */}
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      borderTop: "1px solid #f1f5f9",
+                      paddingTop: "14px",
+                      marginTop: "10px"
+                    }}>
+                      <span style={{
+                        color: "#166534",
+                        background: "#f0fdf4",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        fontWeight: 700,
+                        fontSize: "12px"
+                      }}>
+                        4 Sets (A, B, C, D)
+                      </span>
+                      <button
+                        type="button"
+                        style={{
+                          background: "linear-gradient(135deg, #017846, #01663C)",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "8px 14px",
+                          borderRadius: "8px",
+                          fontSize: "12.5px",
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          cursor: "pointer",
+                          boxShadow: "0 2px 6px rgba(1, 120, 70, 0.25)"
+                        }}
+                      >
+                        Open Sets <ChevronRight size={15} />
+                      </button>
+                    </div>
                   </div>
 
-                  <div style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    borderTop: "1px solid #f1f5f9",
-                    paddingTop: "10px",
-                    fontSize: "12px"
-                  }}>
-                    <span style={{ color: "#166534", background: "#f0fdf4", padding: "2px 8px", borderRadius: "4px", fontWeight: 600 }}>
-                      4 Sets (A, B, C, D)
-                    </span>
-                    <span style={{ color: "#017846", fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                      Open Sets <ChevronRight size={14} />
-                    </span>
+                  {/* TRACK 2: NON-TECHNICAL DEPARTMENT QUESTION BANK */}
+                  <div
+                    onClick={() => {
+                      const rep = pickRepresentativeDept(nonTechnicalDepts);
+                      if (rep) setSelectedDept(rep);
+                    }}
+                    style={{
+                      background: "#ffffff",
+                      border: "2px solid #bae6fd",
+                      borderRadius: "12px",
+                      padding: "22px",
+                      cursor: nonTechnicalDepts.length > 0 ? "pointer" : "not-allowed",
+                      boxShadow: "0 4px 14px rgba(2, 132, 199, 0.06)",
+                      transition: "all 0.2s ease",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "space-between",
+                      position: "relative",
+                      opacity: nonTechnicalDepts.length > 0 ? 1 : 0.6
+                    }}
+                    onMouseEnter={e => {
+                      if (nonTechnicalDepts.length > 0) {
+                        e.currentTarget.style.borderColor = "#0284c7";
+                        e.currentTarget.style.transform = "translateY(-2px)";
+                        e.currentTarget.style.boxShadow = "0 8px 24px rgba(2, 132, 199, 0.15)";
+                      }
+                    }}
+                    onMouseLeave={e => {
+                      if (nonTechnicalDepts.length > 0) {
+                        e.currentTarget.style.borderColor = "#bae6fd";
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(2, 132, 199, 0.06)";
+                      }
+                    }}
+                  >
+                    <div>
+                      {/* Top Badge & Status */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "14px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <div style={{
+                            width: "38px",
+                            height: "38px",
+                            borderRadius: "10px",
+                            background: "#eff6ff",
+                            color: "#0284c7",
+                            display: "grid",
+                            placeItems: "center"
+                          }}>
+                            <Building2 size={20} />
+                          </div>
+                          <div>
+                            <span style={{
+                              fontSize: "11px",
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.5px",
+                              color: "#0284c7"
+                            }}>
+                              Primary Track · General
+                            </span>
+                            <h3 style={{ margin: "2px 0 0", fontSize: "17px", color: "#0f172a", fontWeight: 700 }}>
+                              Non-Technical Department
+                            </h3>
+                          </div>
+                        </div>
+
+                        <span style={{
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          background: "#eff6ff",
+                          color: "#0284c7",
+                          padding: "4px 10px",
+                          borderRadius: "20px",
+                          border: "1px solid #bae6fd"
+                        }}>
+                          {nonTechnicalDepts.length} Enrolled Roles
+                        </span>
+                      </div>
+
+                      <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#475569", lineHeight: 1.5 }}>
+                        Dedicated master assessment bank for human resources, talent acquisition, recruitment, marketing, operations, and corporate affairs.
+                      </p>
+
+                      {/* Enrolled Sub-Departments / Roles List */}
+                      <div style={{ marginBottom: "18px" }}>
+                        <div style={{ fontSize: "11px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>
+                          Enrolled Non-Technical Specializations:
+                        </div>
+                        {nonTechnicalDepts.length === 0 ? (
+                          <span style={{ fontSize: "12px", color: "#94a3b8", fontStyle: "italic" }}>
+                            No non-technical roles enrolled in this examination.
+                          </span>
+                        ) : (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {nonTechnicalDepts.map(d => (
+                              <span
+                                key={d.id}
+                                style={{
+                                  fontSize: "11.5px",
+                                  background: "#f8fafc",
+                                  border: "1px solid #e2e8f0",
+                                  color: "#334155",
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontWeight: 500
+                                }}
+                              >
+                                {d.name} <b style={{ color: "#0284c7" }}>({d.code})</b>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      borderTop: "1px solid #f1f5f9",
+                      paddingTop: "14px",
+                      marginTop: "10px"
+                    }}>
+                      <span style={{
+                        color: "#0369a1",
+                        background: "#f0f9ff",
+                        padding: "3px 10px",
+                        borderRadius: "6px",
+                        fontWeight: 700,
+                        fontSize: "12px"
+                      }}>
+                        4 Sets (A, B, C, D)
+                      </span>
+                      <button
+                        type="button"
+                        disabled={nonTechnicalDepts.length === 0}
+                        style={{
+                          background: nonTechnicalDepts.length > 0 ? "linear-gradient(135deg, #0284c7, #0369a1)" : "#cbd5e1",
+                          color: "#ffffff",
+                          border: "none",
+                          padding: "8px 14px",
+                          borderRadius: "8px",
+                          fontSize: "12.5px",
+                          fontWeight: 700,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          cursor: nonTechnicalDepts.length > 0 ? "pointer" : "not-allowed",
+                          boxShadow: nonTechnicalDepts.length > 0 ? "0 2px 6px rgba(2, 132, 199, 0.25)" : "none"
+                        }}
+                      >
+                        Open Sets <ChevronRight size={15} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           )}
-        </div>
-      )}
 
       {/* =========================================================================
-          PAGE 2: DEPARTMENT QUESTION BANK OVERVIEW (Sets A, B, C, D)
+          PAGE 2: TRACK QUESTION BANK OVERVIEW (Sets A, B, C, D)
           ========================================================================= */}
       {selectedDept && !selectedSetCode && (
         <div>
-          <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
             <button
               type="button"
               className="secondary"
               onClick={() => setSelectedDept(null)}
               style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px" }}
             >
-              <ArrowLeft size={14} /> Back to Departments
+              <ArrowLeft size={14} /> Back to Primary Tracks
             </button>
 
-            <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-              Department: <b style={{ color: "#0f172a" }}>{selectedDept.name}</b> ({selectedDept.code})
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "12.5px", color: "#64748b" }}>
+                Active Track: <b style={{ color: isDeptNonTech(selectedDept) ? "#0284c7" : "#017846" }}>
+                  {isDeptNonTech(selectedDept) ? "Non-Technical Department" : "Technical Department"}
+                </b>
+              </span>
+              {(isDeptNonTech(selectedDept) ? nonTechnicalDepts : technicalDepts).length > 1 && (
+                <select
+                  value={selectedDept.id}
+                  onChange={e => {
+                    const pool = isDeptNonTech(selectedDept) ? nonTechnicalDepts : technicalDepts;
+                    const found = pool.find(d => d.id === Number(e.target.value));
+                    if (found) setSelectedDept(found);
+                  }}
+                  style={{
+                    fontSize: "12px",
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: "#ffffff",
+                    color: "#334155"
+                  }}
+                  title="Switch viewed sub-department role"
+                >
+                  {(isDeptNonTech(selectedDept) ? nonTechnicalDepts : technicalDepts).map(d => (
+                    <option key={d.id} value={d.id}>
+                      View Role: {d.name} ({d.code})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
           </div>
 
           <div style={{
             background: "#ffffff",
-            border: "1px solid #e2e8f0",
+            border: `1.5px solid ${isDeptNonTech(selectedDept) ? "#bae6fd" : "#bbf7d0"}`,
             borderRadius: "10px",
-            padding: "16px",
+            padding: "16px 20px",
             marginBottom: "20px"
           }}>
-            <h3 style={{ margin: "0 0 4px 0", fontSize: "15px", color: "#0f172a" }}>
-              {selectedDept.name} ΓÇö Question Sets Overview
-            </h3>
-            <p style={{ margin: 0, fontSize: "12px", color: "#64748b" }}>
-              Each set is completely isolated. Candidates assigned to {selectedDept.name} receive one of these four independent sets in round-robin fashion.
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "6px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a" }}>
+                {isDeptNonTech(selectedDept) ? "Non-Technical Department" : "Technical Department"} — Question Sets Overview
+              </h3>
+              <span style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: isDeptNonTech(selectedDept) ? "#0284c7" : "#017846",
+                background: isDeptNonTech(selectedDept) ? "#eff6ff" : "#EAF6EF",
+                padding: "2px 8px",
+                borderRadius: "4px"
+              }}>
+                {(isDeptNonTech(selectedDept) ? nonTechnicalDepts : technicalDepts).length} Enrolled Roles
+              </span>
+            </div>
+            <p style={{ margin: 0, fontSize: "12.5px", color: "#64748b", lineHeight: 1.5 }}>
+              Each set is completely isolated. Candidates entering the {isDeptNonTech(selectedDept) ? "Non-Technical" : "Technical"} track receive one of these four independent sets (A, B, C, D) in randomized round-robin fashion.
             </p>
           </div>
 
@@ -854,7 +1210,7 @@ export default function QuestionBankPage() {
               }}
               style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12.5px" }}
             >
-              <ArrowLeft size={14} /> Back to Sets ({selectedDept.name})
+              <ArrowLeft size={14} /> Back to Sets ({isDeptNonTech(selectedDept) ? "Non-Technical" : "Technical"})
             </button>
 
             <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
@@ -1222,9 +1578,9 @@ export default function QuestionBankPage() {
                 alignItems: "center"
               }}>
                 <strong style={{ fontSize: "13.5px", color: "#0f172a" }}>
-                  {selectedDept.name} ΓÇö Set {selectedSetCode} Questions ({questions.length} Total)
+                  {isDeptNonTech(selectedDept) ? "Non-Technical Track" : "Technical Track"} — Set {selectedSetCode} Questions ({questions.length} Total)
                 </strong>
-                <small style={{ color: "#64748b" }}>Isolated question bank for Set {selectedSetCode}</small>
+                <small style={{ color: "#64748b" }}>Role: {selectedDept.name} ({selectedDept.code})</small>
               </div>
 
               {loadingQuestions ? (

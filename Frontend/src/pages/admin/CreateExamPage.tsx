@@ -164,15 +164,24 @@ export default function CreateExamPage() {
       return { success: false, error: `A sub-department named "${trimmedName}" is already configured in this examination.` };
     }
 
-    const codeExists = allConfigured.some(s => s.code.trim().toUpperCase() === trimmedCode);
+    let finalCode = trimmedCode;
+    const codeExists = allConfigured.some(s => s.code.trim().toUpperCase() === finalCode);
     if (codeExists) {
-      return { success: false, error: `Department code "${trimmedCode}" is already in use by another sub-department in this examination.` };
+      if (existingDeptId) {
+        return { success: false, error: `Department code "${finalCode}" is already in use by another sub-department in this examination.` };
+      }
+      // Auto-disambiguate code for newly created custom role so user is never blocked
+      let counter = 2;
+      while (allConfigured.some(s => s.code.trim().toUpperCase() === `${trimmedCode}_${counter}`)) {
+        counter++;
+      }
+      finalCode = `${trimmedCode}_${counter}`;
     }
 
     const matchedBackend = existingDeptId 
       ? departments.find(d => d.id === existingDeptId)
       : departments.find(d => 
-          d.code.toUpperCase() === trimmedCode ||
+          d.code.toUpperCase() === finalCode ||
           d.name.toLowerCase() === trimmedName.toLowerCase()
         );
 
@@ -180,7 +189,7 @@ export default function CreateExamPage() {
       id: existingDeptId || matchedBackend?.id,
       tempId: `${category.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: trimmedName,
-      code: trimmedCode,
+      code: finalCode,
       description: description?.trim() || undefined,
       category,
       isDefault: false
@@ -1155,7 +1164,7 @@ export default function CreateExamPage() {
             {categoryView === "TECHNICAL" && (
               <DepartmentTrackConfigView
                 category="TECHNICAL"
-                subDepartments={technicalSubDepts}
+                subDepartments={[...technicalSubDepts, ...nonTechnicalSubDepts]}
                 availableDepartments={departments}
                 bank={technicalBank}
                 onBackToOverview={() => setCategoryView("OVERVIEW")}
@@ -1174,7 +1183,7 @@ export default function CreateExamPage() {
             {categoryView === "NON_TECHNICAL" && (
               <DepartmentTrackConfigView
                 category="NON_TECHNICAL"
-                subDepartments={nonTechnicalSubDepts}
+                subDepartments={[...technicalSubDepts, ...nonTechnicalSubDepts]}
                 availableDepartments={departments}
                 bank={nonTechnicalBank}
                 onBackToOverview={() => setCategoryView("OVERVIEW")}

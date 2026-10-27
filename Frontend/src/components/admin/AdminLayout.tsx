@@ -277,7 +277,7 @@ export default function AdminLayout({
                       <p style={{ margin: "2px 0 0 0", color: "#64748b" }}>Configuration profile verified for campus placement.</p>
                     </div>
                     <div>
-                      <strong>Spring Boot Backend</strong>
+                      <strong>FastAPI Backend</strong>
                       <p style={{ margin: "2px 0 0 0", color: "#64748b" }}>
                         {dashboardData ? "API connected and healthy." : "Backend authorization is active."}
                       </p>
