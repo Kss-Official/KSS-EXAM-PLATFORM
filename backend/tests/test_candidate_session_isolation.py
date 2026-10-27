@@ -13,7 +13,7 @@ import requests
 import json
 import pytest
 
-BASE_URL = "http://127.0.0.1:8000/api"
+BASE_URL = os.environ["EXAMSECURE_TEST_BASE_URL"] + "/api"  # private test server (see conftest.py)
 
 def test_multi_candidate_session_isolation():
     # 1. Fetch available departments

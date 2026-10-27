@@ -145,7 +145,11 @@ class QuestionService:
         if not q_set:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question Set not found")
 
-        blocks = re.split(r"(?i)(?=Q(?:uestion)?\s*\d*\s*[:.)])", raw_text)
+        # Robust split on either 'Q1.' / 'Question 1:' or standard numbered '1.' / '1)'
+        blocks = re.split(r"(?im)^\s*(?=(?:Q(?:uestion)?\s*)?\d+[\.:\)])", raw_text)
+        if len(blocks) <= 1:
+            blocks = re.split(r"(?i)(?=(?:Q(?:uestion)?\s*)?\d+[\.:\)])", raw_text)
+
         current_order = db.query(Question).filter(Question.question_set_id == question_set_id).count()
 
         opt_pattern = re.compile(r"(?m)^\s*([A-Da-d])[\)\.]\s*(.+)$")
@@ -159,7 +163,7 @@ class QuestionService:
                 continue
 
             lines = trimmed.split("\n", 1)
-            q_header = re.sub(r"(?i)^Q(?:uestion)?\s*\d*\s*[:.)]\s*", "", lines[0]).strip()
+            q_header = re.sub(r"(?i)^(?:Q(?:uestion)?\s*)?\d+[\.:\)]\s*", "", lines[0]).strip()
             if not q_header and len(lines) > 1:
                 q_header = lines[1].strip()
 
