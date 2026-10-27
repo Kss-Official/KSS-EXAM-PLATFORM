@@ -1,3 +1,4 @@
+import os
 import logging
 from sqlalchemy import create_engine, BigInteger, Integer
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
@@ -10,7 +11,25 @@ ID_TYPE = BigInteger().with_variant(Integer, "sqlite")
 
 def _init_engine():
     db_url = settings.DATABASE_URL
-    if db_url.startswith("postgresql"):
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+
+    if db_url.startswith("postgresql://"):
+        # Auto-detect driver: prioritize psycopg (v3) for serverless/modern runtimes, fallback to psycopg2
+        try:
+            import psycopg
+            db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        except ImportError:
+            try:
+                import psycopg2
+                db_url = db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+            except ImportError:
+                pass
+
+    is_postgres = db_url.startswith("postgresql")
+    is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
+
+    if is_postgres:
         try:
             # Quick connectivity verification with 15s timeout for Neon serverless
             probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
@@ -19,7 +38,7 @@ def _init_engine():
             probe_engine.dispose()  # Prevent socket leak from probe connection
             logger.info("Successfully connected to primary PostgreSQL database.")
 
-            # Optimized PostgreSQL pool for high concurrent load (800+ candidates)
+            # Optimized PostgreSQL pool for load
             pg_connect_args = {
                 "connect_timeout": 15,
                 "keepalives": 1,
@@ -28,10 +47,14 @@ def _init_engine():
                 "keepalives_count": 5
             }
 
+            # In serverless environments (Vercel Lambda), use smaller pool per container
+            pool_size = 5 if is_serverless else settings.DB_POOL_SIZE
+            max_overflow = 10 if is_serverless else settings.DB_MAX_OVERFLOW
+
             return create_engine(
                 db_url,
-                pool_size=settings.DB_POOL_SIZE,
-                max_overflow=settings.DB_MAX_OVERFLOW,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
                 pool_recycle=settings.DB_POOL_RECYCLE,
                 pool_pre_ping=settings.DB_POOL_PRE_PING,
                 pool_timeout=settings.DB_POOL_TIMEOUT,
@@ -39,8 +62,8 @@ def _init_engine():
                 echo=False
             )
         except Exception as exc:
-            if settings.ENVIRONMENT.lower() == "production" or not getattr(settings, "ALLOW_SQLITE_FAILOVER", True):
-                logger.critical(f"[DATABASE ERROR] Primary PostgreSQL unreachable ({exc}) and SQLite failover is disabled.")
+            if settings.ENVIRONMENT.lower() == "production" or is_serverless or not getattr(settings, "ALLOW_SQLITE_FAILOVER", True):
+                logger.critical(f"[DATABASE ERROR] Primary PostgreSQL unreachable ({exc}) and failover is disabled.")
                 raise RuntimeError(f"Database connection failed: {exc}")
             logger.warning(
                 f"[DATABASE FAILOVER] PostgreSQL unreachable ({exc}). "

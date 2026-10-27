@@ -9,8 +9,10 @@ try:
     import pymupdf
 except ImportError:
     import fitz as pymupdf
-import openpyxl
-import docx
+try:
+    import docx
+except ImportError:
+    docx = None
 from fastapi import UploadFile
 
 from app.schemas import (
@@ -93,6 +95,8 @@ class InMemoryPdfService:
 
         # Word document
         if fname.endswith(".docx"):
+            if docx is None:
+                raise ValueError("Processing Word documents (.docx) requires the 'python-docx' package.")
             try:
                 doc = docx.Document(io.BytesIO(pdf_bytes))
                 paras = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
@@ -328,6 +332,8 @@ class InMemoryPdfService:
 
         # Format 3: Word Document (.docx)
         if fname.endswith(".docx"):
+            if docx is None:
+                raise ValueError("Processing Word documents (.docx) requires the 'python-docx' package.")
             try:
                 doc = docx.Document(io.BytesIO(content))
                 rows = []
