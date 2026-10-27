@@ -31,13 +31,19 @@ const TECHNICAL_JOB_ROLES = [
 
 const NON_TECHNICAL_JOB_ROLES = [
   "HR",
-  "Sales & Marketing"
+  "sales and marketing"
 ];
 
-const SUGGESTED_SKILLS = [
+const TECHNICAL_SKILLS = [
   "Java", "Python", "JavaScript", "C++", "React", "HTML/CSS", 
   "Node.js", "SQL", "Git", "Spring Boot", "Docker", "AWS", 
   "Linux", "Kubernetes", "TypeScript", "MongoDB"
+];
+
+const NON_TECHNICAL_SKILLS = [
+  "Communication", "Recruitment", "Talent Acquisition", "Employee Relations", 
+  "Market Research", "Sales Negotiation", "Lead Generation", "CRM", 
+  "Brand Management", "Presentation", "Strategic Planning", "Client Relations"
 ];
 
 const GRADUATION_YEARS = [
@@ -55,15 +61,22 @@ export default function RoleApplicationPage({
   );
 
   const availableJobRoles = isNonTechnical ? NON_TECHNICAL_JOB_ROLES : TECHNICAL_JOB_ROLES;
+  const suggestedSkills = isNonTechnical ? NON_TECHNICAL_SKILLS : TECHNICAL_SKILLS;
 
-  const [jobRole, setJobRole] = useState(profile.jobRole || "");
+  const [jobRole, setJobRole] = useState(() => {
+    if (profile.jobRole && availableJobRoles.includes(profile.jobRole)) {
+      return profile.jobRole;
+    }
+    return "";
+  });
   const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
   
-  const [selectedSkills, setSelectedSkills] = useState<string[]>(
-    profile.skills && profile.skills.length > 0 
-      ? profile.skills 
-      : ["Java", "Python", "React"]
-  );
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => {
+    if (profile.skills && profile.skills.length > 0) {
+      return profile.skills;
+    }
+    return isNonTechnical ? ["Communication", "Recruitment"] : ["Java", "Python", "React"];
+  });
   const [skillSearchText, setSkillSearchText] = useState("");
   
   const [degreeBranch, setDegreeBranch] = useState(profile.degreeBranch || "");
@@ -313,7 +326,7 @@ export default function RoleApplicationPage({
 
                 {/* Suggested Skills Pill Cloud */}
                 <div className="role-app-pills-cloud">
-                  {SUGGESTED_SKILLS.map(skill => {
+                  {suggestedSkills.map(skill => {
                     const isSelected = selectedSkills.includes(skill);
                     return (
                       <button

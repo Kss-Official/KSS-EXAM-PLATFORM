@@ -55,16 +55,9 @@ def _candidate_safe_exam(exam):
 @router.get("/departments", response_model=List[DepartmentDto])
 def get_eligible_departments(db: Session = Depends(get_db)):
     """
-    Returns the department and college options for candidate entry:
-    The two primary tracks (Technical and Non-Technical) followed by all registered colleges.
-    Cached in-memory for 60 seconds to sustain high-concurrency bursts (500+ concurrent users).
+    Returns only the two primary candidate tracks: Technical Department and Non-Technical Department.
     """
-    global _DEPT_CACHE, _DEPT_CACHE_TIME
-    now = time.time()
-    if _DEPT_CACHE is not None and (now - _DEPT_CACHE_TIME) < 60.0:
-        return _DEPT_CACHE
-
-    primary = [
+    return [
         DepartmentDto(
             id=1,
             name="Technical Department",
@@ -80,22 +73,6 @@ def get_eligible_departments(db: Session = Depends(get_db)):
             active=True
         )
     ]
-    colleges = db.query(Department).filter(Department.active == True).order_by(Department.name).all()
-    college_dtos = [
-        DepartmentDto(
-            id=c.id,
-            name=c.name,
-            code=c.code or f"COL_{c.id}",
-            description=c.description or f"College: {c.name}",
-            active=True
-        )
-        for c in colleges
-        if c.name not in ("Technical Department", "Non-Technical Department")
-    ]
-    result = primary + college_dtos
-    _DEPT_CACHE = result
-    _DEPT_CACHE_TIME = now
-    return result
 
 @router.post("/verify", response_model=CandidateVerifyResponse)
 @router.post("/login", response_model=CandidateVerifyResponse)

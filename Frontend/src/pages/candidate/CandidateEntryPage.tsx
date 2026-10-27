@@ -129,7 +129,7 @@ export default function CandidateEntryPage({
       onContinue({
         name: verifyRes.candidateName || name.trim(),
         email: verifyRes.email || email.trim().toLowerCase(),
-        department: verifyRes.departmentName || (department as Department),
+        department: (department as Department),
         departmentId: departmentId,
         collegeName: verifyRes.collegeName,
         candidateId: verifyRes.registrationNumber || "CAND-001",
@@ -141,7 +141,7 @@ export default function CandidateEntryPage({
       });
     } catch (err: unknown) {
       const error = err as ApiError;
-      setServerError(error.message || "Verification failed. Please ensure your name, department, and email address match your registered records.");
+      setServerError(error.message || "Verification failed. Please ensure your name and email address match your registered records.");
     } finally {
       setIsVerifying(false);
     }
@@ -410,7 +410,7 @@ export default function CandidateEntryPage({
             <div className="green-info-panel">
               <Info size={16} />
               <span>
-                Please ensure your Full Name, Department, and Email Address match your registered institutional records. Your details will be verified against our database before beginning your assessment.
+                Please ensure your Full Name and Email Address match your registered institutional records. Your details will be verified against our database before beginning your assessment.
               </span>
             </div>
 

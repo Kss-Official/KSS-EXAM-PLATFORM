@@ -1,5 +1,4 @@
-import { useState, useEffect } from "react";
-import { getEligibleDepartments, type DepartmentDto } from "../../services/api";
+import type { DepartmentDto } from "../../services/api";
 
 interface DepartmentSelectorProps {
   value: string;
@@ -8,7 +7,7 @@ interface DepartmentSelectorProps {
   disabled?: boolean;
 }
 
-const PRIMARY_DEPARTMENTS: DepartmentDto[] = [
+export const PRIMARY_DEPARTMENTS: DepartmentDto[] = [
   { id: 1, name: "Technical Department", code: "TECH", active: true },
   { id: 2, name: "Non-Technical Department", code: "NON_TECH", active: true }
 ];
@@ -19,45 +18,15 @@ export default function DepartmentSelector({
   error,
   disabled = false
 }: DepartmentSelectorProps) {
-  const [departments, setDepartments] = useState<DepartmentDto[]>(PRIMARY_DEPARTMENTS);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    let isCancelled = false;
-
-    const fetchDepartments = async () => {
-      setLoading(true);
-      try {
-        const data = await getEligibleDepartments();
-        if (!isCancelled && Array.isArray(data) && data.length > 0) {
-          setDepartments(data);
-        }
-      } catch {
-        // Silently retain primary departments without displaying offline server error
-        if (!isCancelled) {
-          setDepartments(PRIMARY_DEPARTMENTS);
-        }
-      } finally {
-        if (!isCancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchDepartments();
-
-    return () => {
-      isCancelled = true;
-    };
-  }, []);
+  const departments = PRIMARY_DEPARTMENTS;
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedName = e.target.value;
-    const matched = Array.isArray(departments) ? departments.find(d => d.name === selectedName) : undefined;
+    const matched = departments.find(d => d.name === selectedName);
     onChange(selectedName, matched ? matched.id : undefined);
   };
 
-  const safeDepts = Array.isArray(departments) && departments.length > 0 ? departments : PRIMARY_DEPARTMENTS;
+  const safeDepts = PRIMARY_DEPARTMENTS;
 
   return (
     <div className="dept-field-wrapper">
@@ -65,7 +34,7 @@ export default function DepartmentSelector({
         id="department-select"
         value={value}
         onChange={handleChange}
-        disabled={disabled || loading}
+        disabled={disabled}
         className={`dept-select ${error ? "input-error" : ""}`}
         aria-label="Select your department"
         aria-required="true"

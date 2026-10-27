@@ -114,9 +114,9 @@ def test_strict_validation_mismatched_full_name(db: Session):
 
 def test_strict_validation_mismatched_department(db: Session):
     """
-    Scenario 4: Department Mismatch
-    When the candidate is registered in 'Developer', but chooses 'Civil Engineering'.
-    Access must be denied with a clear department mismatch error.
+    Scenario 4: Department Selection
+    When the candidate's name and email match, candidate is authorized even if
+    their selected track is independent of their historical DB department.
     """
     cand, dept = setup_test_candidate(
         db, "TEST-VAL-04", "Aarav Sharma", "aarav.dept@testcampus.edu", "Developer", "DEV"
@@ -125,12 +125,12 @@ def test_strict_validation_mismatched_department(db: Session):
     req = CandidateVerifyRequest(
         full_name="Aarav Sharma",
         email="aarav.dept@testcampus.edu",
-        department="Civil Engineering"
+        department="Technical Department"
     )
 
     resp = CandidateExamService.verify_candidate(db, req)
-    assert resp.eligible is False
-    assert "Department mismatch" in resp.message
+    assert resp.eligible is True
+    assert resp.candidate_id == cand.id
 
 
 def test_strict_validation_unknown_email(db: Session):
@@ -325,28 +325,28 @@ def test_candidate_primary_department_non_technical_matching(db: Session):
 
 def test_candidate_primary_department_mismatch_rejection(db: Session):
     """
-    Candidate selecting the wrong primary department category is rejected with a clear Department mismatch error.
+    Candidate selecting Technical or Non-Technical track is authorized purely on Name and Email.
     """
     dev_cand, _ = setup_test_candidate(db, "TEST-MISMATCH-01", "Dev Cand", "dev.cand@testcampus.edu", "Developer", "DEV")
     hr_cand, _ = setup_test_candidate(db, "TEST-MISMATCH-02", "HR Cand", "hr.mismatch@testcampus.edu", "Human Resources", "HR")
 
-    # Developer mistakenly selects Non-Technical Department
-    bad_req1 = CandidateVerifyRequest(
+    # Developer selects Non-Technical Department track -> allowed based on Name and Email
+    req1 = CandidateVerifyRequest(
         fullName=dev_cand.full_name,
         email=dev_cand.email,
         department="Non-Technical Department"
     )
-    res1 = CandidateExamService.verify_candidate(db, bad_req1)
-    assert res1.eligible is False
-    assert "Department mismatch" in res1.message
+    res1 = CandidateExamService.verify_candidate(db, req1)
+    assert res1.eligible is True
+    assert res1.candidate_id == dev_cand.id
 
-    # HR mistakenly selects Technical Department
-    bad_req2 = CandidateVerifyRequest(
+    # HR selects Technical Department track -> allowed based on Name and Email
+    req2 = CandidateVerifyRequest(
         fullName=hr_cand.full_name,
         email=hr_cand.email,
         department="Technical Department"
     )
-    res2 = CandidateExamService.verify_candidate(db, bad_req2)
-    assert res2.eligible is False
-    assert "Department mismatch" in res2.message
+    res2 = CandidateExamService.verify_candidate(db, req2)
+    assert res2.eligible is True
+    assert res2.candidate_id == hr_cand.id
 
