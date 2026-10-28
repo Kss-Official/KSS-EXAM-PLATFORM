@@ -18,7 +18,7 @@ class DashboardService:
         # 1. Aggregate Exam metrics in a single query
         total_exams, active_exams = db.query(
             func.count(Exam.id),
-            func.count().filter(Exam.status == "PUBLISHED")
+            func.count().filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"]))
         ).first()
 
         # 2. Aggregate Attempt metrics in a single query

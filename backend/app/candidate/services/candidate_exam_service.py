@@ -153,7 +153,7 @@ class CandidateExamService:
         ).first()
 
         # Only reuse existing attempt if its exam is currently active/published
-        if existing_attempt and existing_attempt.exam and existing_attempt.exam.status == "PUBLISHED":
+        if existing_attempt and existing_attempt.exam and existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED"):
             exam = existing_attempt.exam
             # If candidate has an assigned set and attempt has not started yet (ASSIGNED),
             # synchronize the attempt's question set to match candidate's assigned set
@@ -176,11 +176,11 @@ class CandidateExamService:
             published_exams = db.query(Exam).options(
                 joinedload(Exam.departments)
             ).filter(
-                Exam.status == "PUBLISHED"
+                Exam.status.in_(["ACTIVATED", "PUBLISHED"])
             ).order_by(Exam.created_at.desc()).all()
 
             if not published_exams:
-                resp.message = "No published examination is currently available. Please contact administrator."
+                resp.message = "No activated examination is currently available. Please contact administrator."
                 return resp
 
             def exam_matches_track(e, track_cat):
@@ -194,26 +194,8 @@ class CandidateExamService:
             track_matched = [e for e in published_exams if exam_matches_track(e, chosen_category)]
             candidate_pool = track_matched if track_matched else published_exams
 
-            # Filter scrap if standard exams exist within the chosen pool
-            production_exams = [
-                e for e in candidate_pool
-                if not (e.title and (e.title.startswith("Live E2E") or e.title.startswith("Access Limit")))
-                and (e.total_questions or 0) >= 10
-            ]
-            final_pool = production_exams if production_exams else candidate_pool
-
-            # Sort matched exams:
-            # 1. Total question count (prefer complete 60-question exams over small scrap)
-            # 2. Most recently published exam
-            final_pool.sort(
-                key=lambda e: (
-                    e.total_questions or 0,
-                    e.created_at.timestamp() if e.created_at else 0
-                ),
-                reverse=True
-            )
-
-            exam = final_pool[0]
+            # Single active exam policy: the first activated exam in pool is the target exam
+            exam = candidate_pool[0]
 
             # Set allocation across A, B, C, D
             sets = []
@@ -319,6 +301,13 @@ class CandidateExamService:
 
     @classmethod
     def start_or_resume_attempt(cls, db: Session, candidate_id: int, exam_id: int) -> CandidateStartAttemptResponse:
+        # Enforce single active exam policy: ensure we target the currently ACTIVATED exam
+        active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).first()
+        if active_exam:
+            req_exam = db.query(Exam).filter(Exam.id == exam_id).first() if exam_id else None
+            if not req_exam or req_exam.status not in ("ACTIVATED", "PUBLISHED"):
+                exam_id = active_exam.id
+
         attempt = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.exam),
             joinedload(ExamAttempt.candidate),
@@ -343,7 +332,7 @@ class CandidateExamService:
         if not attempt:
             # Auto-provision assigned attempt if candidate and published exam exist
             cand = db.query(Candidate).options(joinedload(Candidate.department)).filter(Candidate.id == candidate_id).first()
-            target_exam = db.query(Exam).options(joinedload(Exam.departments)).filter(Exam.id == exam_id, Exam.status == "PUBLISHED").first()
+            target_exam = db.query(Exam).options(joinedload(Exam.departments)).filter(Exam.id == exam_id, Exam.status.in_(["ACTIVATED", "PUBLISHED"])).first()
             if cand and target_exam:
                 dept_id = cand.department_id
 

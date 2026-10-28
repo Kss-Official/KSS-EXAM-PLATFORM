@@ -27,6 +27,7 @@ import {
   importQuestionsText, 
   applyAnswerKey,
   uploadDeptSetDocument,
+  parsePdfInMemory,
   type ExamDto, 
   type ExamDepartmentSummary,
   type DepartmentSetSummary,
@@ -473,13 +474,71 @@ export default function QuestionBankPage() {
     }
   };
 
-  // Upload Document to Set
+  // Upload Document to Set with Automatic MCQ Extraction & Persistence
   const handleUploadDoc = async () => {
     if (!selectedExamId || !selectedDept || !activeSet || !uploadFile) return;
     try {
       const res = await uploadDeptSetDocument(selectedExamId, selectedDept.id, activeSet.id, uploadFile, uploadDocType);
 
-      // Sync uploaded document to sister departments in the same track
+      let extractedCount = 0;
+      let dtosToPersist: Partial<QuestionDto>[] = [];
+
+      // If uploading a Question Paper, extract questions and save directly to question bank
+      if (uploadDocType === "QUESTION_PAPER") {
+        const isPdf = uploadFile.name.toLowerCase().endsWith(".pdf") || uploadFile.type === "application/pdf";
+        if (isPdf) {
+          try {
+            const formData = new FormData();
+            formData.append("questionPaper", uploadFile);
+            formData.append("marksPerQuestion", "1");
+            formData.append("negativeMarks", "0");
+            const parsed = await parsePdfInMemory(formData);
+            if (parsed.questions && parsed.questions.length > 0) {
+              dtosToPersist = parsed.questions.map((q, idx) => ({
+                questionText: q.questionText,
+                marks: q.marks != null ? q.marks : 1,
+                negativeMarks: q.negativeMarks != null ? q.negativeMarks : 0,
+                displayOrder: idx + 1,
+                options: q.options.map((opt, oIdx) => ({
+                  optionText: opt.optionText,
+                  correct: (q.correctOption != null && q.correctOption.toUpperCase() === opt.label.toUpperCase()) || opt.correct,
+                  displayOrder: oIdx + 1
+                }))
+              }));
+              extractedCount = dtosToPersist.length;
+            }
+          } catch (pdfErr) {
+            console.warn("Could not parse PDF questions automatically:", pdfErr);
+          }
+        } else if (uploadFile.name.toLowerCase().endsWith(".txt") || uploadFile.name.toLowerCase().endsWith(".csv")) {
+          try {
+            const textContent = await uploadFile.text();
+            if (textContent.trim()) {
+              const imported = await importQuestionsText(activeSet.id, textContent);
+              extractedCount = imported.length;
+            }
+          } catch (txtErr) {
+            console.warn("Could not import text questions automatically:", txtErr);
+          }
+        }
+
+        if (dtosToPersist.length > 0) {
+          await bulkUpdateSetQuestions(activeSet.id, dtosToPersist);
+        }
+      } else if (uploadDocType === "ANSWER_KEY") {
+        if (uploadFile.name.toLowerCase().endsWith(".txt") || uploadFile.name.toLowerCase().endsWith(".csv")) {
+          try {
+            const textContent = await uploadFile.text();
+            if (textContent.trim()) {
+              await applyAnswerKey(activeSet.id, textContent);
+            }
+          } catch (akErr) {
+            console.warn("Could not apply answer key automatically:", akErr);
+          }
+        }
+      }
+
+      // Sync uploaded document & questions to sister departments in the same track
       const currentIsNonTech = isDeptNonTech(selectedDept);
       const sisterDepts = (currentIsNonTech ? nonTechnicalDepts : technicalDepts).filter(d => d.id !== selectedDept.id);
       if (sisterDepts.length > 0 && selectedSetCode && selectedExamId) {
@@ -489,6 +548,9 @@ export default function QuestionBankPage() {
             const targetSisterSet = sisterSets.find(s => s.setCode === selectedSetCode);
             if (targetSisterSet) {
               await uploadDeptSetDocument(selectedExamId, sister.id, targetSisterSet.id, uploadFile, uploadDocType);
+              if (dtosToPersist.length > 0) {
+                await bulkUpdateSetQuestions(targetSisterSet.id, dtosToPersist);
+              }
             }
           } catch (syncErr) {
             console.warn(`Could not sync document to sister dept ${sister.name}:`, syncErr);
@@ -496,8 +558,10 @@ export default function QuestionBankPage() {
         }
       }
 
-      setNotice({ type: "success", message: `File "${res.originalFilename}" uploaded successfully for Set ${selectedSetCode} across all enrolled ${currentIsNonTech ? "Non-Technical" : "Technical"} roles!` });
+      const extraMsg = extractedCount > 0 ? ` and saved ${extractedCount} MCQs directly to database` : "";
+      setNotice({ type: "success", message: `File "${res.originalFilename}" uploaded successfully${extraMsg} for Set ${selectedSetCode} across all enrolled ${currentIsNonTech ? "Non-Technical" : "Technical"} roles!` });
       setUploadFile(null);
+      fetchSetQuestions();
       fetchDepartmentSets();
     } catch (err: unknown) {
       const errObj = err as Error;

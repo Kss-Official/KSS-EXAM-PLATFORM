@@ -43,7 +43,7 @@ export interface ExamDto {
   description?: string;
   durationMinutes: number;
   totalQuestions: number;
-  status: "DRAFT" | "PUBLISHED" | "COMPLETED" | "CANCELLED";
+  status: "ACTIVATED" | "DEACTIVATED" | "DRAFT" | "PUBLISHED" | "COMPLETED" | "CANCELLED";
   qualificationMode: "PERCENTAGE" | "ABSOLUTE";
   qualificationThreshold: number;
   timingMode: "DURATION_FROM_START" | "SCHEDULED";
@@ -587,9 +587,13 @@ export async function publishExam(id: number): Promise<ExamDto> {
   return request<ExamDto>(`admin/exams/${id}/publish`, { method: "POST" });
 }
 
+export const activateExam = publishExam;
+
 export async function closeExam(id: number): Promise<ExamDto> {
   return request<ExamDto>(`admin/exams/${id}/close`, { method: "POST" });
 }
+
+export const deactivateExam = closeExam;
 
 export async function deleteExam(id: number, force: boolean = false): Promise<{ success: boolean; message: string; requiresConfirmation?: boolean }> {
   return request<{ success: boolean; message: string; requiresConfirmation?: boolean }>(`admin/exams/${id}?force=${force}`, {

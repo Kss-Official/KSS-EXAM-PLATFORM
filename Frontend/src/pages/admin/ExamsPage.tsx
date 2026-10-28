@@ -12,7 +12,7 @@ import {
   X
 } from "lucide-react";
 import { useRouter } from "../../router";
-import { getAllExams, publishExam, closeExam, deleteExam, ApiError, type ExamDto } from "../../services/api";
+import { getAllExams, activateExam, deactivateExam, deleteExam, ApiError, type ExamDto } from "../../services/api";
 
 export default function ExamsPage() {
   const { navigate } = useRouter();
@@ -49,31 +49,34 @@ export default function ExamsPage() {
     fetchExams();
   }, []);
 
-  const handlePublish = async (examId: number) => {
+  const isExamActive = (st: string) => st === "ACTIVATED" || st === "PUBLISHED";
+
+  const handleActivate = async (examId: number) => {
     setActionNotice(null);
     try {
-      const updated = await publishExam(examId);
-      setExams(prev => prev.map(e => e.id === examId ? updated : e));
-      setActionNotice(`Examination "${updated.title}" successfully published! Active for candidate entrance.`);
+      const updated = await activateExam(examId);
+      // Enforce Single Active Exam in state: only this exam is ACTIVATED, all others become DEACTIVATED
+      setExams(prev => prev.map(e => e.id === examId ? { ...updated, status: "ACTIVATED" } : { ...e, status: "DEACTIVATED" }));
+      setActionNotice(`Examination "${updated.title}" is now ACTIVATED! (All other exams are deactivated). Live for candidates.`);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
-        setActionNotice(`Cannot publish examination: ${err.message}`);
+        setActionNotice(`Cannot activate examination: ${err.message}`);
       } else {
         const errorObj = err as Error;
-        setActionNotice(`Publication failed: ${errorObj.message}`);
+        setActionNotice(`Activation failed: ${errorObj.message}`);
       }
     }
   };
 
-  const handleClose = async (examId: number) => {
+  const handleDeactivate = async (examId: number) => {
     setActionNotice(null);
     try {
-      const updated = await closeExam(examId);
-      setExams(prev => prev.map(e => e.id === examId ? updated : e));
-      setActionNotice(`Examination "${updated.title}" status changed to COMPLETED.`);
+      const updated = await deactivateExam(examId);
+      setExams(prev => prev.map(e => e.id === examId ? { ...e, status: "DEACTIVATED" } : e));
+      setActionNotice(`Examination "${updated.title}" status changed to DEACTIVATED.`);
     } catch (err: unknown) {
       const errorObj = err as Error;
-      setActionNotice(`Could not close exam: ${errorObj.message}`);
+      setActionNotice(`Could not deactivate exam: ${errorObj.message}`);
     }
   };
 
@@ -112,7 +115,10 @@ export default function ExamsPage() {
       (exam.description && exam.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
       String(exam.id).includes(searchQuery);
 
-    const matchesStatus = statusFilter === "ALL" || exam.status === statusFilter;
+    const matchesStatus = 
+      statusFilter === "ALL" || 
+      (statusFilter === "ACTIVATED" && isExamActive(exam.status)) ||
+      (statusFilter === "DEACTIVATED" && !isExamActive(exam.status));
     return matchesSearch && matchesStatus;
   });
 
@@ -193,7 +199,7 @@ export default function ExamsPage() {
           />
         </div>
         <div className="status-filter-pills">
-          {["ALL", "PUBLISHED", "DRAFT", "COMPLETED"].map(st => (
+          {["ALL", "ACTIVATED", "DEACTIVATED"].map(st => (
             <button
               key={st}
               type="button"
@@ -278,31 +284,85 @@ export default function ExamsPage() {
                       <small style={{ color: "#64748b" }}>Passing score</small>
                     </td>
                     <td>
-                      <span className={`status-pill ${exam.status.toLowerCase()}`}>
-                        {exam.status}
-                      </span>
+                      {isExamActive(exam.status) ? (
+                        <span 
+                          className="status-pill activated" 
+                          style={{ 
+                            background: "#ecfdf5", 
+                            color: "#065f46", 
+                            border: "1px solid #a7f3d0", 
+                            fontWeight: 700, 
+                            padding: "4px 10px", 
+                            borderRadius: "12px", 
+                            fontSize: "11px", 
+                            letterSpacing: "0.5px" 
+                          }}
+                        >
+                          ACTIVATED
+                        </span>
+                      ) : (
+                        <span 
+                          className="status-pill deactivated" 
+                          style={{ 
+                            background: "#f8fafc", 
+                            color: "#64748b", 
+                            border: "1px solid #cbd5e1", 
+                            fontWeight: 600, 
+                            padding: "4px 10px", 
+                            borderRadius: "12px", 
+                            fontSize: "11px", 
+                            letterSpacing: "0.5px" 
+                          }}
+                        >
+                          DEACTIVATED
+                        </span>
+                      )}
                     </td>
                     <td style={{ textAlign: "right" }}>
                       <div className="action-buttons-group">
-                        {exam.status === "DRAFT" && (
-                          <button 
-                            type="button"
-                            className="btn-publish" 
-                            title="Publish Examination"
-                            onClick={() => handlePublish(exam.id)}
-                          >
-                            <CheckCircle size={12} /> Publish
-                          </button>
-                        )}
-
-                        {exam.status === "PUBLISHED" && (
+                        {isExamActive(exam.status) ? (
                           <button 
                             type="button"
                             className="btn-close" 
-                            title="Close Examination"
-                            onClick={() => handleClose(exam.id)}
+                            title="Deactivate Examination"
+                            onClick={() => handleDeactivate(exam.id)}
+                            style={{ 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              gap: "4px", 
+                              padding: "5px 10px", 
+                              borderRadius: "6px", 
+                              background: "#fff1f2", 
+                              color: "#e11d48", 
+                              border: "1px solid #fecdd3", 
+                              fontSize: "11.5px", 
+                              fontWeight: 600, 
+                              cursor: "pointer" 
+                            }}
                           >
-                            <Clock size={12} /> Close
+                            <Clock size={12} /> Deactivate
+                          </button>
+                        ) : (
+                          <button 
+                            type="button"
+                            className="btn-publish" 
+                            title="Activate Examination (Deactivates all other exams)"
+                            onClick={() => handleActivate(exam.id)}
+                            style={{ 
+                              display: "inline-flex", 
+                              alignItems: "center", 
+                              gap: "4px", 
+                              padding: "5px 10px", 
+                              borderRadius: "6px", 
+                              background: "#ecfdf5", 
+                              color: "#059669", 
+                              border: "1px solid #a7f3d0", 
+                              fontSize: "11.5px", 
+                              fontWeight: 700, 
+                              cursor: "pointer" 
+                            }}
+                          >
+                            <CheckCircle size={12} /> Activate
                           </button>
                         )}
 

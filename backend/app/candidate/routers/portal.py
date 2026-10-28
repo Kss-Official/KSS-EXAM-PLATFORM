@@ -200,13 +200,13 @@ from app.admin.services.coding_exam_service import CodingExamService
 @router.get("/coding/exams", response_model=List[CodingExamDto])
 def list_available_coding_exams(db: Session = Depends(get_db)):
     """Retrieves all active Round 2 Coding assessments for candidates."""
-    return [_candidate_safe_exam(e) for e in CodingExamService.get_all_coding_exams(db) if e.status == "PUBLISHED"]
+    return [_candidate_safe_exam(e) for e in CodingExamService.get_all_coding_exams(db) if e.status in ("ACTIVATED", "PUBLISHED")]
 
 @router.get("/coding/exams/{exam_id}", response_model=CodingExamDto)
 def get_coding_exam_for_candidate(exam_id: int, db: Session = Depends(get_db)):
     """Retrieves problem definitions and public test cases for a coding exam."""
     exam = CodingExamService.get_coding_exam_by_id(db, exam_id)
-    if exam.status != "PUBLISHED":
+    if exam.status not in ("ACTIVATED", "PUBLISHED"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Coding exam {exam_id} not found")
     return _candidate_safe_exam(exam)
 
