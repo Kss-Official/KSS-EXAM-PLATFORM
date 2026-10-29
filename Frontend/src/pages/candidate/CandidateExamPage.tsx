@@ -209,6 +209,9 @@ export default function CandidateExamPage({
             department: session.profile.department
           });
           if (verifyRes.eligible && verifyRes.candidateId && (verifyRes.assignedExamId || verifyRes.examId)) {
+            if (verifyRes.token) {
+              localStorage.setItem("examsecure_auth_token", verifyRes.token);
+            }
             dbCandId = verifyRes.candidateId;
             assignedExamId = verifyRes.assignedExamId || verifyRes.examId;
             setSession(prev => {

@@ -242,6 +242,7 @@ export interface CandidateVerifyResponse {
   scheduledEndTime?: string;
   setCode?: string;
   questionSetCode?: string;
+  token?: string;
 }
 
 export interface CandidateOptionDto {

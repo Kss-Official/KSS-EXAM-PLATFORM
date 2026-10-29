@@ -29,6 +29,29 @@ secure_random = random.SystemRandom()
 _QUESTION_SET_CACHE: Dict[int, Any] = {}
 _QUESTION_SET_CACHE_TTL = 120.0  # seconds
 
+# Authoritative mapping of department categories
+NON_TECHNICAL_CODES = {
+    "HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", 
+    "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT", "CORPREL", "PR"
+}
+NON_TECHNICAL_KEYWORDS = [
+    "human resource", "hr", "sales", "marketing", "business", "management",
+    "non-technical", "non technical", "finance", "accounting", "commerce",
+    "recruitment", "talent acquisition", "data and marketing", "data & marketing",
+    "operations", "corporate", "administration", "public relations", "communications"
+]
+
+def get_department_category(dept_name: str, dept_code: str) -> str:
+    code_upper = (dept_code or "").strip().upper()
+    if code_upper in NON_TECHNICAL_CODES:
+        return "NON_TECHNICAL"
+    name_clean = (dept_name or "").strip().lower()
+    name_clean = re.sub(r'\s*&\s*', ' and ', name_clean)
+    for kw in NON_TECHNICAL_KEYWORDS:
+        if re.search(r'\b' + re.escape(kw) + r'\b', name_clean):
+            return "NON_TECHNICAL"
+    return "TECHNICAL"
+
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
@@ -195,7 +218,11 @@ class CandidateExamService:
         # Batch 1 / Slot 1: Starts at 10:00 AM IST, entry cutoff at 10:30 AM IST.
         # Batch 2 / Slot 2: Starts at 12:00 PM / 2:00 PM IST, entry cutoff 30 mins after start.
         # Candidates already IN_PROGRESS are always permitted to resume.
-        enforce_time_gates = os.getenv("ENFORCE_SLOT_TIME_GATES", "true").lower() == "true"
+        raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES")
+        if raw_gate is None:
+            from app.core.config import settings
+            raw_gate = getattr(settings, "ENFORCE_SLOT_TIME_GATES", "true")
+        enforce_time_gates = str(raw_gate).lower() == "true"
         has_active_attempt = bool(existing_attempt and existing_attempt.status == "IN_PROGRESS")
 
         if enforce_time_gates and not has_active_attempt and candidate.batch:
@@ -416,17 +443,29 @@ class CandidateExamService:
             if cand and target_exam:
                 dept_id = cand.department_id
 
-                # Enforce department authorization: candidate department MUST be in exam departments
+                # Direct ID match OR Category match (Technical vs Non-Technical)
+                cand_cat = get_department_category(cand.department.name if cand.department else "", cand.department.code if cand.department else "")
                 if target_exam.departments:
                     allowed_dept_ids = {d.id for d in target_exam.departments}
-                    if not dept_id or dept_id not in allowed_dept_ids:
+                    exam_cats = {get_department_category(d.name, d.code or "") for d in target_exam.departments}
+                    if dept_id not in allowed_dept_ids and cand_cat not in exam_cats:
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
                             detail="Access denied: Candidate's assigned department is not authorized for this examination."
                         )
 
                 sets = []
-                if dept_id:
+                track_dept_ids = [
+                    d.id for d in target_exam.departments
+                    if get_department_category(d.name, d.code or "") == cand_cat
+                ]
+                if track_dept_ids:
+                    sets = db.query(QuestionSet).filter(
+                        QuestionSet.exam_id == target_exam.id,
+                        QuestionSet.department_id.in_(track_dept_ids)
+                    ).order_by(QuestionSet.set_code.asc()).all()
+
+                if not sets and dept_id:
                     sets = db.query(QuestionSet).filter(
                         QuestionSet.exam_id == target_exam.id,
                         QuestionSet.department_id == dept_id

@@ -126,6 +126,10 @@ export default function CandidateEntryPage({
         return;
       }
 
+      if (verifyRes.token) {
+        localStorage.setItem("examsecure_auth_token", verifyRes.token);
+      }
+
       onContinue({
         name: verifyRes.candidateName || name.trim(),
         email: verifyRes.email || email.trim().toLowerCase(),

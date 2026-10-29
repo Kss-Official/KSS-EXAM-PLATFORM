@@ -79,6 +79,7 @@ def get_eligible_departments(db: Session = Depends(get_db)):
 def verify_candidate(
     req: CandidateVerifyRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
@@ -102,6 +103,11 @@ def verify_candidate(
             rate_limiter.record_failed_attempt(email_key)
     else:
         rate_limiter.record_successful_attempt(email_key)
+        if res.token:
+            try:
+                set_auth_cookie(response, res.token)
+            except Exception:
+                pass
     return res
 
 @router.post("/start", response_model=CandidateStartAttemptResponse)
