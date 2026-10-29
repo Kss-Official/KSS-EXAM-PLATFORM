@@ -135,4 +135,49 @@ def assign_candidate_batch(
         db, candidate_id=candidate_id, batch=batch, performed_by=current_user.email
     )
 
+@router.post("/{candidate_id}/reschedule-slot")
+def reschedule_candidate_slot(
+    candidate_id: int,
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Reschedules a candidate to another slot (e.g. Slot 1 -> Slot 2) and optionally resets
+    any existing attempt so the candidate receives a clean restart.
+    """
+    target_slot = payload.get("targetSlot") or payload.get("target_slot") or "Slot 2"
+    reset_attempt = payload.get("resetAttempt", payload.get("reset_attempt", True))
+    reason = payload.get("reason", "Admin slot reschedule")
+    return CandidateService.reschedule_candidate_slot(
+        db,
+        candidate_id=candidate_id,
+        target_slot=target_slot,
+        reset_attempt=bool(reset_attempt),
+        performed_by=current_user.email,
+        reason=reason
+    )
+
+@router.post("/batch-reschedule-slot")
+def batch_reschedule_candidate_slot(
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Batch reschedules multiple candidates to a target slot and resets any attempts.
+    """
+    candidate_ids = payload.get("candidateIds") or payload.get("candidate_ids") or []
+    target_slot = payload.get("targetSlot") or payload.get("target_slot") or "Slot 2"
+    reset_attempt = payload.get("resetAttempt", payload.get("reset_attempt", True))
+    reason = payload.get("reason", "Batch slot reschedule")
+    return CandidateService.batch_reschedule_candidate_slot(
+        db,
+        candidate_ids=candidate_ids,
+        target_slot=target_slot,
+        reset_attempt=bool(reset_attempt),
+        performed_by=current_user.email,
+        reason=reason
+    )
+
 

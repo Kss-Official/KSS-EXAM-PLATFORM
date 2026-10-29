@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile, status
 
 from app.models import (
-    Candidate, CandidateAccessCode, Department, College, Exam, ExamSlot, QuestionSet, ExamAttempt, AuditLog
+    Candidate, CandidateAccessCode, Department, College, Exam, ExamSlot, QuestionSet, ExamAttempt,
+    AttemptAnswer, AttemptRandomizedOption, AttemptRandomizedQuestion, AuditLog
 )
 from app.schemas import CandidateDto, CandidateAccessCodeDto, PaginatedCandidatesResponse
 from app.core import EmailService
@@ -1131,6 +1132,109 @@ class CandidateService:
         db.commit()
         db.refresh(cand)
         return {"success": True, "candidateId": cand.id, "batch": cand.batch}
+
+    @classmethod
+    def reschedule_candidate_slot(
+        cls,
+        db: Session,
+        candidate_id: int,
+        target_slot: str = "Slot 2",
+        reset_attempt: bool = True,
+        performed_by: str = "ADMIN",
+        reason: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Reschedules an individual candidate to a different exam slot (e.g. Slot 1 -> Slot 2)
+        and resets previous attempt records so the student can start fresh without timers
+        being expired or being blocked by previous submissions.
+        """
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+        old_slot = cand.batch or "Unassigned"
+        cleaned_target = (target_slot or "").strip()
+        cand.batch = cleaned_target
+
+        reset_count = 0
+        if reset_attempt:
+            attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
+            for att in attempts:
+                db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == att.id).delete()
+                db.query(AttemptRandomizedOption).filter(AttemptRandomizedOption.attempt_id == att.id).delete()
+                db.query(AttemptRandomizedQuestion).filter(AttemptRandomizedQuestion.attempt_id == att.id).delete()
+                db.delete(att)
+                reset_count += 1
+            cand.status = "ACTIVE"
+
+        db.add(AuditLog(
+            action="RESCHEDULE_CANDIDATE_SLOT",
+            entity_type="Candidate",
+            entity_id=str(cand.id),
+            performed_by=performed_by,
+            details=f"Rescheduled candidate {cand.registration_number} ({cand.full_name}) from '{old_slot}' to '{cleaned_target}'. Attempts reset: {reset_count}. Reason: {reason or 'Candidate reschedule request'}."
+        ))
+        db.commit()
+        db.refresh(cand)
+        return {
+            "success": True,
+            "candidateId": cand.id,
+            "registrationNumber": cand.registration_number,
+            "fullName": cand.full_name,
+            "oldSlot": old_slot,
+            "newSlot": cand.batch,
+            "attemptsReset": reset_count,
+            "message": f"Successfully moved {cand.full_name} ({cand.registration_number}) to {cleaned_target}" + (" with exam attempt reset." if reset_attempt else ".")
+        }
+
+    @classmethod
+    def batch_reschedule_candidate_slot(
+        cls,
+        db: Session,
+        candidate_ids: List[int],
+        target_slot: str = "Slot 2",
+        reset_attempt: bool = True,
+        performed_by: str = "ADMIN",
+        reason: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Batch reschedules multiple candidates to a target slot (e.g., Slot 2)
+        and resets their previous attempts so all candidates can start cleanly.
+        """
+        if not candidate_ids:
+            return {"success": True, "rescheduledCount": 0, "message": "No candidates provided"}
+
+        candidates = db.query(Candidate).filter(Candidate.id.in_(candidate_ids)).all()
+        cleaned_target = (target_slot or "").strip()
+        total_resets = 0
+
+        for cand in candidates:
+            cand.batch = cleaned_target
+            if reset_attempt:
+                attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
+                for att in attempts:
+                    db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == att.id).delete()
+                    db.query(AttemptRandomizedOption).filter(AttemptRandomizedOption.attempt_id == att.id).delete()
+                    db.query(AttemptRandomizedQuestion).filter(AttemptRandomizedQuestion.attempt_id == att.id).delete()
+                    db.delete(att)
+                    total_resets += 1
+                cand.status = "ACTIVE"
+
+        db.add(AuditLog(
+            action="BATCH_RESCHEDULE_CANDIDATE_SLOT",
+            entity_type="Candidate",
+            entity_id=f"count:{len(candidates)}",
+            performed_by=performed_by,
+            details=f"Batch rescheduled {len(candidates)} candidates to '{cleaned_target}'. Total attempts reset: {total_resets}. Reason: {reason or 'Batch emergency slot reassignment'}."
+        ))
+        db.commit()
+        return {
+            "success": True,
+            "rescheduledCount": len(candidates),
+            "targetSlot": cleaned_target,
+            "totalAttemptsReset": total_resets,
+            "message": f"Successfully moved {len(candidates)} candidates to {cleaned_target}."
+        }
 
 
 def normalize_set_code(raw: Optional[str]) -> Optional[str]:

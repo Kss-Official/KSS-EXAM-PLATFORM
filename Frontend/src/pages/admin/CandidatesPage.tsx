@@ -15,7 +15,10 @@ import {
   Loader2,
   Building2,
   GraduationCap,
-  Clock
+  Clock,
+  ArrowRight,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import { 
   getCandidates,
@@ -24,6 +27,8 @@ import {
   getAllDepartments,
   getColleges,
   assignCandidateBatch,
+  rescheduleCandidateSlot,
+  batchRescheduleCandidateSlot,
   type CandidateDto, 
   type DepartmentDto,
   type CollegeDto 
@@ -76,6 +81,27 @@ export default function CandidatesPage() {
     total: 842,
     slot1: 421,
     slot2: 421
+  });
+
+  // Multi-select state for bulk actions
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // Reschedule Confirmation Modal state
+  const [rescheduleModal, setRescheduleModal] = useState<{
+    isOpen: boolean;
+    isBulk: boolean;
+    candidate?: CandidateDto;
+    targetSlot: string;
+    resetAttempt: boolean;
+    reason: string;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    isBulk: false,
+    targetSlot: "Slot 2",
+    resetAttempt: true,
+    reason: "",
+    loading: false
   });
 
   const refreshSlotCounts = useCallback(async () => {
@@ -256,6 +282,84 @@ export default function CandidatesPage() {
     } catch (err: unknown) {
       const errorObj = err as Error;
       setNotice({ text: "Failed to update slot: " + errorObj.message, type: "error" });
+    }
+  };
+
+  // Selection handlers
+  const handleToggleSelectAll = () => {
+    if (selectedIds.size === candidates.length && candidates.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(candidates.map(c => c.id)));
+    }
+  };
+
+  const handleToggleSelectCandidate = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const openSingleRescheduleModal = (cand: CandidateDto, targetSlot: string = "Slot 2") => {
+    setRescheduleModal({
+      isOpen: true,
+      isBulk: false,
+      candidate: cand,
+      targetSlot,
+      resetAttempt: true,
+      reason: "Emergency reschedule to " + targetSlot,
+      loading: false
+    });
+  };
+
+  const openBulkRescheduleModal = (targetSlot: string = "Slot 2") => {
+    if (selectedIds.size === 0) return;
+    setRescheduleModal({
+      isOpen: true,
+      isBulk: true,
+      targetSlot,
+      resetAttempt: true,
+      reason: "Batch lab reschedule to " + targetSlot,
+      loading: false
+    });
+  };
+
+  const handleExecuteReschedule = async () => {
+    setRescheduleModal(prev => ({ ...prev, loading: true }));
+    try {
+      if (rescheduleModal.isBulk) {
+        const ids = Array.from(selectedIds);
+        const res = await batchRescheduleCandidateSlot({
+          candidateIds: ids,
+          targetSlot: rescheduleModal.targetSlot,
+          resetAttempt: rescheduleModal.resetAttempt,
+          reason: rescheduleModal.reason
+        });
+        setCandidates(prev => prev.map(c => ids.includes(c.id) ? { ...c, batch: rescheduleModal.targetSlot, status: rescheduleModal.resetAttempt ? "PENDING" : c.status } : c));
+        setSelectedIds(new Set());
+        setNotice({ text: res.message, type: "success" });
+      } else if (rescheduleModal.candidate) {
+        const cand = rescheduleModal.candidate;
+        const res = await rescheduleCandidateSlot(cand.id, {
+          targetSlot: rescheduleModal.targetSlot,
+          resetAttempt: rescheduleModal.resetAttempt,
+          reason: rescheduleModal.reason
+        });
+        setCandidates(prev => prev.map(c => c.id === cand.id ? { ...c, batch: rescheduleModal.targetSlot, status: rescheduleModal.resetAttempt ? "PENDING" : c.status } : c));
+        setNotice({ text: res.message, type: "success" });
+      }
+      refreshSlotCounts();
+      setRescheduleModal(prev => ({ ...prev, isOpen: false, loading: false }));
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Reschedule failed: " + errorObj.message, type: "error" });
+      setRescheduleModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -602,6 +706,101 @@ export default function CandidatesPage() {
         </div>
       </div>
 
+      {/* Emergency Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            background: "#eff6ff",
+            border: "1.5px solid #3b82f6",
+            padding: "12px 18px",
+            borderRadius: "10px",
+            marginBottom: "16px",
+            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.15)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{
+              background: "#2563eb",
+              color: "#fff",
+              padding: "4px 10px",
+              borderRadius: "14px",
+              fontSize: "12px",
+              fontWeight: 700
+            }}>
+              {selectedIds.size} Selected
+            </span>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#1e3a8a" }}>
+              Batch slot actions for selected examinees
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => openBulkRescheduleModal("Slot 2")}
+              style={{
+                backgroundColor: "#7c3aed",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 4px rgba(124, 58, 237, 0.25)"
+              }}
+            >
+              <Clock size={15} /> Move All Selected to Slot 2 (2:00 PM)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openBulkRescheduleModal("Slot 1")}
+              style={{
+                backgroundColor: "#0284c7",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              Move to Slot 1
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              style={{
+                background: "#ffffff",
+                color: "#64748b",
+                border: "1px solid #cbd5e1",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                fontSize: "12.5px",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="filter-search-row" style={{ flexWrap: "wrap", gap: "10px" }}>
         <div className="search-input-wrapper" style={{ flex: "1 1 240px" }}>
@@ -662,6 +861,15 @@ export default function CandidatesPage() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th style={{ width: "42px", textAlign: "center" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.size === candidates.length && candidates.length > 0} 
+                    onChange={handleToggleSelectAll}
+                    title="Select / Deselect all visible candidates"
+                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#017846" }}
+                  />
+                </th>
                 <th 
                   className="sortable-th"
                   onClick={() => handleSort("registration_number")}
@@ -717,10 +925,10 @@ export default function CandidatesPage() {
                   className="sortable-th"
                   onClick={() => handleSort("batch")}
                   title="Sort by Exam Slot / Batch"
-                  style={{ width: "170px" }}
+                  style={{ width: "220px" }}
                 >
                   <div style={{ display: "inline-flex", alignItems: "center" }}>
-                    Exam Slot / Batch
+                    Exam Slot & Reschedule
                     {renderSortIndicator("batch")}
                   </div>
                 </th>
@@ -732,18 +940,19 @@ export default function CandidatesPage() {
                 // Shimmer Skeleton Rows for initial screen
                 Array.from({ length: 6 }).map((_, idx) => (
                   <tr key={`skel-${idx}`}>
+                    <td style={{ width: "42px", textAlign: "center" }}><div className="skeleton-cell" style={{ width: "20px", margin: "0 auto" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "80px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "160px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "200px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "140px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
-                    <td style={{ width: "170px" }}><div className="skeleton-cell" style={{ width: "130px" }} /></td>
+                    <td style={{ width: "220px" }}><div className="skeleton-cell" style={{ width: "180px" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
                   </tr>
                 ))
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
@@ -755,8 +964,17 @@ export default function CandidatesPage() {
                 </tr>
               ) : (
                 candidates.map((cand, index) => {
+                  const isSelected = selectedIds.has(cand.id);
                   return (
-                    <tr key={cand.id}>
+                    <tr key={cand.id} style={{ backgroundColor: isSelected ? "#f0fdf4" : undefined }}>
+                      <td style={{ textAlign: "center" }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectCandidate(cand.id)}
+                          style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#017846" }}
+                        />
+                      </td>
                       <td>
                         <b style={{ color: "#017846", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
                           {cand.registrationNumber || index + 1}
@@ -807,38 +1025,72 @@ export default function CandidatesPage() {
                         )}
                       </td>
                       <td>
-                        <select
-                          value={cand.batch || ""}
-                          onChange={(e) => handleAssignSlot(cand.id, e.target.value)}
-                          title="Change candidate's scheduled slot"
-                          style={{
-                            padding: "4px 8px",
-                            borderRadius: "6px",
-                            fontSize: "12px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            outline: "none",
-                            border: cand.batch === "Slot 1" 
-                              ? "1px solid #7dd3fc" 
-                              : cand.batch === "Slot 2" 
-                                ? "1px solid #d8b4fe" 
-                                : "1px solid #cbd5e1",
-                            backgroundColor: cand.batch === "Slot 1" 
-                              ? "#f0f9ff" 
-                              : cand.batch === "Slot 2" 
-                                ? "#faf5ff" 
-                                : "#ffffff",
-                            color: cand.batch === "Slot 1" 
-                              ? "#0369a1" 
-                              : cand.batch === "Slot 2" 
-                                ? "#6b21a8" 
-                                : "#64748b"
-                          }}
-                        >
-                          <option value="">Unassigned</option>
-                          <option value="Slot 1">🕒 Slot 1 (10:00 AM)</option>
-                          <option value="Slot 2">🕒 Slot 2 (2:00 PM)</option>
-                        </select>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              fontSize: "11.5px",
+                              fontWeight: 700,
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              backgroundColor: cand.batch === "Slot 1" ? "#e0f2fe" : cand.batch === "Slot 2" ? "#f3e8ff" : "#f1f5f9",
+                              color: cand.batch === "Slot 1" ? "#0369a1" : cand.batch === "Slot 2" ? "#6b21a8" : "#64748b",
+                              border: cand.batch === "Slot 1" ? "1px solid #bae6fd" : cand.batch === "Slot 2" ? "1px solid #e9d5ff" : "1px solid #cbd5e1"
+                            }}
+                          >
+                            <Clock size={11} />
+                            {cand.batch || "Unassigned"}
+                          </span>
+
+                          {cand.batch === "Slot 1" && (
+                            <button
+                              type="button"
+                              onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
+                              title="Move candidate to Slot 2 (2:00 PM) with automatic attempt reset"
+                              style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                backgroundColor: "#7c3aed",
+                                color: "#ffffff",
+                                border: "none",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
+                              }}
+                            >
+                              To Slot 2 <ArrowRight size={11} />
+                            </button>
+                          )}
+
+                          {cand.batch === "Slot 2" && (
+                            <button
+                              type="button"
+                              onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
+                              title="Move candidate to Slot 1 (10:00 AM) with automatic attempt reset"
+                              style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                backgroundColor: "#f0f9ff",
+                                color: "#0369a1",
+                                border: "1px solid #bae6fd",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px"
+                              }}
+                            >
+                              To Slot 1 <ArrowRight size={11} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <span className={`status-pill ${getStatusClass(cand.status)}`}>
@@ -983,6 +1235,142 @@ export default function CandidatesPage() {
               >
                 {uploadingCsv ? "Uploading..." : "Upload Document"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Slot Reschedule Confirmation Modal */}
+      {rescheduleModal.isOpen && (
+        <div className="admin-modal-backdrop" onClick={() => setRescheduleModal(prev => ({ ...prev, isOpen: false }))}>
+          <div className="admin-modal-box" style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Clock size={20} color="#7c3aed" />
+                <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a" }}>
+                  {rescheduleModal.isBulk 
+                    ? `Batch Move ${selectedIds.size} Candidates to ${rescheduleModal.targetSlot}`
+                    : `Move Candidate to ${rescheduleModal.targetSlot}`
+                  }
+                </h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setRescheduleModal(prev => ({ ...prev, isOpen: false }))} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#64748b" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {!rescheduleModal.isBulk && rescheduleModal.candidate && (
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
+                    {rescheduleModal.candidate.fullName}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
+                    Reg No: <b style={{ fontFamily: "monospace" }}>{rescheduleModal.candidate.registrationNumber}</b> • Current: <b>{rescheduleModal.candidate.batch || "Unassigned"}</b>
+                  </div>
+                </div>
+              )}
+
+              {rescheduleModal.isBulk && (
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, fontSize: "13px", color: "#1e293b" }}>
+                    {selectedIds.size} candidates will be rescheduled together
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
+                    All selected examinees will be moved to <b>{rescheduleModal.targetSlot}</b>.
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "4px" }}>
+                  Target Exam Slot
+                </label>
+                <select
+                  value={rescheduleModal.targetSlot}
+                  onChange={e => setRescheduleModal(prev => ({ ...prev, targetSlot: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 600 }}
+                >
+                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Window)</option>
+                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Window)</option>
+                </select>
+              </div>
+
+              {/* Automatic Attempt Reset Checkbox (Checked by Default) */}
+              <div 
+                style={{
+                  background: "#faf5ff",
+                  border: "1.5px solid #d8b4fe",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px"
+                }}
+              >
+                <input 
+                  type="checkbox" 
+                  id="resetAttemptCheck"
+                  checked={rescheduleModal.resetAttempt}
+                  onChange={e => setRescheduleModal(prev => ({ ...prev, resetAttempt: e.target.checked }))}
+                  style={{ marginTop: "3px", width: "16px", height: "16px", cursor: "pointer", accentColor: "#7c3aed" }}
+                />
+                <label htmlFor="resetAttemptCheck" style={{ fontSize: "12.5px", color: "#4c1d95", cursor: "pointer" }}>
+                  <b style={{ display: "block" }}>Reset exam progress & timer for a fresh attempt (Recommended)</b>
+                  <span style={{ fontSize: "11.5px", color: "#6b21a8", display: "block", marginTop: "2px" }}>
+                    Wipes any interrupted/broken Slot 1 session so the student gets the full 60-minute duration in Slot 2 with zero lockouts.
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>
+                  Reason (Audit Trail)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Lab PC crashed, network outage, or candidate request"
+                  value={rescheduleModal.reason}
+                  onChange={e => setRescheduleModal(prev => ({ ...prev, reason: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12.5px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setRescheduleModal(prev => ({ ...prev, isOpen: false }))}
+                  disabled={rescheduleModal.loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteReschedule}
+                  disabled={rescheduleModal.loading}
+                  style={{
+                    backgroundColor: "#7c3aed",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "8px 16px",
+                    borderRadius: "6px",
+                    fontWeight: 700,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  {rescheduleModal.loading && <Loader2 size={14} className="animate-spin" />}
+                  Confirm Move to {rescheduleModal.targetSlot}
+                </button>
+              </div>
             </div>
           </div>
         </div>

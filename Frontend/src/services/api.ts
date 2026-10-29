@@ -946,7 +946,44 @@ export async function submitCandidateAttempt(
   });
 }
 
+export async function rescheduleCandidateSlot(
+  candidateId: number,
+  data: { targetSlot?: string; resetAttempt?: boolean; reason?: string }
+): Promise<{ success: boolean; message: string; candidateId: number; newSlot: string }> {
+  return request<{ success: boolean; message: string; candidateId: number; newSlot: string }>(
+    `admin/candidates/${candidateId}/reschedule-slot`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetSlot: data.targetSlot || "Slot 2",
+        resetAttempt: data.resetAttempt ?? true,
+        reason: data.reason || "Admin slot reschedule"
+      })
+    }
+  );
+}
+
+export async function batchRescheduleCandidateSlot(
+  data: { candidateIds: number[]; targetSlot?: string; resetAttempt?: boolean; reason?: string }
+): Promise<{ success: boolean; rescheduledCount: number; message: string }> {
+  return request<{ success: boolean; rescheduledCount: number; message: string }>(
+    `admin/candidates/batch-reschedule-slot`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        candidateIds: data.candidateIds,
+        targetSlot: data.targetSlot || "Slot 2",
+        resetAttempt: data.resetAttempt ?? true,
+        reason: data.reason || "Batch slot reschedule"
+      })
+    }
+  );
+}
+
 /* Legacy helpers for compatibility with existing status banner */
 export function setAdminCredentials(_u: string, _p: string): void {}
 export function clearAdminCredentials(): void {}
 export function hasAdminCredentials(): boolean { return false; }
+
