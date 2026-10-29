@@ -866,6 +866,12 @@ export async function publishResults(examId: number, published: boolean): Promis
   });
 }
 
+export async function resetCandidateAttempt(attemptId: number): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>(`admin/results/attempt/${attemptId}/reset`, {
+    method: "POST"
+  });
+}
+
 /* =========================================================================
    8. CANDIDATE PORTAL APIS (REAL BACKEND EXAM FLOW)
    ========================================================================= */

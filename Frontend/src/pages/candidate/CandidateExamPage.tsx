@@ -9,7 +9,8 @@ import {
   Menu,
   CheckCircle2,
   CloudOff,
-  AlertCircle
+  AlertCircle,
+  AlertTriangle
 } from "lucide-react";
 import type { 
   CandidateSession, 
@@ -28,7 +29,6 @@ import {
 import ExamTimer from "../../components/candidate/ExamTimer";
 import QuestionNavigator from "../../components/candidate/QuestionNavigator";
 import SubmitConfirmationDialog from "../../components/candidate/SubmitConfirmationDialog";
-import ExitConfirmationDialog from "../../components/candidate/ExitConfirmationDialog";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 
@@ -65,7 +65,7 @@ export default function CandidateExamPage({
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [showExitModal, setShowExitModal] = useState(false);
+  const [showNavLockedModal, setShowNavLockedModal] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
   const [submitting, setSubmitting] = useState(false);
 
@@ -162,6 +162,32 @@ export default function CandidateExamPage({
       clearInterval(intervalId);
     };
   }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId, pendingQueue]);
+
+  // Trap browser 'Back' button (popstate) and refresh/tab close (beforeunload)
+  useEffect(() => {
+    // Push dummy history entry so back button is captured inside exam
+    window.history.pushState(null, "", window.location.href);
+
+    const handlePopState = () => {
+      // Re-push state so user remains on /candidate/exam
+      window.history.pushState(null, "", window.location.href);
+      setShowNavLockedModal(true);
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Changes you made may not be saved. Are you sure you want to leave the examination?";
+      return e.returnValue;
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
 
   // Load questions from backend attempt on mount
   useEffect(() => {
@@ -540,15 +566,6 @@ export default function CandidateExamPage({
               <small className="exam-user-id">{session?.profile?.candidateId || "MCQ-REG001"}</small>
             </div>
           </div>
-
-          <button
-            type="button"
-            className="exam-exit-button"
-            onClick={() => setShowExitModal(true)}
-            title="Exit assessment"
-          >
-            <LogOut size={13} /> Exit
-          </button>
         </div>
       </header>
 
@@ -678,13 +695,69 @@ export default function CandidateExamPage({
         />
       )}
 
-      {showExitModal && (
-        <ExitConfirmationDialog
-          answeredCount={answeredCount}
-          total={total}
-          onCancel={() => setShowExitModal(false)}
-          onConfirmExit={() => triggerFinalization("candidate_exit")}
-        />
+      {/* Navigation Locked Warning Modal */}
+      {showNavLockedModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.7)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 99999,
+          padding: "16px"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "14px",
+            maxWidth: "440px",
+            width: "100%",
+            padding: "24px",
+            textAlign: "center",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+          }}>
+            <div style={{
+              width: "48px",
+              height: "48px",
+              borderRadius: "50%",
+              background: "#fef3c7",
+              color: "#d97706",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 14px"
+            }}>
+              <AlertTriangle size={24} />
+            </div>
+            <h3 style={{ margin: "0 0 8px", fontSize: "17px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Navigation Locked
+            </h3>
+            <p style={{ margin: "0 0 20px", fontSize: "13px", color: "#64748b", lineHeight: 1.5 }}>
+              Navigation is locked during the active assessment. Going back or leaving the exam room is disabled to protect your examination integrity.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowNavLockedModal(false)}
+              style={{
+                width: "100%",
+                padding: "10px 20px",
+                fontSize: "13px",
+                fontWeight: 700,
+                background: "#017846",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer"
+              }}
+            >
+              Continue Assessment
+            </button>
+          </div>
+        </div>
       )}
     </main>
   );

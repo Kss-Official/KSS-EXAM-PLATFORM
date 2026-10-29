@@ -86,22 +86,19 @@ def verify_candidate(
     Accepts candidate credentials (fullName, email, department/college) and returns examination eligibility.
     Available at both /api/candidate/verify and /api/candidate/login for full compatibility with load testing suites.
     """
-    client_ip = get_client_ip(request)
-    email_key = f"candidate_email:{req.email.strip().lower()}"
-    ip_key = f"candidate_ip:{client_ip}"
+    email_str = (req.email or "").strip().lower()
+    email_key = f"candidate_email:{email_str}" if email_str else f"candidate_anon:{get_client_ip(request)}"
 
-    if rate_limiter.is_blocked(email_key) or rate_limiter.is_blocked(ip_key):
+    if rate_limiter.is_blocked(email_key):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many verification attempts. Please wait 15 minutes before retrying."
+            detail="Too many verification attempts for this account. Please wait 15 minutes before retrying."
         )
     res = CandidateExamService.verify_candidate(db, req)
     if not res.eligible:
         rate_limiter.record_failed_attempt(email_key)
-        rate_limiter.record_failed_attempt(ip_key)
     else:
         rate_limiter.record_successful_attempt(email_key)
-        rate_limiter.record_successful_attempt(ip_key)
     return res
 
 @router.post("/start", response_model=CandidateStartAttemptResponse)

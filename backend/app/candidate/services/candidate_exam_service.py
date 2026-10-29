@@ -35,6 +35,43 @@ def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
+def _get_cached_question_metadata(db: Session, question_set_id: int) -> Dict[str, Any]:
+    """In-memory cache for question set questions & options to eliminate 2-4 DB SELECT queries on every autosave."""
+    now_t = time.time()
+    cached = _QUESTION_SET_CACHE.get(question_set_id)
+    if cached and (now_t - cached["time"] < _QUESTION_SET_CACHE_TTL):
+        return cached["data"]
+
+    questions = db.query(Question).options(
+        joinedload(Question.options)
+    ).filter(
+        Question.question_set_id == question_set_id
+    ).all()
+
+    valid_q_ids = set()
+    q_by_order = {}
+    opt_to_q = {}
+    q_options_by_id = {}
+
+    for q in questions:
+        valid_q_ids.add(q.id)
+        if q.display_order is not None:
+            q_by_order[q.display_order] = q.id
+        opt_ids = []
+        for opt in (q.options or []):
+            opt_to_q[opt.id] = q.id
+            opt_ids.append(opt.id)
+        q_options_by_id[q.id] = opt_ids
+
+    data = {
+        "valid_q_ids": valid_q_ids,
+        "q_by_order": q_by_order,
+        "opt_to_q": opt_to_q,
+        "q_options_by_id": q_options_by_id
+    }
+    _QUESTION_SET_CACHE[question_set_id] = {"time": now_t, "data": data}
+    return data
+
 class CandidateExamService:
     @classmethod
     def verify_candidate(cls, db: Session, req: CandidateVerifyRequest) -> CandidateVerifyResponse:
@@ -623,46 +660,63 @@ class CandidateExamService:
         real_q_id = question_id
         real_opt_id = selected_option_id
 
-        # Verify or resolve question within the attempt's assigned question set
-        q = db.query(Question).filter(Question.id == question_id).first()
-        if not q or q.question_set_id != attempt.question_set_id:
-            arq = db.query(AttemptRandomizedQuestion).filter(
-                AttemptRandomizedQuestion.attempt_id == attempt_id,
-                AttemptRandomizedQuestion.display_order == question_id
-            ).first()
-            if arq:
-                q = db.query(Question).filter(Question.id == arq.question_id).first()
-            else:
-                q = db.query(Question).filter(
-                    Question.question_set_id == attempt.question_set_id,
-                    Question.display_order == question_id
+        # High-performance question & option resolution using cached question set metadata
+        meta = _get_cached_question_metadata(db, attempt.question_set_id) if attempt.question_set_id else None
+        if meta and real_q_id in meta["valid_q_ids"]:
+            pass  # Fast path: already direct question ID, 0 DB queries!
+        elif meta and real_q_id in meta["q_by_order"]:
+            real_q_id = meta["q_by_order"][real_q_id]  # Display order resolved via cache, 0 DB queries!
+        else:
+            # Fallback to database resolution if not in cache
+            q = db.query(Question).filter(Question.id == question_id).first()
+            if not q or q.question_set_id != attempt.question_set_id:
+                arq = db.query(AttemptRandomizedQuestion).filter(
+                    AttemptRandomizedQuestion.attempt_id == attempt_id,
+                    AttemptRandomizedQuestion.display_order == question_id
                 ).first()
-            if q:
-                real_q_id = q.id
+                if arq:
+                    q = db.query(Question).filter(Question.id == arq.question_id).first()
+                else:
+                    q = db.query(Question).filter(
+                        Question.question_set_id == attempt.question_set_id,
+                        Question.display_order == question_id
+                    ).first()
+                if q:
+                    real_q_id = q.id
 
-        if real_opt_id is not None and q:
-            opt = db.query(QuestionOption).filter(QuestionOption.id == real_opt_id).first()
-            if not opt or opt.question_id != q.id:
-                # Check randomized options first
-                target_opt = None
-                aro = db.query(AttemptRandomizedOption).filter(
-                    AttemptRandomizedOption.attempt_id == attempt_id,
-                    AttemptRandomizedOption.question_id == q.id,
-                    AttemptRandomizedOption.display_order == (real_opt_id if real_opt_id in (1, 2, 3, 4) else -1)
-                ).first()
-                if aro:
-                    target_opt = aro.option
-                if not target_opt and q.options:
-                    if 0 <= real_opt_id < len(q.options):
-                        target_opt = q.options[real_opt_id]
-                    elif 1 <= real_opt_id <= len(q.options):
-                        target_opt = q.options[real_opt_id - 1]
-                    else:
-                        target_opt = q.options[real_opt_id % len(q.options)]
-                if target_opt:
-                    real_opt_id = target_opt.id
-                elif not opt:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected option does not belong to question")
+        if real_opt_id is not None:
+            if meta and meta["opt_to_q"].get(real_opt_id) == real_q_id:
+                pass  # Fast path: option verified in memory, 0 DB queries!
+            elif meta and real_q_id in meta["q_options_by_id"]:
+                q_opts = meta["q_options_by_id"][real_q_id]
+                if 0 <= real_opt_id < len(q_opts):
+                    real_opt_id = q_opts[real_opt_id]
+                elif 1 <= real_opt_id <= len(q_opts):
+                    real_opt_id = q_opts[real_opt_id - 1]
+                else:
+                    target_opt = None
+                    aro = db.query(AttemptRandomizedOption).filter(
+                        AttemptRandomizedOption.attempt_id == attempt_id,
+                        AttemptRandomizedOption.question_id == real_q_id,
+                        AttemptRandomizedOption.display_order == (real_opt_id if real_opt_id in (1, 2, 3, 4) else -1)
+                    ).first()
+                    if aro and aro.option_id:
+                        real_opt_id = aro.option_id
+            else:
+                opt = db.query(QuestionOption).filter(QuestionOption.id == real_opt_id).first()
+                if not opt or opt.question_id != real_q_id:
+                    target_opt = None
+                    aro = db.query(AttemptRandomizedOption).filter(
+                        AttemptRandomizedOption.attempt_id == attempt_id,
+                        AttemptRandomizedOption.question_id == real_q_id,
+                        AttemptRandomizedOption.display_order == (real_opt_id if real_opt_id in (1, 2, 3, 4) else -1)
+                    ).first()
+                    if aro:
+                        target_opt = aro.option
+                    if target_opt:
+                        real_opt_id = target_opt.id
+                    elif not opt:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected option does not belong to question")
 
         try:
             dialect_name = db.bind.dialect.name if db.bind else ""

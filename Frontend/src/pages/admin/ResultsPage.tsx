@@ -11,7 +11,14 @@ import {
   FileSpreadsheet,
   CheckCircle2
 } from "lucide-react";
-import { getAllResults, publishResults, getAllExams, type ExamResultDto, type ExamDto } from "../../services/api";
+import { 
+  getAllResults, 
+  publishResults, 
+  getAllExams, 
+  resetCandidateAttempt,
+  type ExamResultDto, 
+  type ExamDto 
+} from "../../services/api";
 
 export default function ResultsPage() {
   const [exams, setExams] = useState<ExamDto[]>([]);
@@ -21,6 +28,8 @@ export default function ResultsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [notice, setNotice] = useState<string | null>(null);
+  const [attemptToReset, setAttemptToReset] = useState<ExamResultDto | null>(null);
+  const [isResetting, setIsResetting] = useState(false);
 
   const fetchExams = async () => {
     try {
@@ -54,7 +63,7 @@ export default function ResultsPage() {
       getAllResults(selectedExamId)
         .then(data => setResults(data))
         .catch(() => {});
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [selectedExamId]);
 
@@ -67,6 +76,22 @@ export default function ResultsPage() {
     } catch (e: unknown) {
       const errorObj = e as Error;
       setNotice("Failed to update results publication: " + errorObj.message);
+    }
+  };
+
+  const handleConfirmReset = async () => {
+    if (!attemptToReset) return;
+    setIsResetting(true);
+    try {
+      await resetCandidateAttempt(attemptToReset.attemptId);
+      setNotice(`Attempt for ${attemptToReset.candidateName} has been completely reset. The student can now log back in and retake the exam.`);
+      setAttemptToReset(null);
+      fetchResults();
+    } catch (err: unknown) {
+      const errObj = err as Error;
+      setNotice("Failed to reset attempt: " + errObj.message);
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -536,18 +561,19 @@ export default function ResultsPage() {
                 <th>Score / Total Marks</th>
                 <th>Qualification Status</th>
                 <th>Submission Time</th>
+                <th style={{ textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
                     Loading real attempt results from PostgreSQL...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <BarChart3 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>No examination attempts submitted yet</p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
@@ -604,6 +630,30 @@ export default function ResultsPage() {
                           </span>
                         )}
                       </td>
+                      <td style={{ textAlign: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setAttemptToReset(r)}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            padding: "6px 12px",
+                            fontSize: "11.5px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            border: "1px solid #fecaca",
+                            background: "#fef2f2",
+                            color: "#b91c1c",
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            transition: "all 0.15s ease"
+                          }}
+                          title="Reset candidate's attempt so they can re-enter and retake the exam"
+                        >
+                          <RotateCcw size={12} /> Reset Attempt
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -612,6 +662,64 @@ export default function ResultsPage() {
           </table>
         </div>
       </div>
+
+      {/* Reset Attempt Confirmation Modal */}
+      {attemptToReset && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(15, 23, 42, 0.6)",
+          backdropFilter: "blur(3px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          padding: "16px"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "14px",
+            maxWidth: "460px",
+            width: "100%",
+            padding: "24px",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2)"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", color: "#dc2626" }}>
+                <RotateCcw size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a" }}>Reset Candidate Attempt?</h3>
+            </div>
+            <p style={{ margin: "0 0 16px 0", fontSize: "13px", color: "#475569", lineHeight: 1.5 }}>
+              Are you sure you want to reset the examination attempt for <b>{attemptToReset.candidateName}</b> ({attemptToReset.registrationNumber})?
+            </p>
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "10px 14px", marginBottom: "20px", fontSize: "12px", color: "#64748b", lineHeight: 1.5 }}>
+              This will clear their submitted status and recorded answers, unlocking their account so the candidate can immediately log back in and retake the exam.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={() => setAttemptToReset(null)}
+                style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#475569", fontSize: "12.5px", fontWeight: 600, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isResetting}
+                onClick={handleConfirmReset}
+                style={{ padding: "8px 18px", borderRadius: "8px", border: "none", background: "#dc2626", color: "#ffffff", fontSize: "12.5px", fontWeight: 600, cursor: isResetting ? "not-allowed" : "pointer" }}
+              >
+                {isResetting ? "Resetting..." : "Yes, Reset Attempt"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
