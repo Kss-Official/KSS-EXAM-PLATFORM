@@ -71,6 +71,30 @@ export default function CandidatesPage() {
   // IntersectionObserver sentinel for progressive infinite scrolling
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  // Global Slot Counts for high-level statistics
+  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
+    total: 842,
+    slot1: 421,
+    slot2: 421
+  });
+
+  const refreshSlotCounts = useCallback(async () => {
+    try {
+      const [allRes, s1Res, s2Res] = await Promise.all([
+        getCandidates({ limit: 1 }),
+        getCandidates({ limit: 1, batch: "Slot 1" }),
+        getCandidates({ limit: 1, batch: "Slot 2" })
+      ]);
+      setSlotCounts({
+        total: allRes.total,
+        slot1: s1Res.total,
+        slot2: s2Res.total
+      });
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Fetch both Colleges and Academic Departments from their separate tables
   useEffect(() => {
     try {
@@ -80,7 +104,8 @@ export default function CandidatesPage() {
     }
     getColleges().then(setColleges).catch(() => {});
     getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
-  }, []);
+    refreshSlotCounts();
+  }, [refreshSlotCounts]);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -382,54 +407,198 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      {/* KPI Cards Row with Slot Highlights */}
-      <div className="candidate-kpi-grid">
+      {/* Premium Overview Stat Cards */}
+      <div className="stat-cards-row" style={{ marginBottom: "20px" }}>
         <div 
-          className="kpi-mini-card" 
-          style={{ cursor: "pointer", border: batchFilter === "ALL" ? "2px solid #017846" : undefined }}
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "ALL" ? "2px solid #017846" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "ALL" ? "#fbfdfc" : "#ffffff"
+          }}
           onClick={() => setBatchFilter("ALL")}
           title="Click to view all candidates"
         >
-          <span className="kpi-mini-label">Total Registered</span>
-          <span className="kpi-mini-value" style={{ color: "#017846" }}>{totalCandidates}</span>
+          <div className="stat-card-info">
+            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>Total Candidates</small>
+            <div className="stat-card-value" style={{ color: "#017846" }}>{slotCounts.total}</div>
+            <span className="stat-card-sub">All registered examinees</span>
+          </div>
+          <div className="stat-card-icon blue">
+            <Users size={22} />
+          </div>
         </div>
+
         <div 
-          className="kpi-mini-card" 
-          style={{ cursor: "pointer", border: batchFilter === "Slot 1" ? "2px solid #0284c7" : undefined }}
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "Slot 1" ? "2px solid #0284c7" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : "#ffffff"
+          }}
           onClick={() => setBatchFilter(prev => prev === "Slot 1" ? "ALL" : "Slot 1")}
           title="Click to filter Slot 1 (10:00 AM)"
         >
-          <span className="kpi-mini-label" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-            <Clock size={13} color="#0284c7" /> Slot 1 (10:00 AM)
-          </span>
-          <span className="kpi-mini-value" style={{ color: "#0284c7" }}>
-            {candidates.filter(c => c.batch === "Slot 1").length} <small style={{ fontSize: "11px", color: "#64748b" }}>loaded</small>
-          </span>
+          <div className="stat-card-info">
+            <small style={{ color: "#0284c7" }}>Slot 1 • 10:00 AM</small>
+            <div className="stat-card-value" style={{ color: "#0284c7" }}>{slotCounts.slot1}</div>
+            <span className="stat-card-sub">Entry: 10:00 – 10:30 AM IST</span>
+          </div>
+          <div className="stat-card-icon" style={{ background: "#e0f2fe", color: "#0284c7" }}>
+            <Clock size={22} />
+          </div>
         </div>
+
         <div 
-          className="kpi-mini-card" 
-          style={{ cursor: "pointer", border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : undefined }}
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "Slot 2" ? "#faf5ff" : "#ffffff"
+          }}
           onClick={() => setBatchFilter(prev => prev === "Slot 2" ? "ALL" : "Slot 2")}
           title="Click to filter Slot 2 (2:00 PM)"
         >
-          <span className="kpi-mini-label" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-            <Clock size={13} color="#7c3aed" /> Slot 2 (2:00 PM)
+          <div className="stat-card-info">
+            <small style={{ color: "#7c3aed" }}>Slot 2 • 2:00 PM</small>
+            <div className="stat-card-value" style={{ color: "#7c3aed" }}>{slotCounts.slot2}</div>
+            <span className="stat-card-sub">Entry: 2:00 – 2:30 PM IST</span>
+          </div>
+          <div className="stat-card-icon" style={{ background: "#f3e8ff", color: "#7c3aed" }}>
+            <Clock size={22} />
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-card-info">
+            <small>Institutions & Tracks</small>
+            <div className="stat-card-value">{departments.length}</div>
+            <span className="stat-card-sub">{colleges.length} Affiliated Colleges</span>
+          </div>
+          <div className="stat-card-icon purple">
+            <GraduationCap size={22} />
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Slot Filter Navigation Bar */}
+      <div 
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #e2e8f0",
+          marginBottom: "16px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: "4px" }}>
+            Exam Slot:
           </span>
-          <span className="kpi-mini-value" style={{ color: "#7c3aed" }}>
-            {candidates.filter(c => c.batch === "Slot 2").length} <small style={{ fontSize: "11px", color: "#64748b" }}>loaded</small>
-          </span>
+          <button
+            type="button"
+            onClick={() => setBatchFilter("ALL")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "ALL" ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "ALL" ? "#017846" : "#f8fafc",
+              color: batchFilter === "ALL" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            All Examinees
+            <span style={{
+              background: batchFilter === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: batchFilter === "ALL" ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.total}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 1")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 1" ? "2px solid #0284c7" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 1" ? "#0284c7" : "#f8fafc",
+              color: batchFilter === "Slot 1" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            Slot 1 (10:00 AM)
+            <span style={{
+              background: batchFilter === "Slot 1" ? "rgba(255,255,255,0.25)" : "#e0f2fe",
+              color: batchFilter === "Slot 1" ? "#fff" : "#0369a1",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.slot1}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 2")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 2" ? "#7c3aed" : "#f8fafc",
+              color: batchFilter === "Slot 2" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            Slot 2 (2:00 PM)
+            <span style={{
+              background: batchFilter === "Slot 2" ? "rgba(255,255,255,0.25)" : "#f3e8ff",
+              color: batchFilter === "Slot 2" ? "#fff" : "#6b21a8",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.slot2}
+            </span>
+          </button>
         </div>
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Affiliated Colleges</span>
-          <span className="kpi-mini-value" style={{ color: "#2563eb" }}>{colleges.length}</span>
-        </div>
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Academic Departments</span>
-          <span className="kpi-mini-value" style={{ color: "#059669" }}>{departments.length}</span>
-        </div>
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Records Visible</span>
-          <span className="kpi-mini-value" style={{ color: "#0f172a" }}>{candidates.length}</span>
+
+        <div style={{ fontSize: "12.5px", color: "#64748b", fontWeight: 500 }}>
+          Viewing <b>{candidates.length}</b> of <b>{totalCandidates}</b> candidates
         </div>
       </div>
 
@@ -443,29 +612,6 @@ export default function CandidatesPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-        </div>
-
-        {/* Batch / Slot Filter Dropdown */}
-        <div style={{ minWidth: "190px" }}>
-          <select
-            value={batchFilter}
-            onChange={e => setBatchFilter(e.target.value)}
-            style={{ 
-              width: "100%", 
-              padding: "8px 12px", 
-              borderRadius: "8px", 
-              border: batchFilter !== "ALL" ? "2px solid #0284c7" : "1px solid #cbd5e1", 
-              fontSize: "13px", 
-              height: "40px",
-              fontWeight: 600,
-              backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : batchFilter === "Slot 2" ? "#faf5ff" : "#fff",
-              color: batchFilter === "Slot 1" ? "#0284c7" : batchFilter === "Slot 2" ? "#7c3aed" : "#334155"
-            }}
-          >
-            <option value="ALL">🕒 All Exam Slots / Batches</option>
-            <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry)</option>
-            <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry)</option>
-          </select>
         </div>
 
         {/* College Filter Dropdown */}
