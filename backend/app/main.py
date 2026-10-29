@@ -92,11 +92,20 @@ app.add_middleware(
 # High-performance GZip response compression for JSON payloads > 1KB
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+def _attach_cors(request: Request, response: JSONResponse) -> JSONResponse:
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
+
 # Exception handlers ensuring uniform error payload format { success: False, message, statusCode }
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
-    return JSONResponse(
+    resp = JSONResponse(
         status_code=exc.status_code,
         content={
             "success": False,
@@ -105,6 +114,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             "statusCode": exc.status_code
         }
     )
+    return _attach_cors(request, resp)
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -114,7 +124,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         {"loc": [str(l) for l in err.get("loc", [])], "msg": str(err.get("msg", "")), "type": str(err.get("type", ""))}
         for err in exc.errors()
     ]
-    return JSONResponse(
+    resp = JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "success": False,
@@ -123,18 +133,20 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "statusCode": 422
         }
     )
+    return _attach_cors(request, resp)
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled server error: {exc}")
-    return JSONResponse(
+    resp = JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
-            "message": f"Internal Server Error: {str(exc)}" if settings.DEBUG else "Internal Server Error",
+            "message": f"Internal Server Error: {str(exc)}",
             "statusCode": 500
         }
     )
+    return _attach_cors(request, resp)
 
 # 1. System & Health Check Endpoints
 app.include_router(health_router)

@@ -640,21 +640,7 @@ export default function CreateExamPage() {
               const slot = bank.sets[s.setCode];
               if (!slot) continue;
 
-              // Upload question paper
-              if (slot.questionPaperFile) {
-                setSubmissionProgress(`Uploading Question Paper for ${sub.name} (${s.name})...`);
-                await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.questionPaperFile, "QUESTION_PAPER");
-                deptSetsUploaded++;
-              }
-
-              // Upload answer key
-              if (slot.answerKeyFile) {
-                setSubmissionProgress(`Uploading Answer Key for ${sub.name} (${s.name})...`);
-                await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.answerKeyFile, "ANSWER_KEY");
-                deptSetsUploaded++;
-              }
-
-              // Bulk save extracted MCQs to this set (with fallback to masterQuestions or Set A)
+              // 1. First, always persist questions directly into the database!
               const questionsToPersist = (slot.parsedQuestions && slot.parsedQuestions.length > 0)
                 ? slot.parsedQuestions
                 : (bank.masterQuestions && bank.masterQuestions.length > 0)
@@ -678,6 +664,22 @@ export default function CreateExamPage() {
 
                 await bulkUpdateSetQuestions(s.id, dtos);
                 questionsUploadedCount += dtos.length;
+              }
+
+              // 2. Archival of raw question paper & answer key files (non-blocking)
+              try {
+                if (slot.questionPaperFile) {
+                  setSubmissionProgress(`Archiving Question Paper for ${sub.name} (${s.name})...`);
+                  await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.questionPaperFile, "QUESTION_PAPER");
+                  deptSetsUploaded++;
+                }
+                if (slot.answerKeyFile) {
+                  setSubmissionProgress(`Archiving Answer Key for ${sub.name} (${s.name})...`);
+                  await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.answerKeyFile, "ANSWER_KEY");
+                  deptSetsUploaded++;
+                }
+              } catch (archivalErr) {
+                console.warn(`Non-blocking document archival notice for ${sub.name}:`, archivalErr);
               }
             }
           }

@@ -14,9 +14,24 @@ ALLOWED_EXTENSIONS: Set[str] = {"pdf", "txt", "csv", "doc", "docx", "xlsx", "xls
 class DocumentStorageService:
     @staticmethod
     def _ensure_storage_dir() -> str:
-        upload_dir = os.path.abspath(settings.UPLOAD_DIR)
-        os.makedirs(upload_dir, exist_ok=True)
-        return upload_dir
+        # Check standard upload directory or fall back to /tmp if in read-only serverless environment
+        candidates = [
+            os.path.abspath(settings.UPLOAD_DIR),
+            os.path.join(os.environ.get("TEMP") or "/tmp", "private-storage"),
+            "/tmp/private-storage",
+            "/tmp"
+        ]
+        for path in candidates:
+            try:
+                os.makedirs(path, exist_ok=True)
+                test_file = os.path.join(path, f".writetest_{uuid.uuid4().hex[:6]}")
+                with open(test_file, "w") as f:
+                    f.write("test")
+                os.remove(test_file)
+                return path
+            except (OSError, PermissionError):
+                continue
+        return "/tmp"
 
     @classmethod
     def store_document_sync(
