@@ -477,6 +477,23 @@ export default function CreateExamPage() {
       setErrors(prev => ({ ...prev, departments: "Please configure at least one sub-department under Technical or Non-Technical." }));
       return false;
     }
+
+    const hasAnyTechQuestions = (technicalBank.masterQuestions && technicalBank.masterQuestions.length > 0) || 
+      (technicalBank.sets.A.parsedQuestions && technicalBank.sets.A.parsedQuestions.length > 0) || 
+      !!technicalBank.masterQuestionPaperFile || !!technicalBank.sets.A.questionPaperFile;
+
+    const hasAnyNonTechQuestions = (nonTechnicalBank.masterQuestions && nonTechnicalBank.masterQuestions.length > 0) || 
+      (nonTechnicalBank.sets.A.parsedQuestions && nonTechnicalBank.sets.A.parsedQuestions.length > 0) || 
+      !!nonTechnicalBank.masterQuestionPaperFile || !!nonTechnicalBank.sets.A.questionPaperFile;
+
+    if (!hasAnyTechQuestions && !hasAnyNonTechQuestions) {
+      setErrors(prev => ({ 
+        ...prev, 
+        departments: "No questions configured! Please click into either the Technical or Non-Technical track to upload your Question Paper before launching." 
+      }));
+      return false;
+    }
+
     setErrors(prev => {
       const copy = { ...prev };
       delete copy.departments;
@@ -637,10 +654,16 @@ export default function CreateExamPage() {
                 deptSetsUploaded++;
               }
 
-              // Bulk save extracted MCQs to this set
-              if (slot.parsedQuestions && slot.parsedQuestions.length > 0) {
-                setSubmissionProgress(`Persisting ${slot.parsedQuestions.length} MCQs to ${sub.name} (${s.name})...`);
-                const dtos = slot.parsedQuestions.map((q, idx) => ({
+              // Bulk save extracted MCQs to this set (with fallback to masterQuestions or Set A)
+              const questionsToPersist = (slot.parsedQuestions && slot.parsedQuestions.length > 0)
+                ? slot.parsedQuestions
+                : (bank.masterQuestions && bank.masterQuestions.length > 0)
+                  ? bank.masterQuestions
+                  : (bank.sets.A.parsedQuestions || []);
+
+              if (questionsToPersist && questionsToPersist.length > 0) {
+                setSubmissionProgress(`Persisting ${questionsToPersist.length} MCQs to ${sub.name} (${s.name})...`);
+                const dtos = questionsToPersist.map((q, idx) => ({
                   questionText: q.questionText,
                   marks: q.marks != null ? q.marks : parseFloat(marksPerQuestion) || 1,
                   negativeMarks: q.negativeMarks != null ? q.negativeMarks : parseFloat(negativeMarks) || 0,
@@ -659,7 +682,9 @@ export default function CreateExamPage() {
             }
           }
         } catch (upErr) {
-          console.warn(`Could not sync sets for sub-department ${sub.name}:`, upErr);
+          console.error(`Could not sync sets for sub-department ${sub.name}:`, upErr);
+          const errDetail = upErr instanceof Error ? upErr.message : "Question set persistence failed";
+          setServerError(`Error saving questions to ${sub.name}: ${errDetail}`);
         }
       }
 
@@ -1140,11 +1165,9 @@ export default function CreateExamPage() {
                     type="button"
                     className="primary"
                     onClick={() => {
-                      if (technicalSubDepts.length === 0 && nonTechnicalSubDepts.length === 0) {
-                        setErrors(prev => ({ ...prev, departments: "Please configure at least one sub-department." }));
-                        return;
+                      if (validateStep3()) {
+                        setWizardStep(4);
                       }
-                      setWizardStep(4);
                     }}
                     style={{
                       display: "inline-flex",

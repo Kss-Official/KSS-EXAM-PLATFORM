@@ -485,8 +485,8 @@ export default function QuestionBankPage() {
 
       // If uploading a Question Paper, extract questions and save directly to question bank
       if (uploadDocType === "QUESTION_PAPER") {
-        const isPdf = uploadFile.name.toLowerCase().endsWith(".pdf") || uploadFile.type === "application/pdf";
-        if (isPdf) {
+        const isSupportedDoc = /\.(pdf|docx|xlsx|xls)$/i.test(uploadFile.name) || uploadFile.type === "application/pdf";
+        if (isSupportedDoc) {
           try {
             const formData = new FormData();
             formData.append("questionPaper", uploadFile);
@@ -507,8 +507,8 @@ export default function QuestionBankPage() {
               }));
               extractedCount = dtosToPersist.length;
             }
-          } catch (pdfErr) {
-            console.warn("Could not parse PDF questions automatically:", pdfErr);
+          } catch (docErr) {
+            console.warn("Could not parse document questions automatically:", docErr);
           }
         } else if (uploadFile.name.toLowerCase().endsWith(".txt") || uploadFile.name.toLowerCase().endsWith(".csv")) {
           try {
