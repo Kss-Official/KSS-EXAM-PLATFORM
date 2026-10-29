@@ -34,6 +34,7 @@ class CandidateDto(CamelModel):
     access_code_active: Optional[bool] = True
     access_code_sent_at: Optional[datetime] = None
     assigned_set: Optional[str] = None
+    batch: Optional[str] = None
 
 class CandidateAssignSetRequest(CamelModel):
     set_code: Optional[str] = None
@@ -41,6 +42,10 @@ class CandidateAssignSetRequest(CamelModel):
 class CandidateBatchAssignSetRequest(CamelModel):
     candidate_ids: List[int]
     set_code: Optional[str] = None
+
+class CandidateBatchAssignBatchRequest(CamelModel):
+    candidate_ids: List[int]
+    batch: Optional[str] = None
 
 class CandidateBatchGenerateSelectedRequest(CamelModel):
     candidate_ids: List[int]
@@ -68,6 +73,7 @@ class CandidateVerifyResponse(CamelModel):
     email: Optional[str] = None
     department_name: Optional[str] = None
     college_name: Optional[str] = None
+    batch: Optional[str] = None
     exam_id: Optional[int] = None
     assigned_exam_id: Optional[int] = None
     exam_title: Optional[str] = None

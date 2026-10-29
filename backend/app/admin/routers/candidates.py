@@ -17,6 +17,7 @@ def get_candidates(
     department_id: Optional[int] = Query(None, alias="departmentId", description="Filter by department ID"),
     college_id: Optional[int] = Query(None, alias="collegeId", description="Filter by college ID"),
     status: Optional[str] = Query(None, description="Filter by status (COMPLETED, GOING ON, PENDING, ALL)"),
+    batch: Optional[str] = Query(None, description="Filter by batch (Slot 1, Slot 2, UNASSIGNED, ALL)"),
     sort_by: str = Query("registration_number", alias="sortBy", description="Sort field"),
     sort_order: str = Query("asc", alias="sortOrder", description="Sort order (asc or desc)"),
     all: bool = Query(False, description="Return all candidates unpaginated"),
@@ -35,6 +36,7 @@ def get_candidates(
         department_id=department_id,
         college_id=college_id,
         status=status,
+        batch=batch,
         sort_by=sort_by,
         sort_order=sort_order
     )
@@ -105,6 +107,32 @@ def assign_candidate_set(
     set_code = payload.get("setCode") if "setCode" in payload else payload.get("set_code")
     return CandidateService.assign_candidate_set(
         db, candidate_id=candidate_id, set_code=set_code, performed_by=current_user.email
+    )
+
+@router.post("/batch-assign-batch")
+def batch_assign_candidate_batch(
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Batch assigns a batch/slot (Slot 1, Slot 2, or None) to selected candidate IDs."""
+    candidate_ids = payload.get("candidateIds") or payload.get("candidate_ids") or []
+    batch = payload.get("batch")
+    return CandidateService.batch_assign_candidate_batch(
+        db, candidate_ids=candidate_ids, batch=batch, performed_by=current_user.email
+    )
+
+@router.post("/{candidate_id}/assign-batch")
+def assign_candidate_batch(
+    candidate_id: int,
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Assigns or updates a batch/slot for a single candidate."""
+    batch = payload.get("batch")
+    return CandidateService.assign_candidate_batch(
+        db, candidate_id=candidate_id, batch=batch, performed_by=current_user.email
     )
 
 

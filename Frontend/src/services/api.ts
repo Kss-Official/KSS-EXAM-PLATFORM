@@ -171,6 +171,7 @@ export interface CandidateDto {
   departmentName?: string;
   collegeId?: number;
   collegeName?: string;
+  batch?: string;
   status: string;
   createdAt?: string;
 }
@@ -200,6 +201,7 @@ export interface CandidateQueryParams {
   search?: string;
   departmentId?: number;
   collegeId?: number;
+  batch?: string;
   status?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
@@ -787,6 +789,7 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   if (params?.search && params.search.trim()) query.set("search", params.search.trim());
   if (params?.departmentId !== undefined) query.set("departmentId", String(params.departmentId));
   if (params?.collegeId !== undefined) query.set("collegeId", String(params.collegeId));
+  if (params?.batch && params.batch !== "ALL") query.set("batch", params.batch);
   if (params?.status && params.status !== "ALL") query.set("status", params.status);
   if (params?.sortBy) query.set("sortBy", params.sortBy);
   if (params?.sortOrder) query.set("sortOrder", params.sortOrder);
@@ -807,6 +810,28 @@ export async function createCandidate(cand: Partial<CandidateDto>): Promise<Cand
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cand)
+  });
+}
+
+export async function batchAssignCandidateBatch(
+  candidateIds: number[], 
+  batch: string | null
+): Promise<{ success: boolean; updatedCount: number; batch?: string }> {
+  return request<{ success: boolean; updatedCount: number; batch?: string }>("admin/candidates/batch-assign-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateIds, batch })
+  });
+}
+
+export async function assignCandidateBatch(
+  candidateId: number, 
+  batch: string | null
+): Promise<{ success: boolean; candidateId: number; batch?: string }> {
+  return request<{ success: boolean; candidateId: number; batch?: string }>(`admin/candidates/${candidateId}/assign-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ batch })
   });
 }
 

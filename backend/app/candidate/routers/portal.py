@@ -96,7 +96,10 @@ def verify_candidate(
         )
     res = CandidateExamService.verify_candidate(db, req)
     if not res.eligible:
-        rate_limiter.record_failed_attempt(email_key)
+        msg_l = (res.message or "").lower()
+        is_timing_or_system = any(w in msg_l for w in ["opens at", "entry closed", "scheduled for", "activated examination", "not available"])
+        if not is_timing_or_system:
+            rate_limiter.record_failed_attempt(email_key)
     else:
         rate_limiter.record_successful_attempt(email_key)
     return res

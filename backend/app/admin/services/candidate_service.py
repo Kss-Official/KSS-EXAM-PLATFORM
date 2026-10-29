@@ -45,7 +45,8 @@ class CandidateService:
             college_name=college_name,
             status=computed_status,
             created_at=c.created_at,
-            assigned_set=c.assigned_set
+            assigned_set=c.assigned_set,
+            batch=c.batch
         )
 
     @classmethod
@@ -90,6 +91,7 @@ class CandidateService:
         department_id: Optional[int] = None,
         college_id: Optional[int] = None,
         status: Optional[str] = None,
+        batch: Optional[str] = None,
         sort_by: str = "registration_number",
         sort_order: str = "asc"
     ) -> PaginatedCandidatesResponse:
@@ -97,7 +99,7 @@ class CandidateService:
         High-performance server-side paginated candidate query.
         Filters, sorts, and limits at the SQL level, loading only the visible page
         and querying attempt status strictly for the returned candidate slice.
-        Supports both Academic Department and College institution filters.
+        Supports Academic Department, College institution, and Batch/Slot filters.
         """
         page = max(1, page)
         limit = max(1, min(200, limit))
@@ -126,6 +128,14 @@ class CandidateService:
         # 3. Server-side College filter
         if college_id is not None:
             query = query.filter(Candidate.college_id == college_id)
+
+        # 3b. Server-side Batch/Slot filter (e.g. 'Slot 1', 'Slot 2', 'UNASSIGNED', 'ALL')
+        if batch and batch.strip() and batch.strip().upper() != "ALL":
+            b_clean = batch.strip()
+            if b_clean.upper() == "UNASSIGNED":
+                query = query.filter(or_(Candidate.batch == None, Candidate.batch == ""))
+            else:
+                query = query.filter(Candidate.batch == b_clean)
 
         # 4. Server-side Real-time Status filter (COMPLETED, GOING ON, PENDING, DISABLED)
         if status and status.strip() and status.strip().upper() != "ALL":
@@ -162,6 +172,7 @@ class CandidateService:
             bool(search and search.strip()) or 
             (department_id is not None) or 
             (college_id is not None) or 
+            bool(batch and batch.strip() and batch.strip().upper() != "ALL") or
             bool(status and status.strip() and status.strip().upper() != "ALL")
         )
         if not has_filter:
@@ -179,6 +190,8 @@ class CandidateService:
             query = query.order_by(Department.name.desc() if is_desc else Department.name.asc())
         elif sort_by in ("college", "college_name"):
             query = query.order_by(College.name.desc() if is_desc else College.name.asc())
+        elif sort_by == "batch":
+            query = query.order_by(Candidate.batch.desc() if is_desc else Candidate.batch.asc())
         elif sort_by == "created_at":
             query = query.order_by(Candidate.created_at.desc() if is_desc else Candidate.created_at.asc())
         else:  # registration_number or default
@@ -254,6 +267,7 @@ class CandidateService:
             email=email,
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
+            batch=dto.batch.strip() if dto.batch else None,
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
@@ -1070,6 +1084,53 @@ class CandidateService:
             "updatedCount": updated_count,
             "assignedSet": normalized_set
         }
+
+    @classmethod
+    def batch_assign_candidate_batch(
+        cls, db: Session, candidate_ids: List[int], batch: Optional[str], performed_by: str = "ADMIN"
+    ) -> Dict[str, Any]:
+        """Batch assigns a batch/slot (e.g. Slot 1, Slot 2, or None) to selected candidate IDs."""
+        if not candidate_ids:
+            return {"success": True, "updatedCount": 0, "batch": batch}
+
+        cleaned_batch = (batch or "").strip() if batch and batch.strip().lower() not in ("none", "unassigned", "null", "") else None
+
+        updated_count = db.query(Candidate).filter(
+            Candidate.id.in_(candidate_ids)
+        ).update(
+            {"batch": cleaned_batch},
+            synchronize_session=False
+        )
+        db.add(AuditLog(
+            action="BATCH_ASSIGN_CANDIDATE_BATCH",
+            entity_type="Candidate",
+            entity_id="BATCH",
+            performed_by=performed_by,
+            details=f"Batch assigned {updated_count} candidates to batch '{cleaned_batch or 'Unassigned'}'."
+        ))
+        db.commit()
+        return {"success": True, "updatedCount": updated_count, "batch": cleaned_batch}
+
+    @classmethod
+    def assign_candidate_batch(
+        cls, db: Session, candidate_id: int, batch: Optional[str], performed_by: str = "ADMIN"
+    ) -> Dict[str, Any]:
+        """Assigns or updates a batch/slot for a single candidate."""
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+        cleaned_batch = (batch or "").strip() if batch and batch.strip().lower() not in ("none", "unassigned", "null", "") else None
+        cand.batch = cleaned_batch
+        db.add(AuditLog(
+            action="ASSIGN_CANDIDATE_BATCH",
+            entity_type="Candidate",
+            entity_id=str(cand.id),
+            performed_by=performed_by,
+            details=f"Assigned candidate {cand.registration_number} to batch '{cleaned_batch or 'Unassigned'}'."
+        ))
+        db.commit()
+        db.refresh(cand)
+        return {"success": True, "candidateId": cand.id, "batch": cand.batch}
 
 
 def normalize_set_code(raw: Optional[str]) -> Optional[str]:

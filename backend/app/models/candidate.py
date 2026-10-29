@@ -9,6 +9,7 @@ class Candidate(Base):
         Index("ix_candidates_department_id", "department_id"),
         Index("ix_candidates_college_id", "college_id"),
         Index("ix_candidates_assigned_set", "assigned_set"),
+        Index("ix_candidates_batch", "batch"),
     )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
@@ -18,6 +19,7 @@ class Candidate(Base):
     password_hash = Column(String(255), nullable=True)
     department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
     college_id = Column(BigInteger, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
+    batch = Column(String(50), nullable=True)  # Slot 1, Slot 2, Batch 1, Batch 2, etc.
     assigned_set = Column(String(10), nullable=True)  # Set A, Set B, Set C, Set D, or None
     status = Column(String(20), default="ACTIVE")
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

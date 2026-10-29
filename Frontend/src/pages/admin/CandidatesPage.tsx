@@ -14,7 +14,8 @@ import {
   ArrowDown,
   Loader2,
   Building2,
-  GraduationCap
+  GraduationCap,
+  Clock
 } from "lucide-react";
 import { 
   getCandidates,
@@ -22,6 +23,7 @@ import {
   uploadCandidatesCsv, 
   getAllDepartments,
   getColleges,
+  assignCandidateBatch,
   type CandidateDto, 
   type DepartmentDto,
   type CollegeDto 
@@ -41,6 +43,7 @@ export default function CandidatesPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [batchFilter, setBatchFilter] = useState<string>("ALL");
   const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
   const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
   const [sortBy, setSortBy] = useState<string>("registration_number");
@@ -56,6 +59,7 @@ export default function CandidatesPage() {
   const [newRegNum, setNewRegNum] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newBatch, setNewBatch] = useState("Slot 1");
   const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
 
@@ -96,6 +100,7 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        batch: batchFilter !== "ALL" ? batchFilter : undefined,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -114,7 +119,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, collegeFilter, departmentFilter, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchPage1();
@@ -132,6 +137,7 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        batch: batchFilter !== "ALL" ? batchFilter : undefined,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -150,7 +156,7 @@ export default function CandidatesPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, statusFilter, sortBy, sortOrder]);
+  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, batchFilter, statusFilter, sortBy, sortOrder]);
 
   // Attach IntersectionObserver to sentinel element for infinite scrolling
   useEffect(() => {
@@ -216,6 +222,18 @@ export default function CandidatesPage() {
     );
   };
 
+  // Slot / Batch quick assignment
+  const handleAssignSlot = async (candidateId: number, slot: string) => {
+    try {
+      await assignCandidateBatch(candidateId, slot);
+      setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, batch: slot } : c));
+      setNotice({ text: `Slot updated to ${slot || "Unassigned"} for candidate.`, type: "success" });
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Failed to update slot: " + errorObj.message, type: "error" });
+    }
+  };
+
   // Handle manual candidate creation
   const handleCreateCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,6 +249,7 @@ export default function CandidatesPage() {
         registrationNumber: regUpper,
         fullName: newName.trim(),
         email: newEmail.trim().toLowerCase(),
+        batch: newBatch || undefined,
         collegeId: newCollegeId,
         departmentId: newDeptId
       });
@@ -238,7 +257,7 @@ export default function CandidatesPage() {
       setCandidates(prev => [created, ...prev]);
       setTotalCandidates(prev => prev + 1);
       setNotice({
-        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL.`,
+        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL under ${newBatch || "Unassigned"}.`,
         type: "success"
       });
     } catch (err: unknown) {
@@ -249,6 +268,7 @@ export default function CandidatesPage() {
       setNewRegNum("");
       setNewName("");
       setNewEmail("");
+      setNewBatch("Slot 1");
       setNewCollegeId(undefined);
       setNewDeptId(undefined);
     }
@@ -321,6 +341,7 @@ export default function CandidatesPage() {
               setSearchTerm("");
               setDebouncedSearch("");
               setStatusFilter("ALL");
+              setBatchFilter("ALL");
               setCollegeFilter(undefined);
               setDepartmentFilter(undefined);
               fetchPage1();
@@ -361,11 +382,42 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      {/* KPI Cards Row */}
+      {/* KPI Cards Row with Slot Highlights */}
       <div className="candidate-kpi-grid">
-        <div className="kpi-mini-card">
+        <div 
+          className="kpi-mini-card" 
+          style={{ cursor: "pointer", border: batchFilter === "ALL" ? "2px solid #017846" : undefined }}
+          onClick={() => setBatchFilter("ALL")}
+          title="Click to view all candidates"
+        >
           <span className="kpi-mini-label">Total Registered</span>
           <span className="kpi-mini-value" style={{ color: "#017846" }}>{totalCandidates}</span>
+        </div>
+        <div 
+          className="kpi-mini-card" 
+          style={{ cursor: "pointer", border: batchFilter === "Slot 1" ? "2px solid #0284c7" : undefined }}
+          onClick={() => setBatchFilter(prev => prev === "Slot 1" ? "ALL" : "Slot 1")}
+          title="Click to filter Slot 1 (10:00 AM)"
+        >
+          <span className="kpi-mini-label" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            <Clock size={13} color="#0284c7" /> Slot 1 (10:00 AM)
+          </span>
+          <span className="kpi-mini-value" style={{ color: "#0284c7" }}>
+            {candidates.filter(c => c.batch === "Slot 1").length} <small style={{ fontSize: "11px", color: "#64748b" }}>loaded</small>
+          </span>
+        </div>
+        <div 
+          className="kpi-mini-card" 
+          style={{ cursor: "pointer", border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : undefined }}
+          onClick={() => setBatchFilter(prev => prev === "Slot 2" ? "ALL" : "Slot 2")}
+          title="Click to filter Slot 2 (2:00 PM)"
+        >
+          <span className="kpi-mini-label" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            <Clock size={13} color="#7c3aed" /> Slot 2 (2:00 PM)
+          </span>
+          <span className="kpi-mini-value" style={{ color: "#7c3aed" }}>
+            {candidates.filter(c => c.batch === "Slot 2").length} <small style={{ fontSize: "11px", color: "#64748b" }}>loaded</small>
+          </span>
         </div>
         <div className="kpi-mini-card">
           <span className="kpi-mini-label">Affiliated Colleges</span>
@@ -373,7 +425,7 @@ export default function CandidatesPage() {
         </div>
         <div className="kpi-mini-card">
           <span className="kpi-mini-label">Academic Departments</span>
-          <span className="kpi-mini-value" style={{ color: "#7c3aed" }}>{departments.length}</span>
+          <span className="kpi-mini-value" style={{ color: "#059669" }}>{departments.length}</span>
         </div>
         <div className="kpi-mini-card">
           <span className="kpi-mini-label">Records Visible</span>
@@ -391,6 +443,29 @@ export default function CandidatesPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+
+        {/* Batch / Slot Filter Dropdown */}
+        <div style={{ minWidth: "190px" }}>
+          <select
+            value={batchFilter}
+            onChange={e => setBatchFilter(e.target.value)}
+            style={{ 
+              width: "100%", 
+              padding: "8px 12px", 
+              borderRadius: "8px", 
+              border: batchFilter !== "ALL" ? "2px solid #0284c7" : "1px solid #cbd5e1", 
+              fontSize: "13px", 
+              height: "40px",
+              fontWeight: 600,
+              backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : batchFilter === "Slot 2" ? "#faf5ff" : "#fff",
+              color: batchFilter === "Slot 1" ? "#0284c7" : batchFilter === "Slot 2" ? "#7c3aed" : "#334155"
+            }}
+          >
+            <option value="ALL">🕒 All Exam Slots / Batches</option>
+            <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry)</option>
+            <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry)</option>
+          </select>
         </div>
 
         {/* College Filter Dropdown */}
@@ -492,6 +567,17 @@ export default function CandidatesPage() {
                     {renderSortIndicator("department")}
                   </div>
                 </th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("batch")}
+                  title="Sort by Exam Slot / Batch"
+                  style={{ width: "170px" }}
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    Exam Slot / Batch
+                    {renderSortIndicator("batch")}
+                  </div>
+                </th>
                 <th>Account Status</th>
               </tr>
             </thead>
@@ -505,18 +591,19 @@ export default function CandidatesPage() {
                     <td><div className="skeleton-cell" style={{ width: "200px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "140px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
+                    <td style={{ width: "170px" }}><div className="skeleton-cell" style={{ width: "130px" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
                   </tr>
                 ))
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
                     </p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                      Try adjusting your search query, college, or department filters.
+                      Try adjusting your search query, batch, college, or department filters.
                     </small>
                   </td>
                 </tr>
@@ -572,6 +659,40 @@ export default function CandidatesPage() {
                         ) : (
                           <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
                         )}
+                      </td>
+                      <td>
+                        <select
+                          value={cand.batch || ""}
+                          onChange={(e) => handleAssignSlot(cand.id, e.target.value)}
+                          title="Change candidate's scheduled slot"
+                          style={{
+                            padding: "4px 8px",
+                            borderRadius: "6px",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            outline: "none",
+                            border: cand.batch === "Slot 1" 
+                              ? "1px solid #7dd3fc" 
+                              : cand.batch === "Slot 2" 
+                                ? "1px solid #d8b4fe" 
+                                : "1px solid #cbd5e1",
+                            backgroundColor: cand.batch === "Slot 1" 
+                              ? "#f0f9ff" 
+                              : cand.batch === "Slot 2" 
+                                ? "#faf5ff" 
+                                : "#ffffff",
+                            color: cand.batch === "Slot 1" 
+                              ? "#0369a1" 
+                              : cand.batch === "Slot 2" 
+                                ? "#6b21a8" 
+                                : "#64748b"
+                          }}
+                        >
+                          <option value="">Unassigned</option>
+                          <option value="Slot 1">🕒 Slot 1 (10:00 AM)</option>
+                          <option value="Slot 2">🕒 Slot 2 (2:00 PM)</option>
+                        </select>
                       </td>
                       <td>
                         <span className={`status-pill ${getStatusClass(cand.status)}`}>
@@ -662,6 +783,19 @@ export default function CandidatesPage() {
                   {departments.map(d => (
                     <option key={d.id} value={d.id}>{d.code ? `[${d.code}] ` : ""}{d.name}</option>
                   ))}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Exam Slot / Batch *</label>
+                <select 
+                  value={newBatch} 
+                  onChange={e => setNewBatch(e.target.value)} 
+                  required 
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                >
+                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Cutoff)</option>
+                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Cutoff)</option>
+                  <option value="">Unassigned</option>
                 </select>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "10px" }}>

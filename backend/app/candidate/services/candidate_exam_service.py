@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import secrets
@@ -178,6 +179,7 @@ class CandidateExamService:
         resp.email = candidate.email
         resp.department_name = chosen_track
         resp.college_name = candidate.college.name if candidate.college else None
+        resp.batch = candidate.batch
 
         # Eager load attempt relationships
         existing_attempt = db.query(ExamAttempt).options(
@@ -188,6 +190,47 @@ class CandidateExamService:
             ExamAttempt.candidate_id == candidate.id,
             ExamAttempt.status.in_(["ASSIGNED", "IN_PROGRESS"])
         ).first()
+
+        # Automated Slot Time-Gate Verification:
+        # Batch 1 / Slot 1: Starts at 10:00 AM IST, entry cutoff at 10:30 AM IST.
+        # Batch 2 / Slot 2: Starts at 12:00 PM / 2:00 PM IST, entry cutoff 30 mins after start.
+        # Candidates already IN_PROGRESS are always permitted to resume.
+        enforce_time_gates = os.getenv("ENFORCE_SLOT_TIME_GATES", "true").lower() == "true"
+        has_active_attempt = bool(existing_attempt and existing_attempt.status == "IN_PROGRESS")
+
+        if enforce_time_gates and not has_active_attempt and candidate.batch:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            now_ist = datetime.now(timezone.utc).astimezone(IST)
+            cur_mins = now_ist.hour * 60 + now_ist.minute
+            b_lower = candidate.batch.strip().lower()
+
+            if "1" in b_lower:
+                # Slot 1 window: 10:00 AM (600 mins) to 10:30 AM (630 mins)
+                if cur_mins < 600:
+                    resp.message = "Your assessment window (Slot 1) opens at 10:00 AM IST. Please wait until 10:00 AM to enter."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > 630:
+                    resp.message = "Entry Closed: The 30-minute entry window for Slot 1 closed at 10:30 AM IST. Candidates are not permitted to enter after 10:30 AM."
+                    resp.eligible = False
+                    return resp
+
+            elif "2" in b_lower:
+                # Slot 2 window: 12:00 PM to 12:30 PM (720-750 mins) OR 2:00 PM to 2:30 PM (840-870 mins)
+                in_slot2 = (720 <= cur_mins <= 750) or (840 <= cur_mins <= 870)
+                if not in_slot2:
+                    if cur_mins < 720:
+                        resp.message = "Your assessment is scheduled for Slot 2 (12:00 PM / 2:00 PM IST). Please return at your scheduled slot time."
+                        resp.eligible = False
+                        return resp
+                    elif 750 < cur_mins < 840:
+                        resp.message = "Slot 2 next entry window opens at 2:00 PM IST (Cutoff 2:30 PM). Please wait for your slot to begin."
+                        resp.eligible = False
+                        return resp
+                    elif cur_mins > 870:
+                        resp.message = "Entry Closed: The 30-minute entry window for Slot 2 has closed. Candidates are not permitted to enter after the cutoff."
+                        resp.eligible = False
+                        return resp
 
         # Only reuse existing attempt if its exam is currently active/published
         if existing_attempt and existing_attempt.exam and existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED"):
