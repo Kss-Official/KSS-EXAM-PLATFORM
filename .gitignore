@@ -84,3 +84,7 @@ Thumbs.db
 # JMeter Test Suite & Reports
 jmeter_tests/
 *.jtl
+
+# Scratch scripts
+scratch/
+

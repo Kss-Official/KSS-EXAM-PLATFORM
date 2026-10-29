@@ -320,38 +320,52 @@ class CandidateService:
                 try:
                     import pymupdf
                 except ImportError:
-                    import fitz as pymupdf
-                doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
-                for page in doc:
-                    tables = page.find_tables()
-                    if tables and tables.tables:
-                        for t in tables:
-                            for row in t.extract():
-                                if any(row):
-                                    rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
-                    else:
-                        # Fallback: cluster words by vertical y0 coordinate with 3.0pt tolerance
-                        words = page.get_text("words")
-                        if words:
-                            words.sort(key=lambda w: (w[1], w[0]))
-                            curr_line = []
-                            curr_y = None
-                            for w in words:
-                                y = w[1]
-                                if curr_y is None or abs(y - curr_y) > 3.0:
-                                    if curr_line:
-                                        rows.append([" ".join([x[4] for x in curr_line])])
-                                    curr_line = [w]
-                                    curr_y = y
-                                else:
-                                    curr_line.append(w)
-                            if curr_line:
-                                rows.append([" ".join([x[4] for x in curr_line])])
+                    try:
+                        import fitz as pymupdf
+                    except ImportError:
+                        pymupdf = None
+
+                if pymupdf is not None:
+                    doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
+                    for page in doc:
+                        tables = page.find_tables()
+                        if tables and tables.tables:
+                            for t in tables:
+                                for row in t.extract():
+                                    if any(row):
+                                        rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
                         else:
-                            for line in page.get_text("text").splitlines():
+                            # Fallback: cluster words by vertical y0 coordinate with 3.0pt tolerance
+                            words = page.get_text("words")
+                            if words:
+                                words.sort(key=lambda w: (w[1], w[0]))
+                                curr_line = []
+                                curr_y = None
+                                for w in words:
+                                    y = w[1]
+                                    if curr_y is None or abs(y - curr_y) > 3.0:
+                                        if curr_line:
+                                            rows.append([" ".join([x[4] for x in curr_line])])
+                                        curr_line = [w]
+                                        curr_y = y
+                                    else:
+                                        curr_line.append(w)
+                                if curr_line:
+                                    rows.append([" ".join([x[4] for x in curr_line])])
+                            else:
+                                for line in page.get_text("text").splitlines():
+                                    if line.strip():
+                                        rows.append([line.strip()])
+                    doc.close()
+                else:
+                    import pypdf
+                    reader = pypdf.PdfReader(io.BytesIO(content))
+                    for page in reader.pages:
+                        text = page.extract_text()
+                        if text:
+                            for line in text.splitlines():
                                 if line.strip():
                                     rows.append([line.strip()])
-                doc.close()
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse PDF document: {e}")
         else:

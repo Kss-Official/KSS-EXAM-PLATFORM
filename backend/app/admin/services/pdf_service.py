@@ -8,7 +8,16 @@ from decimal import Decimal
 try:
     import pymupdf
 except ImportError:
-    import fitz as pymupdf
+    try:
+        import fitz as pymupdf
+    except ImportError:
+        pymupdf = None
+
+try:
+    import pypdf
+except ImportError:
+    pypdf = None
+
 try:
     import docx
 except ImportError:
@@ -27,9 +36,53 @@ PARSE_TIMEOUT_SECONDS = 25.0  # 25s execution timeout bound
 _pdf_semaphore = asyncio.Semaphore(2)
 
 
+def _extract_text_from_pdf_stream(pdf_bytes: bytes, filename: str = "document.pdf") -> str:
+    """
+    Unified extraction helper supporting both PyMuPDF (fast binary) and pypdf (pure Python).
+    Handles encrypted files, extracts page text in order, and cleans whitespace.
+    """
+    if pymupdf is not None:
+        with pymupdf.open(stream=io.BytesIO(pdf_bytes), filetype="pdf") as document:
+            if document.is_encrypted:
+                raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
+            page_texts = []
+            for page in document:
+                text = page.get_text("text", sort=True)
+                if text and text.strip():
+                    cleaned = (
+                        text.replace("\xa0", " ")
+                        .replace("\u201c", '"')
+                        .replace("\u201d", '"')
+                        .replace("\u2019", "'")
+                    )
+                    if cleaned.strip():
+                        page_texts.append(cleaned.strip())
+            return "\n\n".join(page_texts).strip()
+
+    if pypdf is not None:
+        reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+        if reader.is_encrypted:
+            raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
+        page_texts = []
+        for page in reader.pages:
+            text = page.extract_text() or ""
+            if text and text.strip():
+                cleaned = (
+                    text.replace("\xa0", " ")
+                    .replace("\u201c", '"')
+                    .replace("\u201d", '"')
+                    .replace("\u2019", "'")
+                )
+                if cleaned.strip():
+                    page_texts.append(cleaned.strip())
+        return "\n\n".join(page_texts).strip()
+
+    raise ValueError("PDF parsing library (pypdf or pymupdf) is not installed on this environment.")
+
+
 def extract_pdf_text(pdf_bytes: bytes) -> str:
     """
-    Core extraction function using PyMuPDF.
+    Core extraction function using PyMuPDF or pypdf.
     Extracts text from every page in the correct order, preserves meaningful line breaks,
     handles empty pages without crashing, and raises descriptive ValueErrors for invalid/encrypted/scanned files.
     """
@@ -41,38 +94,13 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
         raise ValueError("The uploaded file is not a valid PDF document (missing %PDF- header).")
 
     try:
-        with pymupdf.open(
-            stream=io.BytesIO(pdf_bytes),
-            filetype="pdf",
-        ) as document:
-            if document.is_encrypted:
-                raise ValueError("Password-protected PDFs are not supported.")
-
-            page_texts = []
-
-            for page_number, page in enumerate(document, start=1):
-                text = page.get_text("text", sort=True)
-
-                if text and text.strip():
-                    cleaned = (
-                        text.replace("\xa0", " ")
-                        .replace("\u201c", '"')
-                        .replace("\u201d", '"')
-                        .replace("\u2019", "'")
-                    )
-                    if cleaned.strip():
-                        page_texts.append(cleaned.strip())
-
-            extracted_text = "\n\n".join(page_texts).strip()
-
-            if not extracted_text:
-                raise ValueError(
-                    "No selectable text was found in the PDF. "
-                    "The file may contain scanned images or require OCR preprocessing."
-                )
-
-            return extracted_text
-
+        extracted_text = _extract_text_from_pdf_stream(pdf_bytes, "document.pdf")
+        if not extracted_text:
+            raise ValueError(
+                "No selectable text was found in the PDF. "
+                "The file may contain scanned images or require OCR preprocessing."
+            )
+        return extracted_text
     except ValueError:
         raise
     except Exception as exc:
@@ -132,34 +160,14 @@ class InMemoryPdfService:
             raise ValueError(f"File '{filename}' is not a valid PDF document (missing %PDF- header).")
 
         try:
-            with pymupdf.open(
-                stream=io.BytesIO(pdf_bytes),
-                filetype="pdf",
-            ) as document:
-                if document.is_encrypted:
-                    raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
+            extracted_text = _extract_text_from_pdf_stream(pdf_bytes, filename)
+            if not extracted_text:
+                raise ValueError(
+                    f"No selectable text was found in '{filename}'. "
+                    "The file may contain scanned images or require OCR preprocessing."
+                )
 
-                page_texts = []
-                for page in document:
-                    text = page.get_text("text", sort=True)
-                    if text and text.strip():
-                        cleaned = (
-                            text.replace("\xa0", " ")
-                            .replace("\u201c", '"')
-                            .replace("\u201d", '"')
-                            .replace("\u2019", "'")
-                        )
-                        if cleaned.strip():
-                            page_texts.append(cleaned.strip())
-
-                extracted_text = "\n\n".join(page_texts).strip()
-                if not extracted_text:
-                    raise ValueError(
-                        f"No selectable text was found in '{filename}'. "
-                        "The file may contain scanned images or require OCR preprocessing."
-                    )
-
-                return extracted_text
+            return extracted_text
         except ValueError:
             raise
         except Exception as exc:
@@ -368,16 +376,17 @@ class InMemoryPdfService:
         # Format 5: PDF (.pdf)
         table_rows = []
         try:
-            with pymupdf.open(stream=io.BytesIO(content), filetype="pdf") as doc:
-                if doc.is_encrypted:
-                    raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
-                for page in doc:
-                    tabs = page.find_tables()
-                    if tabs and tabs.tables:
-                        for t in tabs:
-                            for r in t.extract():
-                                if any(r):
-                                    table_rows.append([str(c or "").strip() for c in r])
+            if pymupdf is not None:
+                with pymupdf.open(stream=io.BytesIO(content), filetype="pdf") as doc:
+                    if doc.is_encrypted:
+                        raise ValueError(f"File '{filename}' is password-protected. Encrypted PDFs are not supported.")
+                    for page in doc:
+                        tabs = page.find_tables()
+                        if tabs and tabs.tables:
+                            for t in tabs:
+                                for r in t.extract():
+                                    if any(r):
+                                        table_rows.append([str(c or "").strip() for c in r])
         except Exception:
             pass
 
