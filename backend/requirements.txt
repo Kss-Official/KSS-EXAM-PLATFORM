@@ -8,5 +8,4 @@ pydantic>=2.10.0
 pydantic-settings>=2.7.0
 bcrypt>=4.2.1
 python-multipart>=0.0.20
-pymupdf>=1.25.0
 openpyxl>=3.1.2
