@@ -84,11 +84,10 @@ export default function CandidatesPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Global Slot Counts for high-level statistics
-  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number; slot3: number }>({
+  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
     total: 842,
     slot1: 421,
-    slot2: 421,
-    slot3: 393
+    slot2: 421
   });
 
   // Multi-select state for bulk actions
@@ -115,17 +114,15 @@ export default function CandidatesPage() {
   const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
     try {
       const dParam = activeDate !== "ALL" ? activeDate : undefined;
-      const [allRes, s1Res, s2Res, s3Res] = await Promise.all([
+      const [allRes, s1Res, s2Res] = await Promise.all([
         getCandidates({ limit: 1, date: dParam }),
         getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 2", date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 3 (4:00 PM)", date: dParam })
+        getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
       ]);
       setSlotCounts({
         total: allRes.total,
         slot1: s1Res.total,
-        slot2: s2Res.total,
-        slot3: s3Res.total
+        slot2: s2Res.total
       });
     } catch {
       // ignore
@@ -459,6 +456,18 @@ export default function CandidatesPage() {
     }
   };
 
+  // Dynamic slot titles and timings based on selected date
+  const isTomorrowView = selectedDate === "2026-10-31" || selectedDate.includes("31");
+  const isTodayView = selectedDate === "2026-10-30" || selectedDate.includes("30");
+
+  const slot1Header = isTomorrowView ? "Slot 1 • 11:00 AM" : isTodayView ? "Slot 1 • 10:00 AM" : "Slot 1 (Morning)";
+  const slot1Sub = isTomorrowView ? "Entry: 11:00 – 11:30 AM IST" : isTodayView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:00 AM";
+  const slot1Btn = isTomorrowView ? "Slot 1 (11:00 AM)" : isTodayView ? "Slot 1 (10:00 AM)" : "Slot 1";
+
+  const slot2Header = isTomorrowView ? "Slot 2 • 4:00 PM" : isTodayView ? "Slot 2 • 2:00 PM" : "Slot 2 (Afternoon)";
+  const slot2Sub = isTomorrowView ? "Entry: 4:00 – 4:30 PM IST" : isTodayView ? "Entry: 2:00 – 2:30 PM IST" : "2:00 PM / 4:00 PM";
+  const slot2Btn = isTomorrowView ? "Slot 2 (4:00 PM)" : isTodayView ? "Slot 2 (2:00 PM)" : "Slot 2";
+
   return (
     <div className="admin-page">
       <style>{`
@@ -581,9 +590,9 @@ export default function CandidatesPage() {
           title="Click to filter Slot 1 (10:00 AM)"
         >
           <div className="stat-card-info">
-            <small style={{ color: "#0284c7" }}>Slot 1 • 10:00 AM</small>
+            <small style={{ color: "#0284c7" }}>{slot1Header}</small>
             <div className="stat-card-value" style={{ color: "#0284c7" }}>{slotCounts.slot1}</div>
-            <span className="stat-card-sub">Entry: 10:00 – 10:30 AM IST</span>
+            <span className="stat-card-sub">{slot1Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#e0f2fe", color: "#0284c7" }}>
             <Clock size={22} />
@@ -601,9 +610,9 @@ export default function CandidatesPage() {
           title="Click to filter Slot 2 (2:00 PM)"
         >
           <div className="stat-card-info">
-            <small style={{ color: "#7c3aed" }}>Slot 2 • 2:00 PM</small>
+            <small style={{ color: "#7c3aed" }}>{slot2Header}</small>
             <div className="stat-card-value" style={{ color: "#7c3aed" }}>{slotCounts.slot2}</div>
-            <span className="stat-card-sub">Entry: 2:00 – 2:30 PM IST</span>
+            <span className="stat-card-sub">{slot2Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#f3e8ff", color: "#7c3aed" }}>
             <Clock size={22} />
@@ -848,7 +857,7 @@ export default function CandidatesPage() {
             }}
           >
             <Clock size={14} />
-            Slot 1 (10:00 AM)
+            {slot1Btn}
             <span style={{
               background: batchFilter === "Slot 1" ? "rgba(255,255,255,0.25)" : "#e0f2fe",
               color: batchFilter === "Slot 1" ? "#fff" : "#0369a1",
@@ -880,7 +889,7 @@ export default function CandidatesPage() {
             }}
           >
             <Clock size={14} />
-            Slot 2 (2:00 PM)
+            {slot2Btn}
             <span style={{
               background: batchFilter === "Slot 2" ? "rgba(255,255,255,0.25)" : "#f3e8ff",
               color: batchFilter === "Slot 2" ? "#fff" : "#6b21a8",
@@ -890,38 +899,6 @@ export default function CandidatesPage() {
               fontWeight: 700
             }}>
               {slotCounts.slot2}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setBatchFilter("Slot 3 (4:00 PM)")}
-            style={{
-              padding: "7px 14px",
-              borderRadius: "8px",
-              fontSize: "13px",
-              fontWeight: 600,
-              cursor: "pointer",
-              border: batchFilter === "Slot 3 (4:00 PM)" ? "2px solid #d97706" : "1px solid #cbd5e1",
-              backgroundColor: batchFilter === "Slot 3 (4:00 PM)" ? "#d97706" : "#f8fafc",
-              color: batchFilter === "Slot 3 (4:00 PM)" ? "#ffffff" : "#475569",
-              transition: "all 0.15s ease",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-          >
-            <Clock size={14} />
-            Slot 3 (4:00 PM)
-            <span style={{
-              background: batchFilter === "Slot 3 (4:00 PM)" ? "rgba(255,255,255,0.25)" : "#fef3c7",
-              color: batchFilter === "Slot 3 (4:00 PM)" ? "#fff" : "#b45309",
-              borderRadius: "12px",
-              padding: "1px 7px",
-              fontSize: "11.5px",
-              fontWeight: 700
-            }}>
-              {slotCounts.slot3}
             </span>
           </button>
         </div>

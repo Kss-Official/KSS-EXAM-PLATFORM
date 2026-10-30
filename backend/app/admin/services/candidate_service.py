@@ -173,8 +173,12 @@ class CandidateService:
             b_clean = batch.strip()
             if b_clean.upper() == "UNASSIGNED":
                 query = query.filter(or_(Candidate.batch == None, Candidate.batch == ""))
+            elif b_clean == "Slot 1":
+                query = query.filter(or_(Candidate.batch == "Slot 1", Candidate.batch.ilike("%Slot 1%")))
+            elif b_clean == "Slot 2":
+                query = query.filter(or_(Candidate.batch == "Slot 2", Candidate.batch.ilike("%Slot 2%")))
             else:
-                query = query.filter(Candidate.batch == b_clean)
+                query = query.filter(or_(Candidate.batch == b_clean, Candidate.batch.ilike(f"%{b_clean}%")))
 
         # 3c. Server-side Date filter (e.g. '2026-10-31', '2026-10-30', 'ALL')
         if date and date.strip() and date.strip().upper() != "ALL":

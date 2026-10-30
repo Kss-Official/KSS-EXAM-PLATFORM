@@ -251,42 +251,39 @@ class CandidateExamService:
                         resp.eligible = False
                         return resp
                 # Eligible: allow through
+            # Slot 1 window: 11:00 AM on Oct 31 (Karnataka batch), 10:00 AM on Oct 30 (LPU batch)
             elif "1" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                # Slot 1 window: 10:00 AM (600 mins) to 10:30 AM (630 mins)
-                if cur_mins < 600:
-                    resp.message = "Your assessment window (Slot 1) opens at 10:00 AM IST. Please wait until 10:00 AM to enter."
+                is_11am = "11:00" in b_lower or "11am" in b_lower or (candidate.exam_date == "2026-10-31")
+                start_min = 660 if is_11am else 600
+                cutoff_min = 690 if is_11am else 630
+                time_label = "11:00 AM" if is_11am else "10:00 AM"
+                cutoff_label = "11:30 AM" if is_11am else "10:30 AM"
+
+                if cur_mins < start_min:
+                    resp.message = f"Your assessment window (Slot 1) opens at {time_label} IST. Please wait until {time_label} to enter."
                     resp.eligible = False
                     return resp
-                elif cur_mins > 630:
-                    resp.message = "Entry Closed: The 30-minute entry window for Slot 1 closed at 10:30 AM IST. Candidates are not permitted to enter after 10:30 AM."
+                elif cur_mins > cutoff_min:
+                    resp.message = f"Entry Closed: The 30-minute entry window for Slot 1 closed at {cutoff_label} IST. Candidates are not permitted to enter after {cutoff_label}."
                     resp.eligible = False
                     return resp
 
-            elif ("3" in b_lower or "4:00" in b_lower or "4pm" in b_lower) and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                # Slot 3 window: Strictly 4:00 PM to 4:30 PM IST (960 to 990 mins)
-                in_slot3 = 960 <= cur_mins <= 990
-                if not in_slot3:
-                    if cur_mins < 960:
-                        resp.message = "Slot 3 entry opens at 4:00 PM IST (Cutoff 4:30 PM). Please wait until 4:00 PM to enter your assessment."
-                        resp.eligible = False
-                        return resp
-                    elif cur_mins > 990:
-                        resp.message = "Entry Closed: The 30-minute entry window for Slot 3 closed at 4:30 PM IST. Candidates are not permitted to enter after the cutoff."
-                        resp.eligible = False
-                        return resp
+            # Slot 2 window: 4:00 PM on Oct 31 (Rescheduled LPU batch), 2:00 PM on Oct 30 (LPU batch)
+            elif ("2" in b_lower or "3" in b_lower or "4:00" in b_lower or "4pm" in b_lower) and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
+                is_4pm = "4:00" in b_lower or "4pm" in b_lower or (candidate.exam_date == "2026-10-31")
+                start_min = 960 if is_4pm else 840
+                cutoff_min = 990 if is_4pm else 870
+                time_label = "4:00 PM" if is_4pm else "2:00 PM"
+                cutoff_label = "4:30 PM" if is_4pm else "2:30 PM"
 
-            elif "2" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                # Slot 2 window: Strictly 2:00 PM to 2:30 PM IST (840 to 870 mins)
-                in_slot2 = 840 <= cur_mins <= 870
-                if not in_slot2:
-                    if cur_mins < 840:
-                        resp.message = "Slot 2 entry opens at 2:00 PM IST (Cutoff 2:30 PM). Please wait until 2:00 PM to enter your assessment."
-                        resp.eligible = False
-                        return resp
-                    elif cur_mins > 870:
-                        resp.message = "Entry Closed: The 30-minute entry window for Slot 2 closed at 2:30 PM IST. Candidates are not permitted to enter after the cutoff."
-                        resp.eligible = False
-                        return resp
+                if cur_mins < start_min:
+                    resp.message = f"Slot 2 entry opens at {time_label} IST (Cutoff {cutoff_label}). Please wait until {time_label} to enter your assessment."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > cutoff_min:
+                    resp.message = f"Entry Closed: The 30-minute entry window for Slot 2 closed at {cutoff_label} IST. Candidates are not permitted to enter after the cutoff."
+                    resp.eligible = False
+                    return resp
 
         # Only reuse existing attempt if its exam is currently active/published
         if existing_attempt and existing_attempt.exam and existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED"):
