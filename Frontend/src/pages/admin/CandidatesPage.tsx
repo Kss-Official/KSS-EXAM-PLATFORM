@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { 
   Search, 
   FileText,
@@ -38,6 +38,61 @@ import {
 
 const PAGE_SIZE = 30;
 
+const getTodayIstString = (): string => {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
+const getYesterdayIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const getTomorrowIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const formatDateShort = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    const [y, m, d] = dStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  } catch {
+    return dStr;
+  }
+};
+
+const formatDateYear = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    return dStr.slice(0, 4);
+  } catch {
+    return "";
+  }
+};
+
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateDto[]>([]);
   const [totalCandidates, setTotalCandidates] = useState<number>(0);
@@ -53,8 +108,12 @@ export default function CandidatesPage() {
   const [batchFilter, setBatchFilter] = useState<string>("ALL");
   const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
   const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
-  // Day-wise candidate filter state (default to tomorrow's exam '2026-10-31')
-  const [selectedDate, setSelectedDate] = useState<string>("2026-10-31");
+  const todayIst = useMemo(() => getTodayIstString(), []);
+  const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
+  const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
+
+  // Day-wise candidate filter state (defaults to today's date dynamically)
+  const [selectedDate, setSelectedDate] = useState<string>(todayIst);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [customDatePicker, setCustomDatePicker] = useState<string>("");
   const [dateCounts, setDateCounts] = useState<{ [d: string]: number }>({});
@@ -134,8 +193,9 @@ export default function CandidatesPage() {
       const dates = await getAvailableCandidateDates();
       setAvailableDates(dates);
       const counts: { [d: string]: number } = {};
+      const datesToFetch = Array.from(new Set([...dates, todayIst, yesterdayIst, tomorrowIst]));
       await Promise.all(
-        dates.map(async (d) => {
+        datesToFetch.map(async (d) => {
           try {
             const r = await getCandidates({ limit: 1, date: d });
             counts[d] = r.total;
@@ -144,11 +204,15 @@ export default function CandidatesPage() {
           }
         })
       );
+      try {
+        const allR = await getCandidates({ limit: 1 });
+        counts["ALL"] = allR.total;
+      } catch {}
       setDateCounts(counts);
     } catch {
       // ignore
     }
-  }, []);
+  }, [todayIst, yesterdayIst, tomorrowIst]);
 
   // Fetch both Colleges and Academic Departments from their separate tables
   useEffect(() => {
@@ -655,65 +719,99 @@ export default function CandidatesPage() {
             </span>
           </div>
 
+          {/* Today Button */}
           <button
             type="button"
-            onClick={() => { setSelectedDate("2026-10-31"); setCustomDatePicker(""); }}
+            onClick={() => { setSelectedDate(todayIst); setCustomDatePicker(""); }}
             style={{
               padding: "7px 14px",
               borderRadius: "8px",
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: selectedDate === "2026-10-31" ? "2px solid #017846" : "1px solid #cbd5e1",
-              backgroundColor: selectedDate === "2026-10-31" ? "#017846" : "#f8fafc",
-              color: selectedDate === "2026-10-31" ? "#ffffff" : "#334155",
+              border: selectedDate === todayIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === todayIst ? "#017846" : "#f8fafc",
+              color: selectedDate === todayIst ? "#ffffff" : "#334155",
               transition: "all 0.15s ease",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <span>Tomorrow (31 Oct 2026)</span>
+            <span>Today ({formatDateShort(todayIst)} {formatDateYear(todayIst)})</span>
             <span style={{
-              background: selectedDate === "2026-10-31" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
-              color: selectedDate === "2026-10-31" ? "#fff" : "#475569",
+              background: selectedDate === todayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === todayIst ? "#fff" : "#475569",
               borderRadius: "12px",
               padding: "1px 7px",
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts["2026-10-31"] ?? 282}
+              {dateCounts[todayIst] ?? (selectedDate === todayIst ? totalCandidates : 675)}
             </span>
           </button>
 
+          {/* Yesterday Button */}
           <button
             type="button"
-            onClick={() => { setSelectedDate("2026-10-30"); setCustomDatePicker(""); }}
+            onClick={() => { setSelectedDate(yesterdayIst); setCustomDatePicker(""); }}
             style={{
               padding: "7px 14px",
               borderRadius: "8px",
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: selectedDate === "2026-10-30" ? "2px solid #0284c7" : "1px solid #cbd5e1",
-              backgroundColor: selectedDate === "2026-10-30" ? "#0284c7" : "#f8fafc",
-              color: selectedDate === "2026-10-30" ? "#ffffff" : "#334155",
+              border: selectedDate === yesterdayIst ? "2px solid #0284c7" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === yesterdayIst ? "#0284c7" : "#f8fafc",
+              color: selectedDate === yesterdayIst ? "#ffffff" : "#334155",
               transition: "all 0.15s ease",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"
             }}
           >
-            <span>Today (30 Oct 2026)</span>
+            <span>Yesterday ({formatDateShort(yesterdayIst)} {formatDateYear(yesterdayIst)})</span>
             <span style={{
-              background: selectedDate === "2026-10-30" ? "rgba(255,255,255,0.25)" : "#e0f2fe",
-              color: selectedDate === "2026-10-30" ? "#fff" : "#0369a1",
+              background: selectedDate === yesterdayIst ? "rgba(255,255,255,0.25)" : "#e0f2fe",
+              color: selectedDate === yesterdayIst ? "#fff" : "#0369a1",
               borderRadius: "12px",
               padding: "1px 7px",
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts["2026-10-30"] ?? 856}
+              {dateCounts[yesterdayIst] ?? 463}
+            </span>
+          </button>
+
+          {/* Tomorrow Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(tomorrowIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === tomorrowIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === tomorrowIst ? "#017846" : "#f8fafc",
+              color: selectedDate === tomorrowIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Tomorrow ({formatDateShort(tomorrowIst)} {formatDateYear(tomorrowIst)})</span>
+            <span style={{
+              background: selectedDate === tomorrowIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === tomorrowIst ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[tomorrowIst] ?? 0}
             </span>
           </button>
 
@@ -744,7 +842,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              1,138
+              {dateCounts["ALL"] ?? (totalCandidates || 1138)}
             </span>
           </button>
 
@@ -782,7 +880,15 @@ export default function CandidatesPage() {
             fontSize: "12px",
             border: "1px solid #a7f3d0"
           }}>
-            {selectedDate === "ALL" ? "All Dates" : selectedDate === "2026-10-31" ? "Tomorrow (31 Oct 2026)" : selectedDate === "2026-10-30" ? "Today (30 Oct 2026)" : selectedDate}
+            {selectedDate === "ALL" 
+              ? "All Dates Combined" 
+              : selectedDate === todayIst 
+              ? `Today (${formatDateShort(todayIst)} ${formatDateYear(todayIst)})` 
+              : selectedDate === yesterdayIst 
+              ? `Yesterday (${formatDateShort(yesterdayIst)} ${formatDateYear(yesterdayIst)})` 
+              : selectedDate === tomorrowIst 
+              ? `Tomorrow (${formatDateShort(tomorrowIst)} ${formatDateYear(tomorrowIst)})` 
+              : selectedDate}
           </span>
         </div>
       </div>

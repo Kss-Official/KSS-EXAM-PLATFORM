@@ -60,6 +60,17 @@ const getYesterdayIstString = (todayStr: string): string => {
   }
 };
 
+const getTomorrowIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
 const formatDateShort = (dStr: string): string => {
   if (!dStr || dStr === "ALL") return "";
   try {
@@ -71,13 +82,16 @@ const formatDateShort = (dStr: string): string => {
   }
 };
 
-const formatDateLabel = (dStr: string, todayStr: string, yesterdayStr: string): string => {
+const formatDateLabel = (dStr: string, todayStr: string, yesterdayStr: string, tomorrowStr?: string): string => {
   if (dStr === "ALL") return "All Dates Combined";
   if (dStr === todayStr) {
     return `Today (${formatDateShort(todayStr)} ${todayStr.slice(0, 4)})`;
   }
   if (dStr === yesterdayStr) {
     return `Yesterday (${formatDateShort(yesterdayStr)} ${yesterdayStr.slice(0, 4)})`;
+  }
+  if (tomorrowStr && dStr === tomorrowStr) {
+    return `Tomorrow (${formatDateShort(tomorrowStr)} ${tomorrowStr.slice(0, 4)})`;
   }
   try {
     const [y, m, d] = dStr.split("-").map(Number);
@@ -102,6 +116,7 @@ const formatDisplayDate = (dStr: string | undefined): string => {
 export default function ResultsPage() {
   const todayIst = useMemo(() => getTodayIstString(), []);
   const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
+  const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
 
   const [exams, setExams] = useState<ExamDto[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<number | undefined>(undefined);
@@ -112,6 +127,8 @@ export default function ResultsPage() {
   const [selectedDate, setSelectedDate] = useState<string>(todayIst); // Default to today's date
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [todayAttemptCount, setTodayAttemptCount] = useState<number | undefined>(undefined);
+  const [yesterdayAttemptCount, setYesterdayAttemptCount] = useState<number | undefined>(undefined);
+  const [tomorrowAttemptCount, setTomorrowAttemptCount] = useState<number | undefined>(undefined);
   
   // Slot & Criteria Filter States
   const [slotFilter, setSlotFilter] = useState<SlotFilterType>("Slot 1"); // Default to Slot 1 as requested
@@ -142,6 +159,8 @@ export default function ResultsPage() {
       if (dates && dates.length > 0) {
         setAvailableDates(dates);
       }
+      getAllResults(undefined, yesterdayIst).then(d => setYesterdayAttemptCount(d.length)).catch(() => {});
+      getAllResults(undefined, tomorrowIst).then(d => setTomorrowAttemptCount(d.length)).catch(() => {});
     } catch (e) {
       console.warn("Could not load available dates:", e);
     }
@@ -230,25 +249,15 @@ export default function ResultsPage() {
     const titleLower = (r.examTitle || "").toLowerCase().trim();
     const batchLower = (r.candidateBatch || "").toLowerCase().trim();
 
-    // Independent / Mock / Test exams never belong to Slot 1 or Slot 2
-    if (
-      r.examId === 97 ||
-      r.examId === 100 ||
-      r.examId === 101 ||
-      r.examId === 102 ||
-      r.examId === 103 ||
-      titleLower.includes("sample") ||
-      titleLower.includes("mock")
-    ) {
-      return "OTHER";
-    }
-
     // Explicit Slot 1 check
     if (
       r.slotNumber === 1 ||
       r.examId === 98 ||
+      batchLower.includes("slot 1") ||
+      batchLower.includes("11:00") ||
+      batchLower.includes("10:00") ||
       titleLower.includes("slot 1") ||
-      batchLower === "slot 1"
+      (r.examId === 102 && !batchLower.includes("slot 2"))
     ) {
       return "Slot 1";
     }
@@ -257,11 +266,24 @@ export default function ResultsPage() {
     if (
       r.slotNumber === 2 ||
       r.examId === 99 ||
+      batchLower.includes("slot 2") ||
+      batchLower.includes("4:00") ||
+      batchLower.includes("4pm") ||
+      batchLower.includes("2:00") ||
+      batchLower.includes("2pm") ||
       titleLower.includes("slot @") ||
-      titleLower.includes("slot 2") ||
-      batchLower === "slot 2"
+      titleLower.includes("slot 2")
     ) {
       return "Slot 2";
+    }
+
+    // Independent Mock / Demo exams without any slot designation
+    if (
+      r.examId === 100 ||
+      titleLower.includes("sample") ||
+      titleLower.includes("mock")
+    ) {
+      return "OTHER";
     }
 
     // Explicit Slot 3 (4:00 PM) check
@@ -293,6 +315,24 @@ export default function ResultsPage() {
     slot3: slot3Candidates.length,
     other: otherCandidates.length,
   }), [results, slot1Candidates, slot2Candidates, slot3Candidates, otherCandidates]);
+
+  const is31Oct = selectedDate === "2026-10-31" || selectedDate.includes("31");
+  const is30Oct = selectedDate === "2026-10-30" || selectedDate.includes("30");
+
+  const slot1TabLabel = is31Oct ? "Slot 1 (11:00 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)";
+  const slot2TabLabel = is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)";
+
+  const slot1StatusTitle = is31Oct 
+    ? "Slot 1 Exam: Scheduled (11:00 AM – 12:00 PM)" 
+    : is30Oct 
+    ? "Slot 1 Exam: Completed (10:00 AM – 11:00 AM)" 
+    : "Slot 1 Examination";
+
+  const slot2StatusTitle = is31Oct 
+    ? "Slot 2 Exam: Scheduled (04:00 PM – 05:00 PM)" 
+    : is30Oct 
+    ? "Slot 2 Exam: Completed (02:00 PM – 03:00 PM)" 
+    : "Slot 2 Examination";
 
   // Compute dynamic pool based on selected slot or selected exam
   const activeSlotPool = useMemo(() => {
@@ -477,7 +517,7 @@ export default function ResultsPage() {
       month: "short",
       year: "numeric"
     });
-    const examDateLabel = formatDateLabel(selectedDate, todayIst, yesterdayIst);
+    const examDateLabel = formatDateLabel(selectedDate, todayIst, yesterdayIst, tomorrowIst);
 
     const html = `
       <!DOCTYPE html>
@@ -589,7 +629,7 @@ export default function ResultsPage() {
       month: "short",
       year: "numeric"
     });
-    const examDateLabel = formatDateLabel(selectedDate, todayIst, yesterdayIst);
+    const examDateLabel = formatDateLabel(selectedDate, todayIst, yesterdayIst, tomorrowIst);
 
     const docContent = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -793,10 +833,57 @@ export default function ResultsPage() {
                 }}
               >
                 <span>Yesterday ({formatDateShort(yesterdayIst)})</span>
+                {yesterdayAttemptCount !== undefined && (
+                  <span style={{
+                    background: selectedDate === yesterdayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+                    color: selectedDate === yesterdayIst ? "#ffffff" : "#017846",
+                    padding: "1px 7px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 800
+                  }}>
+                    {yesterdayAttemptCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Tomorrow Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedDate(tomorrowIst)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: selectedDate === tomorrowIst ? "#017846" : "transparent",
+                  color: selectedDate === tomorrowIst ? "#ffffff" : "#475569",
+                  boxShadow: selectedDate === tomorrowIst ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>Tomorrow ({formatDateShort(tomorrowIst)})</span>
+                {tomorrowAttemptCount !== undefined && (
+                  <span style={{
+                    background: selectedDate === tomorrowIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+                    color: selectedDate === tomorrowIst ? "#ffffff" : "#017846",
+                    padding: "1px 7px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 800
+                  }}>
+                    {tomorrowAttemptCount}
+                  </span>
+                )}
               </button>
 
               {/* Other distinct dates from DB */}
-              {availableDates.filter(d => d !== todayIst && d !== yesterdayIst).map(d => (
+              {availableDates.filter(d => d !== todayIst && d !== yesterdayIst && d !== tomorrowIst).map(d => (
                 <button
                   key={d}
                   type="button"
@@ -851,7 +938,7 @@ export default function ResultsPage() {
               <input
                 type="date"
                 value={selectedDate === "ALL" ? "" : selectedDate}
-                max={todayIst}
+                
                 onChange={(e) => {
                   if (e.target.value) {
                     setSelectedDate(e.target.value);
@@ -886,7 +973,7 @@ export default function ResultsPage() {
             fontWeight: 600
           }}>
             <CalendarDays size={14} color={selectedDate === todayIst ? "#017846" : "#64748b"} />
-            <span>Active Date: <strong>{formatDateLabel(selectedDate, todayIst, yesterdayIst)}</strong></span>
+            <span>Active Date: <strong>{formatDateLabel(selectedDate, todayIst, yesterdayIst, tomorrowIst)}</strong></span>
           </div>
         </div>
 
@@ -921,7 +1008,7 @@ export default function ResultsPage() {
                   transition: "all 0.15s ease"
                 }}
               >
-                <span>Slot 1 (10:00 AM)</span>
+                <span>{slot1TabLabel}</span>
                 <span style={{
                   background: slotFilter === "Slot 1" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
                   color: slotFilter === "Slot 1" ? "#ffffff" : "#0369a1",
@@ -954,7 +1041,7 @@ export default function ResultsPage() {
                   transition: "all 0.15s ease"
                 }}
               >
-                <span>Slot 2 (02:00 PM)</span>
+                <span>{slot2TabLabel}</span>
                 <span style={{
                   background: slotFilter === "Slot 2" ? "rgba(255,255,255,0.25)" : "#f3e8ff",
                   color: slotFilter === "Slot 2" ? "#ffffff" : "#7c3aed",
@@ -1454,7 +1541,7 @@ export default function ResultsPage() {
             <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
               <span>Export Candidates ({exportCandidates.length})</span>
               <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
-                from <strong>{getSlotExportTitle()}</strong> &bull; {formatDateLabel(selectedDate, todayIst, yesterdayIst)}
+                from <strong>{getSlotExportTitle()}</strong> &bull; {formatDateLabel(selectedDate, todayIst, yesterdayIst, tomorrowIst)}
               </span>
             </div>
             <div style={{ fontSize: "11.5px", color: "#64748b" }}>
@@ -1603,7 +1690,7 @@ export default function ResultsPage() {
                     <BarChart3 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       {results.length === 0 
-                        ? `No examination attempts recorded for ${formatDateLabel(selectedDate, todayIst, yesterdayIst)}`
+                        ? `No examination attempts recorded for ${formatDateLabel(selectedDate, todayIst, yesterdayIst, tomorrowIst)}`
                         : "No examination attempts match your selected criteria"}
                     </p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
