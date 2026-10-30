@@ -229,12 +229,34 @@ class CandidateExamService:
         active_exam_obj = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).first()
         is_duration_based = bool(active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "DURATION_FROM_START")
 
-        if enforce_time_gates and not has_active_attempt and not is_duration_based and candidate.batch:
-            IST = timezone(timedelta(hours=5, minutes=30))
-            now_ist = datetime.now(timezone.utc).astimezone(IST)
-            cur_mins = now_ist.hour * 60 + now_ist.minute
-            b_lower = candidate.batch.strip().lower()
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(timezone.utc).astimezone(IST)
+        cur_mins = now_ist.hour * 60 + now_ist.minute
+        cur_date_str = now_ist.strftime("%Y-%m-%d")
+        b_lower = (candidate.batch or "").strip().lower()
 
+        # Strict Slot 2 gate for October 31 (Rescheduled LPU batch - 4:00 PM to 5:00 PM IST)
+        # Must NEVER attend before 4:00 PM IST on Oct 31, regardless of exam timing_mode (DURATION_FROM_START or SCHEDULED)
+        is_slot2_oct31 = (
+            ("4:00" in b_lower or "4pm" in b_lower or "slot 2" in b_lower or "slot2" in b_lower)
+            and (candidate.exam_date == "2026-10-31" or "4:00" in b_lower or "4pm" in b_lower)
+        )
+        if enforce_time_gates and not has_active_attempt and is_slot2_oct31:
+            if cur_date_str < "2026-10-31":
+                resp.message = "Your assessment (Slot 2) is scheduled for October 31, 2026 at 4:00 PM IST. Entry is not permitted prior to the examination date."
+                resp.eligible = False
+                return resp
+            elif cur_date_str == "2026-10-31":
+                if cur_mins < 960:  # Before 16:00 (4:00 PM IST)
+                    resp.message = "Slot 2 entry opens at 4:00 PM IST (Cutoff 4:30 PM). Please wait until 4:00 PM to enter your assessment."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > 990 and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
+                    resp.message = "Entry Closed: The 30-minute entry window for Slot 2 closed at 4:30 PM IST. Candidates are not permitted to enter after the cutoff."
+                    resp.eligible = False
+                    return resp
+
+        if enforce_time_gates and not has_active_attempt and not is_duration_based and candidate.batch:
             # Skip time gates for flexible/open/anytime batches
             if any(w in b_lower for w in ["anytime", "open", "flexible"]):
                 pass
