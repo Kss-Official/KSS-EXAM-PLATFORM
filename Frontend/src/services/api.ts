@@ -392,7 +392,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (err: unknown) {
     const error = err as Error;
     throw new ApiError(
-      `Cannot connect to backend at ${url}. Either the backend server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
+      "Temporary network hiccup on your device. Please ensure your Wi-Fi is connected, wait 3 seconds, and click 'Continue to Role & Application' again.",
       0,
       { isCorsOrNetworkError: true }
     );
@@ -432,14 +432,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 502 || response.status === 503 || response.status === 504) {
       throw new ApiError(
-        "Backend server is offline or restarting. Please verify the backend is running.",
+        "Temporary network delay. Please wait a few seconds and try again.",
         response.status,
         { isCorsOrNetworkError: true, backendMessage: errorDetail }
       );
     }
 
+    const cleanDetail = (errorDetail && !errorDetail.includes("<html") && !errorDetail.includes("<!DOCTYPE") && errorDetail.length < 150)
+      ? errorDetail
+      : "Unable to process request right now. Please try again.";
     throw new ApiError(
-      `Backend error ${response.status}: ${errorDetail || response.statusText}`,
+      cleanDetail,
       response.status,
       { backendMessage: errorDetail }
     );

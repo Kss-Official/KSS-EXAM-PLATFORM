@@ -225,15 +225,21 @@ class CandidateExamService:
         enforce_time_gates = str(raw_gate).lower() == "true"
         has_active_attempt = bool(existing_attempt and existing_attempt.status == "IN_PROGRESS")
 
-        if enforce_time_gates and not has_active_attempt and candidate.batch:
+        # Determine if target active exam is open / anytime (DURATION_FROM_START: candidates can attend anytime)
+        active_exam_obj = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).first()
+        is_duration_based = bool(active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "DURATION_FROM_START")
+
+        if enforce_time_gates and not has_active_attempt and not is_duration_based and candidate.batch:
             IST = timezone(timedelta(hours=5, minutes=30))
             now_ist = datetime.now(timezone.utc).astimezone(IST)
             cur_mins = now_ist.hour * 60 + now_ist.minute
             b_lower = candidate.batch.strip().lower()
 
-            # Check for authorized mock/test batch candidates first (Window: 1:30 PM - 2:00 PM IST)
-            if "test" in b_lower or "mock" in b_lower:
-                # Mock Test entry window: 1:30 PM (810 mins) to 2:00 PM (840 mins)
+            # Skip time gates for flexible/open/anytime batches
+            if any(w in b_lower for w in ["anytime", "open", "flexible"]):
+                pass
+            # Check for authorized mock/test batch candidates (Window: 1:30 PM - 2:00 PM IST for scheduled mock exams)
+            elif ("test" in b_lower or "mock" in b_lower) and active_exam_obj and "mock" in active_exam_obj.title.lower() and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
                 in_mock = 800 <= cur_mins <= 845
                 if not in_mock:
                     if cur_mins < 800:
@@ -245,7 +251,7 @@ class CandidateExamService:
                         resp.eligible = False
                         return resp
                 # Eligible: allow through
-            elif "1" in b_lower:
+            elif "1" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
                 # Slot 1 window: 10:00 AM (600 mins) to 10:30 AM (630 mins)
                 if cur_mins < 600:
                     resp.message = "Your assessment window (Slot 1) opens at 10:00 AM IST. Please wait until 10:00 AM to enter."
@@ -256,7 +262,7 @@ class CandidateExamService:
                     resp.eligible = False
                     return resp
 
-            elif "2" in b_lower:
+            elif "2" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
                 # Slot 2 window: Strictly 2:00 PM to 2:30 PM IST (840 to 870 mins)
                 in_slot2 = 840 <= cur_mins <= 870
                 if not in_slot2:
@@ -328,22 +334,39 @@ class CandidateExamService:
 
             # Set allocation across A, B, C, D
             sets = []
-            track_dept_ids = [
-                d.id for d in exam.departments
-                if get_department_category(d.name, d.code or "") == chosen_category
-            ]
-            if track_dept_ids:
-                sets = db.query(QuestionSet).filter(
-                    QuestionSet.exam_id == exam.id,
-                    QuestionSet.department_id.in_(track_dept_ids)
-                ).order_by(QuestionSet.set_code.asc()).all()
 
-            if not sets and candidate.department_id:
-                sets = db.query(QuestionSet).filter(
+            # 1. Prioritize candidate's exact assigned department if configured in this exam
+            if candidate.department_id:
+                direct_sets = db.query(QuestionSet).filter(
                     QuestionSet.exam_id == exam.id,
                     QuestionSet.department_id == candidate.department_id
                 ).order_by(QuestionSet.set_code.asc()).all()
+                if direct_sets:
+                    sets = direct_sets
 
+            # 2. If candidate is in Computer Science and Engineering (dept 2) or generic technical,
+            # map to Software Developer track (dept 1) in Exam 101
+            if not sets and chosen_category == "TECHNICAL":
+                dev_sets = db.query(QuestionSet).filter(
+                    QuestionSet.exam_id == exam.id,
+                    QuestionSet.department_id == 1
+                ).order_by(QuestionSet.set_code.asc()).all()
+                if dev_sets:
+                    sets = dev_sets
+
+            # 3. Track department match
+            if not sets:
+                track_dept_ids = [
+                    d.id for d in exam.departments
+                    if get_department_category(d.name, d.code or "") == chosen_category
+                ]
+                if track_dept_ids:
+                    sets = db.query(QuestionSet).filter(
+                        QuestionSet.exam_id == exam.id,
+                        QuestionSet.department_id.in_(track_dept_ids)
+                    ).order_by(QuestionSet.set_code.asc()).all()
+
+            # 4. Fallback: Any question sets in this exam
             if not sets:
                 sets = db.query(QuestionSet).filter(
                     QuestionSet.exam_id == exam.id
@@ -477,21 +500,32 @@ class CandidateExamService:
                         )
 
                 sets = []
-                track_dept_ids = [
-                    d.id for d in target_exam.departments
-                    if get_department_category(d.name, d.code or "") == cand_cat
-                ]
-                if track_dept_ids:
-                    sets = db.query(QuestionSet).filter(
-                        QuestionSet.exam_id == target_exam.id,
-                        QuestionSet.department_id.in_(track_dept_ids)
-                    ).order_by(QuestionSet.set_code.asc()).all()
-
-                if not sets and dept_id:
-                    sets = db.query(QuestionSet).filter(
+                if dept_id:
+                    direct_sets = db.query(QuestionSet).filter(
                         QuestionSet.exam_id == target_exam.id,
                         QuestionSet.department_id == dept_id
                     ).order_by(QuestionSet.set_code.asc()).all()
+                    if direct_sets:
+                        sets = direct_sets
+
+                if not sets and cand_cat == "TECHNICAL":
+                    dev_sets = db.query(QuestionSet).filter(
+                        QuestionSet.exam_id == target_exam.id,
+                        QuestionSet.department_id == 1
+                    ).order_by(QuestionSet.set_code.asc()).all()
+                    if dev_sets:
+                        sets = dev_sets
+
+                if not sets:
+                    track_dept_ids = [
+                        d.id for d in target_exam.departments
+                        if get_department_category(d.name, d.code or "") == cand_cat
+                    ]
+                    if track_dept_ids:
+                        sets = db.query(QuestionSet).filter(
+                            QuestionSet.exam_id == target_exam.id,
+                            QuestionSet.department_id.in_(track_dept_ids)
+                        ).order_by(QuestionSet.set_code.asc()).all()
 
                 # Only fall back to universal sets if no department-specific sets exist
                 if not sets:

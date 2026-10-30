@@ -405,7 +405,7 @@ export default function CandidateEntryPage({
               }}>
                 <AlertCircle size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
                 <div>
-                  <strong>Verification Failed:</strong>
+                  <strong>{serverError && (serverError.toLowerCase().includes("network") || serverError.toLowerCase().includes("connection")) ? "Network Connection Notice:" : "Verification Notice:"}</strong>
                   <div style={{ marginTop: "2px" }}>{serverError}</div>
                 </div>
               </div>
