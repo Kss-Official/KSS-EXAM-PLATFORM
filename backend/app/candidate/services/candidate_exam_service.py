@@ -243,19 +243,15 @@ class CandidateExamService:
                     return resp
 
             elif "2" in b_lower:
-                # Slot 2 window: 12:00 PM to 12:30 PM (720-750 mins) OR 2:00 PM to 2:30 PM (840-870 mins)
-                in_slot2 = (720 <= cur_mins <= 750) or (840 <= cur_mins <= 870)
+                # Slot 2 window: Strictly 2:00 PM to 2:30 PM IST (840 to 870 mins)
+                in_slot2 = 840 <= cur_mins <= 870
                 if not in_slot2:
-                    if cur_mins < 720:
-                        resp.message = "Your assessment is scheduled for Slot 2 (12:00 PM / 2:00 PM IST). Please return at your scheduled slot time."
-                        resp.eligible = False
-                        return resp
-                    elif 750 < cur_mins < 840:
-                        resp.message = "Slot 2 next entry window opens at 2:00 PM IST (Cutoff 2:30 PM). Please wait for your slot to begin."
+                    if cur_mins < 840:
+                        resp.message = "Slot 2 entry opens at 2:00 PM IST (Cutoff 2:30 PM). Please wait until 2:00 PM to enter your assessment."
                         resp.eligible = False
                         return resp
                     elif cur_mins > 870:
-                        resp.message = "Entry Closed: The 30-minute entry window for Slot 2 has closed. Candidates are not permitted to enter after the cutoff."
+                        resp.message = "Entry Closed: The 30-minute entry window for Slot 2 closed at 2:30 PM IST. Candidates are not permitted to enter after the cutoff."
                         resp.eligible = False
                         return resp
 

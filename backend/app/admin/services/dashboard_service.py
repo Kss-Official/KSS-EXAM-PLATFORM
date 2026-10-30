@@ -94,6 +94,16 @@ class DashboardService:
             reg_num = a.candidate_code or (a.candidate.registration_number if a.candidate else "-")
             dept_name = a.candidate.department.name if (a.candidate and a.candidate.department) else "Unassigned"
             set_cd = a.question_set_code or (a.question_set.set_code if a.question_set else "-")
+            cand_batch = a.candidate.batch if a.candidate else None
+
+            # Determine slot number: check batch and exam identifier first
+            slot_num = 1
+            if a.exam_id == 99 or (cand_batch and "2" in cand_batch) or (a.exam and ("@" in a.exam.title or "slot 2" in a.exam.title.lower())):
+                slot_num = 2
+            elif (cand_batch and "1" in cand_batch) or a.exam_id == 98 or (a.exam and "slot 1" in a.exam.title.lower()):
+                slot_num = 1
+            elif a.slot and a.slot.slot_number:
+                slot_num = a.slot.slot_number
 
             dto = ExamResultDto(
                 attempt_id=a.id,
@@ -104,7 +114,7 @@ class DashboardService:
                 exam_id=a.exam_id,
                 exam_title=a.exam.title if a.exam else "Exam",
                 set_code=set_cd,
-                slot_number=a.slot.slot_number if a.slot else 1,
+                slot_number=slot_num,
                 attempt_status=a.status,
                 answered_count=answered_cnt,
                 unanswered_count=unanswered_cnt,
@@ -118,6 +128,7 @@ class DashboardService:
                 submitted_at=a.submitted_at,
                 receipt_id=a.receipt_id,
                 candidate_email=a.candidate.email if a.candidate else None,
+                candidate_batch=cand_batch,
                 total_questions=total_q,
                 questions_answered=answered_cnt,
                 correct_answers=a.correct_answers,

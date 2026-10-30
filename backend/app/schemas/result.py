@@ -48,6 +48,7 @@ class ExamResultDto(CamelModel):
     submitted_at: Optional[datetime] = None
     receipt_id: Optional[str] = None
     candidate_email: Optional[str] = None
+    candidate_batch: Optional[str] = None
     total_questions: Optional[int] = None
     questions_answered: Optional[int] = None
     correct_answers: Optional[int] = None

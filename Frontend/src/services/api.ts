@@ -321,6 +321,7 @@ export interface ExamResultDto {
   submittedAt?: string;
   receiptId?: string;
   candidateEmail?: string;
+  candidateBatch?: string;
   totalQuestions?: number;
   questionsAnswered?: number;
   correctAnswers?: number;

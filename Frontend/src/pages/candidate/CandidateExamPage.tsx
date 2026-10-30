@@ -60,8 +60,26 @@ export default function CandidateExamPage({
 
   const [backendAttemptId, setBackendAttemptId] = useState<number | undefined>(initialSession?.backendAttemptId);
   const [assignedSet, setAssignedSet] = useState<string>(initialSession?.profile?.questionSetCode || "A");
-  const [questions, setQuestions] = useState<any[]>([]);
-  const [loadingQuestions, setLoadingQuestions] = useState(false);
+
+  // Helper to load any cached questions for instant render without 1s flickering
+  const getCachedQuestions = (aid?: number | null) => {
+    try {
+      if (aid) {
+        const item = sessionStorage.getItem(`examsecure_questions_${aid}`);
+        if (item) return JSON.parse(item);
+      }
+      const generic = sessionStorage.getItem("examsecure_last_questions");
+      return generic ? JSON.parse(generic) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const initialAid = initialSession?.backendAttemptId;
+  const initialCachedQ = getCachedQuestions(initialAid);
+
+  const [questions, setQuestions] = useState<any[]>(initialCachedQ);
+  const [loadingQuestions, setLoadingQuestions] = useState<boolean>(initialCachedQ.length === 0);
 
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -194,6 +212,9 @@ export default function CandidateExamPage({
     let isCancelled = false;
 
     const initializeAttempt = async () => {
+      if (questions.length === 0) {
+        setLoadingQuestions(true);
+      }
       let dbCandId = session?.profile?.dbCandidateId;
       let assignedExamId = session?.profile?.assignedExamId;
 
@@ -243,6 +264,13 @@ export default function CandidateExamPage({
 
             let activeQList: any[] = attemptData.questions || [];
             setQuestions(activeQList);
+            setLoadingQuestions(false);
+            try {
+              sessionStorage.setItem("examsecure_last_questions", JSON.stringify(activeQList));
+              if (attemptData.attemptId) {
+                sessionStorage.setItem(`examsecure_questions_${attemptData.attemptId}`, JSON.stringify(activeQList));
+              }
+            } catch {}
 
             const deadlineStr = attemptData.deadlineAt || attemptData.expiresAt;
             const serverDeadline = deadlineStr ? new Date(deadlineStr).getTime() : session.deadline;
@@ -306,6 +334,14 @@ export default function CandidateExamPage({
           }
         } catch (err) {
           console.warn("[CandidateExamPage] Backend attempt lookup fallback to 60 questions pool:", err);
+        } finally {
+          if (!isCancelled) {
+            setLoadingQuestions(false);
+          }
+        }
+      } else {
+        if (!isCancelled) {
+          setLoadingQuestions(false);
         }
       }
     };
@@ -575,7 +611,17 @@ export default function CandidateExamPage({
       {/* Main 2-Column Assessment Workspace */}
       <div className="exam-content-grid">
         {/* Left: Question Card */}
-        {!currentQuestion ? (
+        {loadingQuestions && !currentQuestion ? (
+          <article className="exam-question-card" style={{ padding: "64px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "340px" }}>
+            <Loader2 size={38} className="animate-spin" color="#017846" style={{ margin: "0 auto 16px" }} />
+            <h3 style={{ margin: "0 0 8px", fontSize: "16px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Loading Examination Questions...
+            </h3>
+            <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
+              Preparing your questions and initializing proctored session. Please wait a moment.
+            </p>
+          </article>
+        ) : !currentQuestion ? (
           <article className="exam-question-card" style={{ padding: "48px 24px", textAlign: "center" }}>
             <AlertCircle size={40} color="#e11d48" style={{ margin: "0 auto 16px" }} />
             <h3 style={{ margin: "0 0 8px", fontSize: "17px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>No Questions Configured</h3>
