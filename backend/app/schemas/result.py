@@ -34,7 +34,7 @@ class ExamResultDto(CamelModel):
     exam_id: int
     exam_title: str
     set_code: str
-    slot_number: int
+    slot_number: Optional[int] = None
     attempt_status: str
     answered_count: int
     unanswered_count: int

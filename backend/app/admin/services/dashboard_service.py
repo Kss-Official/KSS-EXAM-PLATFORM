@@ -135,15 +135,27 @@ class DashboardService:
             set_cd = a.question_set_code or (a.question_set.set_code if a.question_set else "-")
             cand_batch = a.candidate.batch if a.candidate else None
 
-            # Determine slot number: check batch and exam identifier first
-            slot_num = 1
-            if a.exam_id == 99 or (cand_batch and "2" in cand_batch) or (a.exam and ("@" in a.exam.title or "slot 2" in a.exam.title.lower())):
-                slot_num = 2
-            elif (cand_batch and "1" in cand_batch) or a.exam_id == 98 or (a.exam and "slot 1" in a.exam.title.lower()):
-                slot_num = 1
-            elif a.slot and a.slot.slot_number:
-                slot_num = a.slot.slot_number
+            # Determine slot number: strictly based on genuine slot criteria
+            slot_num = None
+            cand_batch_lower = (cand_batch or '').strip().lower()
+            exam_title_lower = (a.exam.title or '').strip().lower() if a.exam else ''
 
+            # Check if this attempt belongs to an independent/test exam
+            is_independent_exam = (
+                a.exam_id in (97, 100, 101, 102, 103) or 
+                'sample' in exam_title_lower or 
+                'mock' in exam_title_lower
+            )
+
+            if not is_independent_exam:
+                if a.exam_id == 98 or 'slot 1' in exam_title_lower or cand_batch_lower == 'slot 1':
+                    slot_num = 1
+                elif a.exam_id == 99 or 'slot 2' in exam_title_lower or '@' in exam_title_lower or cand_batch_lower == 'slot 2':
+                    slot_num = 2
+                elif 'slot 3' in exam_title_lower or '4:00' in exam_title_lower or '4pm' in exam_title_lower or 'slot 3' in cand_batch_lower or '4:00' in cand_batch_lower or '4pm' in cand_batch_lower:
+                    slot_num = 3
+                elif a.slot and a.slot.slot_number in (1, 2, 3):
+                    slot_num = a.slot.slot_number
             ts = a.submitted_at or a.started_at or a.created_at
             exam_dt_str = None
             if ts:

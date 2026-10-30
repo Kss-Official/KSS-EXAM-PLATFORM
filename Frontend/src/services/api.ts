@@ -311,7 +311,7 @@ export interface ExamResultDto {
   examId: number;
   examTitle: string;
   setCode: string;
-  slotNumber: number;
+  slotNumber?: number | null;
   attemptStatus: string;
   answeredCount: number;
   unansweredCount: number;

@@ -30,7 +30,7 @@ import {
   type ExamDto 
 } from "../../services/api";
 
-type SlotFilterType = "ALL" | "Slot 1" | "Slot 2";
+type SlotFilterType = "ALL" | "Slot 1" | "Slot 2" | "Slot 3" | "OTHER";
 type ScoreSortType = "DEFAULT" | "SCORE_DESC" | "SCORE_ASC" | "NAME_ASC";
 type ScorePresetType = "ALL" | "TOP_SCORERS" | "QUALIFIED" | "BORDERLINE" | "NOT_QUALIFIED" | "ZERO";
 
@@ -226,35 +226,85 @@ export default function ResultsPage() {
   };
 
   // Helper to reliably classify a candidate's slot
-  const getCandidateSlot = (r: ExamResultDto): "Slot 1" | "Slot 2" => {
-    if (r.slotNumber === 2) return "Slot 2";
-    if (r.slotNumber === 1 && !r.examTitle?.toLowerCase().includes("slot @") && !r.candidateBatch?.includes("2")) return "Slot 1";
-    
-    if (r.candidateBatch && r.candidateBatch.includes("2")) return "Slot 2";
-    if (r.candidateBatch && r.candidateBatch.includes("1")) return "Slot 1";
-    
-    if (r.examId === 99 || (r.examTitle && (r.examTitle.includes("@") || r.examTitle.toLowerCase().includes("slot 2")))) {
+  const getCandidateSlot = (r: ExamResultDto): "Slot 1" | "Slot 2" | "Slot 3" | "OTHER" => {
+    const titleLower = (r.examTitle || "").toLowerCase().trim();
+    const batchLower = (r.candidateBatch || "").toLowerCase().trim();
+
+    // Independent / Mock / Test exams never belong to Slot 1 or Slot 2
+    if (
+      r.examId === 97 ||
+      r.examId === 100 ||
+      r.examId === 101 ||
+      r.examId === 102 ||
+      r.examId === 103 ||
+      titleLower.includes("sample") ||
+      titleLower.includes("mock")
+    ) {
+      return "OTHER";
+    }
+
+    // Explicit Slot 1 check
+    if (
+      r.slotNumber === 1 ||
+      r.examId === 98 ||
+      titleLower.includes("slot 1") ||
+      batchLower === "slot 1"
+    ) {
+      return "Slot 1";
+    }
+
+    // Explicit Slot 2 check
+    if (
+      r.slotNumber === 2 ||
+      r.examId === 99 ||
+      titleLower.includes("slot @") ||
+      titleLower.includes("slot 2") ||
+      batchLower === "slot 2"
+    ) {
       return "Slot 2";
     }
-    return "Slot 1";
+
+    // Explicit Slot 3 (4:00 PM) check
+    if (
+      r.slotNumber === 3 ||
+      titleLower.includes("slot 3") ||
+      titleLower.includes("4:00") ||
+      titleLower.includes("4pm") ||
+      batchLower.includes("slot 3") ||
+      batchLower.includes("4:00") ||
+      batchLower.includes("4pm")
+    ) {
+      return "Slot 3";
+    }
+
+    return "OTHER";
   };
 
   // Slot candidates for active date
   const slot1Candidates = useMemo(() => results.filter(r => getCandidateSlot(r) === "Slot 1"), [results]);
   const slot2Candidates = useMemo(() => results.filter(r => getCandidateSlot(r) === "Slot 2"), [results]);
+  const slot3Candidates = useMemo(() => results.filter(r => getCandidateSlot(r) === "Slot 3"), [results]);
+  const otherCandidates = useMemo(() => results.filter(r => getCandidateSlot(r) === "OTHER"), [results]);
 
   const slotCounts = useMemo(() => ({
     total: results.length,
     slot1: slot1Candidates.length,
     slot2: slot2Candidates.length,
-  }), [results, slot1Candidates, slot2Candidates]);
+    slot3: slot3Candidates.length,
+    other: otherCandidates.length,
+  }), [results, slot1Candidates, slot2Candidates, slot3Candidates, otherCandidates]);
 
-  // Compute dynamic pool based on selected slot
+  // Compute dynamic pool based on selected slot or selected exam
   const activeSlotPool = useMemo(() => {
+    if (selectedExamId !== undefined) {
+      return results.filter(r => r.examId === selectedExamId);
+    }
     if (slotFilter === "Slot 1") return slot1Candidates;
     if (slotFilter === "Slot 2") return slot2Candidates;
+    if (slotFilter === "Slot 3") return slot3Candidates;
+    if (slotFilter === "OTHER") return otherCandidates;
     return results;
-  }, [slotFilter, slot1Candidates, slot2Candidates, results]);
+  }, [selectedExamId, slotFilter, slot1Candidates, slot2Candidates, slot3Candidates, otherCandidates, results]);
 
   const qualifiedInSlot = useMemo(() => activeSlotPool.filter(r => r.qualificationStatus === "QUALIFIED").length, [activeSlotPool]);
   const avgScore = useMemo(() => {
@@ -271,8 +321,8 @@ export default function ResultsPage() {
   // Multi-filter evaluation
   const filtered = useMemo(() => {
     return results.filter(r => {
-      // 1. Slot Filter
-      if (slotFilter !== "ALL") {
+      // 1. Slot Filter (bypassed if specific exam is chosen, unless examining within slot)
+      if (!selectedExamId && slotFilter !== "ALL") {
         if (getCandidateSlot(r) !== slotFilter) return false;
       }
 
@@ -355,8 +405,11 @@ export default function ResultsPage() {
 
   // Slot title for exports
   const getSlotExportTitle = () => {
+    if (selectedExamObj) return `${selectedExamObj.title} (Exam #${selectedExamObj.id})`;
     if (slotFilter === "Slot 1") return "Slot 1 (10:00 AM - 11:00 AM)";
     if (slotFilter === "Slot 2") return "Slot 2 (02:00 PM - 03:00 PM)";
+    if (slotFilter === "Slot 3") return "Slot 3 (04:00 PM - 05:00 PM)";
+    if (slotFilter === "OTHER") return "Other & Flexible Exams";
     return "All Slots Combined";
   };
 
@@ -847,7 +900,7 @@ export default function ResultsPage() {
               <span>Examination Slot:</span>
             </div>
 
-            <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "4px", borderRadius: "10px", gap: "4px" }}>
+            <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "4px", borderRadius: "10px", gap: "4px", flexWrap: "wrap" }}>
               {/* Slot 1 Tab */}
               <button
                 type="button"
@@ -914,6 +967,76 @@ export default function ResultsPage() {
                 </span>
               </button>
 
+              {/* Slot 3 (4:00 PM) Tab - shown if any candidates exist */}
+              {slotCounts.slot3 > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSlotFilter("Slot 3")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "7px 16px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: "none",
+                    background: slotFilter === "Slot 3" ? "#d97706" : "transparent",
+                    color: slotFilter === "Slot 3" ? "#ffffff" : "#475569",
+                    boxShadow: slotFilter === "Slot 3" ? "0 2px 6px rgba(217, 119, 6, 0.3)" : "none",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  <span>Slot 3 (04:00 PM)</span>
+                  <span style={{
+                    background: slotFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
+                    color: slotFilter === "Slot 3" ? "#ffffff" : "#b45309",
+                    padding: "1px 8px",
+                    borderRadius: "10px",
+                    fontSize: "11.5px",
+                    fontWeight: 800
+                  }}>
+                    {slotCounts.slot3}
+                  </span>
+                </button>
+              )}
+
+              {/* Other / Flexible Exams Tab - shown if any independent exam candidates exist */}
+              {slotCounts.other > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSlotFilter("OTHER")}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "7px 16px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: "none",
+                    background: slotFilter === "OTHER" ? "#0f766e" : "transparent",
+                    color: slotFilter === "OTHER" ? "#ffffff" : "#475569",
+                    boxShadow: slotFilter === "OTHER" ? "0 2px 6px rgba(15, 118, 110, 0.3)" : "none",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  <span>Other / Custom Exams</span>
+                  <span style={{
+                    background: slotFilter === "OTHER" ? "rgba(255,255,255,0.25)" : "#ccfbf1",
+                    color: slotFilter === "OTHER" ? "#ffffff" : "#0f766e",
+                    padding: "1px 8px",
+                    borderRadius: "10px",
+                    fontSize: "11.5px",
+                    fontWeight: 800
+                  }}>
+                    {slotCounts.other}
+                  </span>
+                </button>
+              )}
+
               {/* All Slots Tab */}
               <button
                 type="button"
@@ -951,7 +1074,24 @@ export default function ResultsPage() {
 
           {/* Slot Info Badge */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            {slotFilter === "Slot 1" && (
+            {selectedExamObj && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#f0fdf4",
+                border: "1px solid #bbf7d0",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#166534",
+                fontWeight: 600
+              }}>
+                <CheckCircle2 size={14} color="#16a34a" />
+                <span>Viewing: <strong>{selectedExamObj.title}</strong> &bull; {activeSlotPool.length} Examinees</span>
+              </div>
+            )}
+            {!selectedExamObj && slotFilter === "Slot 1" && (
               <div style={{
                 display: "flex",
                 alignItems: "center",
@@ -968,7 +1108,7 @@ export default function ResultsPage() {
                 <span>Slot 1 Exam: <strong>Completed (10:00 AM – 11:00 AM)</strong> &bull; {slotCounts.slot1} Attendees</span>
               </div>
             )}
-            {slotFilter === "Slot 2" && (
+            {!selectedExamObj && slotFilter === "Slot 2" && (
               <div style={{
                 display: "flex",
                 alignItems: "center",
@@ -985,7 +1125,40 @@ export default function ResultsPage() {
                 <span>Slot 2 Exam: <strong>Completed (02:00 PM – 03:00 PM)</strong> &bull; {slotCounts.slot2} Attendees</span>
               </div>
             )}
-            {slotFilter === "ALL" && (
+            {!selectedExamObj && slotFilter === "Slot 3" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#fffbeb",
+                border: "1px solid #fde68a",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#b45309",
+                fontWeight: 600
+              }}>
+                <Clock size={14} color="#d97706" />
+                <span>Slot 3 Exam: <strong>Scheduled (04:00 PM – 05:00 PM)</strong> &bull; {slotCounts.slot3} Candidates</span>
+              </div>
+            )}
+            {!selectedExamObj && slotFilter === "OTHER" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#f0fdfa",
+                border: "1px solid #99f6e4",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#0f766e",
+                fontWeight: 600
+              }}>
+                <span>Other & Flexible Exams: <strong>Any-time / Custom</strong> &bull; {slotCounts.other} Candidates</span>
+              </div>
+            )}
+            {!selectedExamObj && slotFilter === "ALL" && (
               <div style={{
                 display: "flex",
                 alignItems: "center",
@@ -1061,7 +1234,13 @@ export default function ResultsPage() {
         {/* Exam Filter Dropdown */}
         <select
           value={selectedExamId || ""}
-          onChange={e => setSelectedExamId(e.target.value ? Number(e.target.value) : undefined)}
+          onChange={e => {
+            const newId = e.target.value ? Number(e.target.value) : undefined;
+            setSelectedExamId(newId);
+            if (newId) {
+              setSlotFilter("ALL");
+            }
+          }}
           style={{ height: "42px", padding: "8px 14px", fontSize: "12.5px", borderRadius: "10px", border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#0f172a", outline: "none" }}
         >
           <option value="">All Examinations</option>
@@ -1502,18 +1681,44 @@ export default function ResultsPage() {
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                           <b style={{ color: "#0f172a" }}>{r.candidateName}</b>
                           {/* Slot Badge */}
-                          <span style={{
-                            fontSize: "10px",
-                            fontWeight: 700,
-                            padding: "2px 6px",
-                            borderRadius: "4px",
-                            background: candidateSlot === "Slot 1" ? "#e0f2fe" : "#f3e8ff",
-                            color: candidateSlot === "Slot 1" ? "#0369a1" : "#7c3aed",
-                            border: candidateSlot === "Slot 1" ? "1px solid #bae6fd" : "1px solid #e9d5ff",
-                            whiteSpace: "nowrap"
-                          }}>
-                            {candidateSlot}
-                          </span>
+                          {(() => {
+                            let bBg = "#f0fdf4";
+                            let bCol = "#15803d";
+                            let bBrd = "#bbf7d0";
+                            let bTxt = r.candidateBatch || "Any-time / Test";
+
+                            if (candidateSlot === "Slot 1") {
+                              bBg = "#e0f2fe";
+                              bCol = "#0369a1";
+                              bBrd = "#bae6fd";
+                              bTxt = "Slot 1";
+                            } else if (candidateSlot === "Slot 2") {
+                              bBg = "#faf5ff";
+                              bCol = "#7e22ce";
+                              bBrd = "#e9d5ff";
+                              bTxt = "Slot 2";
+                            } else if (candidateSlot === "Slot 3") {
+                              bBg = "#fffbeb";
+                              bCol = "#b45309";
+                              bBrd = "#fde68a";
+                              bTxt = "Slot 3 (4:00 PM)";
+                            }
+
+                            return (
+                              <span style={{
+                                fontSize: "10px",
+                                fontWeight: 700,
+                                padding: "2px 6px",
+                                borderRadius: "4px",
+                                background: bBg,
+                                color: bCol,
+                                border: `1px solid ${bBrd}`,
+                                whiteSpace: "nowrap"
+                              }}>
+                                {bTxt}
+                              </span>
+                            );
+                          })()}
                         </div>
                         {r.candidateEmail && (
                           <small style={{ display: "block", color: "#475569", fontSize: "11.5px" }}>{r.candidateEmail}</small>
