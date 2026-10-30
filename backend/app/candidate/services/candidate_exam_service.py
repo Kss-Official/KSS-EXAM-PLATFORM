@@ -231,7 +231,21 @@ class CandidateExamService:
             cur_mins = now_ist.hour * 60 + now_ist.minute
             b_lower = candidate.batch.strip().lower()
 
-            if "1" in b_lower:
+            # Check for authorized mock/test batch candidates first (Window: 1:30 PM - 2:00 PM IST)
+            if "test" in b_lower or "mock" in b_lower:
+                # Mock Test entry window: 1:30 PM (810 mins) to 2:00 PM (840 mins)
+                in_mock = 800 <= cur_mins <= 845
+                if not in_mock:
+                    if cur_mins < 800:
+                        resp.message = "Mock Test assessment opens at 1:30 PM IST. Please wait until your scheduled test time."
+                        resp.eligible = False
+                        return resp
+                    elif cur_mins > 845:
+                        resp.message = "Entry Closed: The entry window for the 1:30 PM Mock Test has ended."
+                        resp.eligible = False
+                        return resp
+                # Eligible: allow through
+            elif "1" in b_lower:
                 # Slot 1 window: 10:00 AM (600 mins) to 10:30 AM (630 mins)
                 if cur_mins < 600:
                     resp.message = "Your assessment window (Slot 1) opens at 10:00 AM IST. Please wait until 10:00 AM to enter."
@@ -297,7 +311,19 @@ class CandidateExamService:
             track_matched = [e for e in published_exams if exam_matches_track(e, chosen_category)]
             candidate_pool = track_matched if track_matched else published_exams
 
-            # Single active exam policy: the first activated exam in pool is the target exam
+            # Segregate Mock Test exam vs Public Slot exam
+            is_mock_cand = bool(candidate.batch and ("test" in candidate.batch.lower() or "mock" in candidate.batch.lower()))
+            if is_mock_cand:
+                mock_exams = [e for e in candidate_pool if "mock" in e.title.lower() or "test" in e.title.lower()]
+                if mock_exams:
+                    candidate_pool = mock_exams
+            else:
+                # General examinees must never be allocated the Mock Test exam
+                regular_exams = [e for e in candidate_pool if "mock" not in e.title.lower() and "test" not in e.title.lower()]
+                if regular_exams:
+                    candidate_pool = regular_exams
+
+            # Target exam in pool
             exam = candidate_pool[0]
 
             # Set allocation across A, B, C, D
