@@ -262,6 +262,19 @@ class CandidateExamService:
                     resp.eligible = False
                     return resp
 
+            elif ("3" in b_lower or "4:00" in b_lower or "4pm" in b_lower) and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
+                # Slot 3 window: Strictly 4:00 PM to 4:30 PM IST (960 to 990 mins)
+                in_slot3 = 960 <= cur_mins <= 990
+                if not in_slot3:
+                    if cur_mins < 960:
+                        resp.message = "Slot 3 entry opens at 4:00 PM IST (Cutoff 4:30 PM). Please wait until 4:00 PM to enter your assessment."
+                        resp.eligible = False
+                        return resp
+                    elif cur_mins > 990:
+                        resp.message = "Entry Closed: The 30-minute entry window for Slot 3 closed at 4:30 PM IST. Candidates are not permitted to enter after the cutoff."
+                        resp.eligible = False
+                        return resp
+
             elif "2" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
                 # Slot 2 window: Strictly 2:00 PM to 2:30 PM IST (840 to 870 mins)
                 in_slot2 = 840 <= cur_mins <= 870

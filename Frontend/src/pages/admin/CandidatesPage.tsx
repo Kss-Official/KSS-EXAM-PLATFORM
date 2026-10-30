@@ -84,10 +84,11 @@ export default function CandidatesPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Global Slot Counts for high-level statistics
-  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
+  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number; slot3: number }>({
     total: 842,
     slot1: 421,
-    slot2: 421
+    slot2: 421,
+    slot3: 393
   });
 
   // Multi-select state for bulk actions
@@ -114,15 +115,17 @@ export default function CandidatesPage() {
   const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
     try {
       const dParam = activeDate !== "ALL" ? activeDate : undefined;
-      const [allRes, s1Res, s2Res] = await Promise.all([
+      const [allRes, s1Res, s2Res, s3Res] = await Promise.all([
         getCandidates({ limit: 1, date: dParam }),
         getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
+        getCandidates({ limit: 1, batch: "Slot 2", date: dParam }),
+        getCandidates({ limit: 1, batch: "Slot 3 (4:00 PM)", date: dParam })
       ]);
       setSlotCounts({
         total: allRes.total,
         slot1: s1Res.total,
-        slot2: s2Res.total
+        slot2: s2Res.total,
+        slot3: s3Res.total
       });
     } catch {
       // ignore
@@ -887,6 +890,38 @@ export default function CandidatesPage() {
               fontWeight: 700
             }}>
               {slotCounts.slot2}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 3 (4:00 PM)")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 3 (4:00 PM)" ? "2px solid #d97706" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 3 (4:00 PM)" ? "#d97706" : "#f8fafc",
+              color: batchFilter === "Slot 3 (4:00 PM)" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            Slot 3 (4:00 PM)
+            <span style={{
+              background: batchFilter === "Slot 3 (4:00 PM)" ? "rgba(255,255,255,0.25)" : "#fef3c7",
+              color: batchFilter === "Slot 3 (4:00 PM)" ? "#fff" : "#b45309",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.slot3}
             </span>
           </button>
         </div>
