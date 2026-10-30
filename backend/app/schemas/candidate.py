@@ -35,6 +35,7 @@ class CandidateDto(CamelModel):
     access_code_sent_at: Optional[datetime] = None
     assigned_set: Optional[str] = None
     batch: Optional[str] = None
+    exam_date: Optional[str] = None
 
 class CandidateAssignSetRequest(CamelModel):
     set_code: Optional[str] = None

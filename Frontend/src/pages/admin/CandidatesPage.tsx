@@ -18,7 +18,8 @@ import {
   Clock,
   ArrowRight,
   CheckSquare,
-  Square
+  Square,
+  Calendar
 } from "lucide-react";
 import { 
   getCandidates,
@@ -29,6 +30,7 @@ import {
   assignCandidateBatch,
   rescheduleCandidateSlot,
   batchRescheduleCandidateSlot,
+  getAvailableCandidateDates,
   type CandidateDto, 
   type DepartmentDto,
   type CollegeDto 
@@ -51,6 +53,11 @@ export default function CandidatesPage() {
   const [batchFilter, setBatchFilter] = useState<string>("ALL");
   const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
   const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
+  // Day-wise candidate filter state (default to tomorrow's exam '2026-10-31')
+  const [selectedDate, setSelectedDate] = useState<string>("2026-10-31");
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [customDatePicker, setCustomDatePicker] = useState<string>("");
+  const [dateCounts, setDateCounts] = useState<{ [d: string]: number }>({});
   const [sortBy, setSortBy] = useState<string>("registration_number");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
@@ -104,18 +111,40 @@ export default function CandidatesPage() {
     loading: false
   });
 
-  const refreshSlotCounts = useCallback(async () => {
+  const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
     try {
+      const dParam = activeDate !== "ALL" ? activeDate : undefined;
       const [allRes, s1Res, s2Res] = await Promise.all([
-        getCandidates({ limit: 1 }),
-        getCandidates({ limit: 1, batch: "Slot 1" }),
-        getCandidates({ limit: 1, batch: "Slot 2" })
+        getCandidates({ limit: 1, date: dParam }),
+        getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
+        getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
       ]);
       setSlotCounts({
         total: allRes.total,
         slot1: s1Res.total,
         slot2: s2Res.total
       });
+    } catch {
+      // ignore
+    }
+  }, [selectedDate]);
+
+  const loadAvailableDates = useCallback(async () => {
+    try {
+      const dates = await getAvailableCandidateDates();
+      setAvailableDates(dates);
+      const counts: { [d: string]: number } = {};
+      await Promise.all(
+        dates.map(async (d) => {
+          try {
+            const r = await getCandidates({ limit: 1, date: d });
+            counts[d] = r.total;
+          } catch {
+            counts[d] = 0;
+          }
+        })
+      );
+      setDateCounts(counts);
     } catch {
       // ignore
     }
@@ -130,8 +159,9 @@ export default function CandidatesPage() {
     }
     getColleges().then(setColleges).catch(() => {});
     getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
-    refreshSlotCounts();
-  }, [refreshSlotCounts]);
+    loadAvailableDates();
+    refreshSlotCounts(selectedDate);
+  }, [refreshSlotCounts, loadAvailableDates, selectedDate]);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -152,6 +182,7 @@ export default function CandidatesPage() {
         collegeId: collegeFilter,
         departmentId: departmentFilter,
         batch: batchFilter !== "ALL" ? batchFilter : undefined,
+        date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -170,7 +201,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchPage1();
@@ -189,6 +220,7 @@ export default function CandidatesPage() {
         collegeId: collegeFilter,
         departmentId: departmentFilter,
         batch: batchFilter !== "ALL" ? batchFilter : undefined,
+        date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -207,7 +239,7 @@ export default function CandidatesPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, batchFilter, statusFilter, sortBy, sortOrder]);
+  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
 
   // Attach IntersectionObserver to sentinel element for infinite scrolling
   useEffect(() => {
@@ -473,6 +505,8 @@ export default function CandidatesPage() {
               setBatchFilter("ALL");
               setCollegeFilter(undefined);
               setDepartmentFilter(undefined);
+              setSelectedDate("ALL");
+              setCustomDatePicker("");
               fetchPage1();
             }}
             title="Reset Filters & Refresh Records"
@@ -582,6 +616,162 @@ export default function CandidatesPage() {
           <div className="stat-card-icon purple">
             <GraduationCap size={22} />
           </div>
+        </div>
+      </div>
+
+      {/* Interactive Day-Wise Examination Date Navigation Bar */}
+      <div 
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #e2e8f0",
+          marginBottom: "12px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginRight: "4px" }}>
+            <Calendar size={16} color="#017846" />
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Exam Date:
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedDate("2026-10-31"); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === "2026-10-31" ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === "2026-10-31" ? "#017846" : "#f8fafc",
+              color: selectedDate === "2026-10-31" ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Tomorrow (31 Oct 2026)</span>
+            <span style={{
+              background: selectedDate === "2026-10-31" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === "2026-10-31" ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts["2026-10-31"] ?? 282}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedDate("2026-10-30"); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === "2026-10-30" ? "2px solid #0284c7" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === "2026-10-30" ? "#0284c7" : "#f8fafc",
+              color: selectedDate === "2026-10-30" ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Today (30 Oct 2026)</span>
+            <span style={{
+              background: selectedDate === "2026-10-30" ? "rgba(255,255,255,0.25)" : "#e0f2fe",
+              color: selectedDate === "2026-10-30" ? "#fff" : "#0369a1",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts["2026-10-30"] ?? 856}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedDate("ALL"); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === "ALL" ? "2px solid #475569" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === "ALL" ? "#475569" : "#f8fafc",
+              color: selectedDate === "ALL" ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>All Dates Combined</span>
+            <span style={{
+              background: selectedDate === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === "ALL" ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              1,138
+            </span>
+          </button>
+
+          {/* Custom Date Input */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginLeft: "4px" }}>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>Custom:</span>
+            <input 
+              type="date"
+              value={customDatePicker}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomDatePicker(val);
+                if (val) setSelectedDate(val);
+              }}
+              style={{
+                padding: "4px 8px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                fontSize: "12.5px",
+                color: "#334155",
+                backgroundColor: selectedDate !== "ALL" && selectedDate !== "2026-10-31" && selectedDate !== "2026-10-30" ? "#f0fdf4" : "#ffffff"
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#475569" }}>
+          <span>Active Date:</span>
+          <span style={{
+            background: "#ecfdf5",
+            color: "#065f46",
+            padding: "3px 9px",
+            borderRadius: "6px",
+            fontWeight: 700,
+            fontSize: "12px",
+            border: "1px solid #a7f3d0"
+          }}>
+            {selectedDate === "ALL" ? "All Dates" : selectedDate === "2026-10-31" ? "Tomorrow (31 Oct 2026)" : selectedDate === "2026-10-30" ? "Today (30 Oct 2026)" : selectedDate}
+          </span>
         </div>
       </div>
 
@@ -1026,6 +1216,26 @@ export default function CandidatesPage() {
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          {cand.examDate && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: "5px",
+                                backgroundColor: cand.examDate === "2026-10-31" ? "#ecfdf5" : "#f1f5f9",
+                                color: cand.examDate === "2026-10-31" ? "#065f46" : "#475569",
+                                border: cand.examDate === "2026-10-31" ? "1px solid #a7f3d0" : "1px solid #cbd5e1"
+                              }}
+                              title={`Scheduled Date: ${cand.examDate}`}
+                            >
+                              <Calendar size={10} />
+                              {cand.examDate === "2026-10-31" ? "31 Oct" : cand.examDate === "2026-10-30" ? "30 Oct" : cand.examDate}
+                            </span>
+                          )}
                           <span
                             style={{
                               display: "inline-flex",

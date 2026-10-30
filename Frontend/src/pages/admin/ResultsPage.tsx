@@ -16,10 +16,13 @@ import {
   SlidersHorizontal,
   XCircle,
   HelpCircle,
-  AlertCircle
+  AlertCircle,
+  Calendar,
+  CalendarDays
 } from "lucide-react";
 import { 
   getAllResults, 
+  getAvailableResultDates,
   publishResults, 
   getAllExams, 
   resetCandidateAttempt,
@@ -31,13 +34,86 @@ type SlotFilterType = "ALL" | "Slot 1" | "Slot 2";
 type ScoreSortType = "DEFAULT" | "SCORE_DESC" | "SCORE_ASC" | "NAME_ASC";
 type ScorePresetType = "ALL" | "TOP_SCORERS" | "QUALIFIED" | "BORDERLINE" | "NOT_QUALIFIED" | "ZERO";
 
+// Date helpers for IST (UTC+5:30)
+const getTodayIstString = (): string => {
+  try {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    return formatter.format(new Date()); // Outputs YYYY-MM-DD
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
+const getYesterdayIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const formatDateShort = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    const [y, m, d] = dStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  } catch {
+    return dStr;
+  }
+};
+
+const formatDateLabel = (dStr: string, todayStr: string, yesterdayStr: string): string => {
+  if (dStr === "ALL") return "All Dates Combined";
+  if (dStr === todayStr) {
+    return `Today (${formatDateShort(todayStr)} ${todayStr.slice(0, 4)})`;
+  }
+  if (dStr === yesterdayStr) {
+    return `Yesterday (${formatDateShort(yesterdayStr)} ${yesterdayStr.slice(0, 4)})`;
+  }
+  try {
+    const [y, m, d] = dStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  } catch {
+    return dStr;
+  }
+};
+
+const formatDisplayDate = (dStr: string | undefined): string => {
+  if (!dStr || dStr === "-") return "-";
+  try {
+    const [y, m, d] = dStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+  } catch {
+    return dStr;
+  }
+};
+
 export default function ResultsPage() {
+  const todayIst = useMemo(() => getTodayIstString(), []);
+  const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
+
   const [exams, setExams] = useState<ExamDto[]>([]);
   const [selectedExamId, setSelectedExamId] = useState<number | undefined>(undefined);
   const [results, setResults] = useState<ExamResultDto[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Date Filter States
+  const [selectedDate, setSelectedDate] = useState<string>(todayIst); // Default to today's date
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [todayAttemptCount, setTodayAttemptCount] = useState<number | undefined>(undefined);
   
-  // Filter States
+  // Slot & Criteria Filter States
   const [slotFilter, setSlotFilter] = useState<SlotFilterType>("Slot 1"); // Default to Slot 1 as requested
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -60,11 +136,25 @@ export default function ResultsPage() {
     }
   };
 
+  const fetchAvailableDates = async () => {
+    try {
+      const dates = await getAvailableResultDates();
+      if (dates && dates.length > 0) {
+        setAvailableDates(dates);
+      }
+    } catch (e) {
+      console.warn("Could not load available dates:", e);
+    }
+  };
+
   const fetchResults = async () => {
     setLoading(true);
     try {
-      const data = await getAllResults(selectedExamId);
+      const data = await getAllResults(selectedExamId, selectedDate === "ALL" ? undefined : selectedDate);
       setResults(data);
+      if (selectedDate === todayIst) {
+        setTodayAttemptCount(data.length);
+      }
     } catch (e: unknown) {
       const errorObj = e as Error;
       setNotice("Failed to load results: " + errorObj.message);
@@ -75,17 +165,23 @@ export default function ResultsPage() {
 
   useEffect(() => {
     fetchExams();
+    fetchAvailableDates();
   }, []);
 
   useEffect(() => {
     fetchResults();
     const interval = setInterval(() => {
-      getAllResults(selectedExamId)
-        .then(data => setResults(data))
+      getAllResults(selectedExamId, selectedDate === "ALL" ? undefined : selectedDate)
+        .then(data => {
+          setResults(data);
+          if (selectedDate === todayIst) {
+            setTodayAttemptCount(data.length);
+          }
+        })
         .catch(() => {});
     }, 30000);
     return () => clearInterval(interval);
-  }, [selectedExamId]);
+  }, [selectedExamId, selectedDate]);
 
   const handleTogglePublish = async (examId: number, currentlyPublished: boolean) => {
     try {
@@ -115,6 +211,20 @@ export default function ResultsPage() {
     }
   };
 
+  // Helper to reliably extract candidate's exam date
+  const getCandidateExamDate = (r: ExamResultDto): string => {
+    if (r.examDate) return r.examDate;
+    const ts = r.submittedAt || r.startedAt || r.createdAt;
+    if (ts) {
+      try {
+        return new Date(ts).toISOString().slice(0, 10);
+      } catch {
+        return "-";
+      }
+    }
+    return "-";
+  };
+
   // Helper to reliably classify a candidate's slot
   const getCandidateSlot = (r: ExamResultDto): "Slot 1" | "Slot 2" => {
     if (r.slotNumber === 2) return "Slot 2";
@@ -129,7 +239,7 @@ export default function ResultsPage() {
     return "Slot 1";
   };
 
-  // High-level slot counts
+  // Slot candidates for active date
   const slot1Candidates = useMemo(() => results.filter(r => getCandidateSlot(r) === "Slot 1"), [results]);
   const slot2Candidates = useMemo(() => results.filter(r => getCandidateSlot(r) === "Slot 2"), [results]);
 
@@ -139,7 +249,7 @@ export default function ResultsPage() {
     slot2: slot2Candidates.length,
   }), [results, slot1Candidates, slot2Candidates]);
 
-  // Compute dynamic stats based on selected slot
+  // Compute dynamic pool based on selected slot
   const activeSlotPool = useMemo(() => {
     if (slotFilter === "Slot 1") return slot1Candidates;
     if (slotFilter === "Slot 2") return slot2Candidates;
@@ -228,10 +338,10 @@ export default function ResultsPage() {
     return filtered;
   }, [filtered, exportMode]);
 
-  const hasActiveFilters = slotFilter !== "ALL" || searchQuery.trim() !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
+  const hasActiveFilters = slotFilter !== "Slot 1" || searchQuery.trim() !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
 
   const resetAllFilters = () => {
-    setSlotFilter("ALL");
+    setSlotFilter("Slot 1");
     setSearchQuery("");
     setStatusFilter("ALL");
     setScorePreset("ALL");
@@ -253,6 +363,7 @@ export default function ResultsPage() {
   const downloadCsvReport = () => {
     if (exportCandidates.length === 0) return;
     const headers = [
+      "Exam Date",
       "Candidate Name", 
       "Registration Number", 
       "Email Address",
@@ -271,6 +382,7 @@ export default function ResultsPage() {
       "Receipt ID"
     ];
     const rows = exportCandidates.map(c => [
+      `"${c.examDate || getCandidateExamDate(c)}"`,
       `"${c.candidateName}"`,
       `"${c.registrationNumber}"`,
       `"${c.candidateEmail || "-"}"`,
@@ -295,7 +407,7 @@ export default function ResultsPage() {
     link.setAttribute("href", encodedUri);
     const prefix = slotFilter === "ALL" ? "All_Slots" : slotFilter.replace(" ", "_");
     const modeStr = exportMode === "QUALIFIED" ? "Qualified" : "Candidates";
-    link.setAttribute("download", `ExamSecure_${prefix}_${modeStr}_Results_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute("download", `ExamSecure_${selectedDate}_${prefix}_${modeStr}_Results.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -312,6 +424,7 @@ export default function ResultsPage() {
       month: "short",
       year: "numeric"
     });
+    const examDateLabel = formatDateLabel(selectedDate, todayIst, yesterdayIst);
 
     const html = `
       <!DOCTYPE html>
@@ -338,6 +451,7 @@ export default function ResultsPage() {
           .slot-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
           .slot-1 { background: #e0f2fe; color: #0369a1; }
           .slot-2 { background: #f3e8ff; color: #6b21a8; }
+          .date-pill { background: #f1f5f9; color: #334155; font-size: 10.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
           .footer { margin-top: 32px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
           @media print {
             body { padding: 12px; }
@@ -349,17 +463,18 @@ export default function ResultsPage() {
         <div class="header">
           <div>
             <h1 class="title">Kalpanaa Software Solutions &mdash; Official Results Report</h1>
-            <p class="subtitle">Examination: <strong>${examTitle}</strong> &bull; Generated: ${dateStr}</p>
+            <p class="subtitle">Examination: <strong>${examTitle}</strong> &bull; Exam Date: <strong>${examDateLabel}</strong> &bull; Generated: ${dateStr}</p>
           </div>
           <div class="badge-box">
             <div class="badge">Total Listed: ${exportCandidates.length} Candidates</div>
-            <div class="slot-tag">Scope: ${getSlotExportTitle()}</div>
+            <div class="slot-tag">Scope: ${getSlotExportTitle()} &bull; ${examDateLabel}</div>
           </div>
         </div>
         <table>
           <thead>
             <tr>
               <th style="width: 32px;">#</th>
+              <th>Exam Date</th>
               <th>Candidate Name & Reg No</th>
               <th>Department</th>
               <th>Slot & Set</th>
@@ -376,6 +491,7 @@ export default function ResultsPage() {
               return `
                 <tr>
                   <td>${idx + 1}</td>
+                  <td><span class="date-pill">${c.examDate || getCandidateExamDate(c)}</span></td>
                   <td>
                     <strong>${c.candidateName}</strong>
                     <div style="font-family: monospace; font-size: 11px; color: #64748b;">${c.registrationNumber}</div>
@@ -420,6 +536,7 @@ export default function ResultsPage() {
       month: "short",
       year: "numeric"
     });
+    const examDateLabel = formatDateLabel(selectedDate, todayIst, yesterdayIst);
 
     const docContent = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -437,11 +554,12 @@ export default function ResultsPage() {
       </head>
       <body>
         <h2>Kalpanaa Software Solutions &mdash; Official Results Report</h2>
-        <p>Examination: <b>${examTitle}</b> | Date: ${dateStr} | Total Candidates: <b>${exportCandidates.length}</b></p>
+        <p>Examination: <b>${examTitle}</b> | Exam Date: <b>${examDateLabel}</b> | Date Generated: ${dateStr} | Total Candidates: <b>${exportCandidates.length}</b></p>
         <table>
           <thead>
             <tr>
               <th>#</th>
+              <th>Exam Date</th>
               <th>Candidate Name</th>
               <th>Roll / Reg No</th>
               <th>Department</th>
@@ -457,6 +575,7 @@ export default function ResultsPage() {
             ${exportCandidates.map((c, i) => `
               <tr>
                 <td>${i + 1}</td>
+                <td>${c.examDate || getCandidateExamDate(c)}</td>
                 <td><b>${c.candidateName}</b></td>
                 <td>${c.registrationNumber}</td>
                 <td>${c.departmentName}</td>
@@ -479,7 +598,7 @@ export default function ResultsPage() {
     const link = document.createElement("a");
     link.href = url;
     const prefix = slotFilter === "ALL" ? "All_Slots" : slotFilter.replace(" ", "_");
-    link.download = `ExamSecure_${prefix}_Results_${new Date().toISOString().slice(0, 10)}.doc`;
+    link.download = `ExamSecure_${selectedDate}_${prefix}_Results.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -544,184 +663,349 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* SLOT SELECTION BAR (Slot 1 vs Slot 2 Separation) */}
+      {/* UNIFIED EXAMINATION DATE & SLOT CONTROL PANEL */}
       <div style={{
         background: "#ffffff",
         border: "1px solid #e2e8f0",
         borderRadius: "14px",
-        padding: "14px 18px",
+        padding: "16px 20px",
         marginBottom: "16px",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        flexWrap: "wrap",
+        flexDirection: "column",
         gap: "14px",
         boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#334155", fontWeight: 700, fontSize: "13px" }}>
-            <Clock size={16} color="#017846" />
-            <span>Select Examination Slot:</span>
+        {/* ROW 1: EXAMINATION DATE SELECTION */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#334155", fontWeight: 700, fontSize: "13px" }}>
+              <Calendar size={16} color="#017846" />
+              <span>Examination Date:</span>
+            </div>
+
+            <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "4px", borderRadius: "10px", gap: "4px", flexWrap: "wrap" }}>
+              {/* Today Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayIst)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: selectedDate === todayIst ? "#017846" : "transparent",
+                  color: selectedDate === todayIst ? "#ffffff" : "#475569",
+                  boxShadow: selectedDate === todayIst ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>Today ({formatDateShort(todayIst)})</span>
+                {todayAttemptCount !== undefined && (
+                  <span style={{
+                    background: selectedDate === todayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+                    color: selectedDate === todayIst ? "#ffffff" : "#017846",
+                    padding: "1px 7px",
+                    borderRadius: "10px",
+                    fontSize: "11px",
+                    fontWeight: 800
+                  }}>
+                    {todayAttemptCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Yesterday Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedDate(yesterdayIst)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: selectedDate === yesterdayIst ? "#017846" : "transparent",
+                  color: selectedDate === yesterdayIst ? "#ffffff" : "#475569",
+                  boxShadow: selectedDate === yesterdayIst ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>Yesterday ({formatDateShort(yesterdayIst)})</span>
+              </button>
+
+              {/* Other distinct dates from DB */}
+              {availableDates.filter(d => d !== todayIst && d !== yesterdayIst).map(d => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setSelectedDate(d)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    fontSize: "12.5px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    border: "none",
+                    background: selectedDate === d ? "#017846" : "transparent",
+                    color: selectedDate === d ? "#ffffff" : "#475569",
+                    boxShadow: selectedDate === d ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                    transition: "all 0.15s ease"
+                  }}
+                >
+                  <span>{formatDateShort(d)}</span>
+                </button>
+              ))}
+
+              {/* All Dates Combined Button */}
+              <button
+                type="button"
+                onClick={() => setSelectedDate("ALL")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  fontSize: "12.5px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: selectedDate === "ALL" ? "#0f172a" : "transparent",
+                  color: selectedDate === "ALL" ? "#ffffff" : "#475569",
+                  boxShadow: selectedDate === "ALL" ? "0 2px 6px rgba(15, 23, 42, 0.25)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>All Dates Combined</span>
+              </button>
+            </div>
+
+            {/* Custom Date Input */}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <span style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 600 }}>Custom Date:</span>
+              <input
+                type="date"
+                value={selectedDate === "ALL" ? "" : selectedDate}
+                max={todayIst}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedDate(e.target.value);
+                  }
+                }}
+                style={{
+                  height: "32px",
+                  padding: "4px 8px",
+                  fontSize: "12px",
+                  borderRadius: "6px",
+                  border: "1px solid #cbd5e1",
+                  background: "#f8fafc",
+                  color: "#0f172a",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              />
+            </div>
           </div>
 
-          <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "4px", borderRadius: "10px", gap: "4px" }}>
-            {/* Slot 1 Tab */}
-            <button
-              type="button"
-              onClick={() => setSlotFilter("Slot 1")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "7px 16px",
-                borderRadius: "8px",
-                fontSize: "13px",
-                fontWeight: 700,
-                cursor: "pointer",
-                border: "none",
-                background: slotFilter === "Slot 1" ? "#0284c7" : "transparent",
-                color: slotFilter === "Slot 1" ? "#ffffff" : "#475569",
-                boxShadow: slotFilter === "Slot 1" ? "0 2px 6px rgba(2, 132, 199, 0.3)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              <span>Slot 1 (10:00 AM)</span>
-              <span style={{
-                background: slotFilter === "Slot 1" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
-                color: slotFilter === "Slot 1" ? "#ffffff" : "#0369a1",
-                padding: "1px 8px",
-                borderRadius: "10px",
-                fontSize: "11.5px",
-                fontWeight: 800
-              }}>
-                {slotCounts.slot1}
-              </span>
-            </button>
-
-            {/* Slot 2 Tab */}
-            <button
-              type="button"
-              onClick={() => setSlotFilter("Slot 2")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "7px 16px",
-                borderRadius: "8px",
-                fontSize: "13px",
-                fontWeight: 700,
-                cursor: "pointer",
-                border: "none",
-                background: slotFilter === "Slot 2" ? "#7c3aed" : "transparent",
-                color: slotFilter === "Slot 2" ? "#ffffff" : "#475569",
-                boxShadow: slotFilter === "Slot 2" ? "0 2px 6px rgba(124, 58, 237, 0.3)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              <span>Slot 2 (02:00 PM)</span>
-              <span style={{
-                background: slotFilter === "Slot 2" ? "rgba(255,255,255,0.25)" : "#f3e8ff",
-                color: slotFilter === "Slot 2" ? "#ffffff" : "#7c3aed",
-                padding: "1px 8px",
-                borderRadius: "10px",
-                fontSize: "11.5px",
-                fontWeight: 800
-              }}>
-                {slotCounts.slot2}
-              </span>
-            </button>
-
-            {/* All Slots Tab */}
-            <button
-              type="button"
-              onClick={() => setSlotFilter("ALL")}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                padding: "7px 16px",
-                borderRadius: "8px",
-                fontSize: "13px",
-                fontWeight: 700,
-                cursor: "pointer",
-                border: "none",
-                background: slotFilter === "ALL" ? "#017846" : "transparent",
-                color: slotFilter === "ALL" ? "#ffffff" : "#475569",
-                boxShadow: slotFilter === "ALL" ? "0 2px 6px rgba(1, 120, 70, 0.3)" : "none",
-                transition: "all 0.15s ease"
-              }}
-            >
-              <span>All Slots</span>
-              <span style={{
-                background: slotFilter === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
-                color: slotFilter === "ALL" ? "#ffffff" : "#475569",
-                padding: "1px 8px",
-                borderRadius: "10px",
-                fontSize: "11.5px",
-                fontWeight: 800
-              }}>
-                {slotCounts.total}
-              </span>
-            </button>
+          {/* Active Date Indicator */}
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            background: selectedDate === todayIst ? "#eaf6ef" : "#f1f5f9",
+            border: `1px solid ${selectedDate === todayIst ? "#bbf7d0" : "#cbd5e1"}`,
+            padding: "5px 12px",
+            borderRadius: "8px",
+            fontSize: "12px",
+            color: selectedDate === todayIst ? "#017846" : "#475569",
+            fontWeight: 600
+          }}>
+            <CalendarDays size={14} color={selectedDate === todayIst ? "#017846" : "#64748b"} />
+            <span>Active Date: <strong>{formatDateLabel(selectedDate, todayIst, yesterdayIst)}</strong></span>
           </div>
         </div>
 
-        {/* Slot Info Badge */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          {slotFilter === "Slot 1" && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "#f0f9ff",
-              border: "1px solid #bae6fd",
-              padding: "5px 12px",
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: "#0369a1",
-              fontWeight: 600
-            }}>
-              <CheckCircle2 size={14} color="#0284c7" />
-              <span>Slot 1 Exam: <strong>Completed (10:00 AM – 11:00 AM)</strong> &bull; 275 Attendees</span>
+        <div style={{ borderTop: "1px solid #f1f5f9" }} />
+
+        {/* ROW 2: TIME SLOT SELECTION (Slot 1 vs Slot 2 Separation) */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#334155", fontWeight: 700, fontSize: "13px" }}>
+              <Clock size={16} color="#017846" />
+              <span>Examination Slot:</span>
             </div>
-          )}
-          {slotFilter === "Slot 2" && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "#faf5ff",
-              border: "1px solid #e9d5ff",
-              padding: "5px 12px",
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: "#7e22ce",
-              fontWeight: 600
-            }}>
-              <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#a855f7" }} />
-              <span>Slot 2 Exam: <strong>Scheduled / Active (02:00 PM – 03:00 PM)</strong></span>
+
+            <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "4px", borderRadius: "10px", gap: "4px" }}>
+              {/* Slot 1 Tab */}
+              <button
+                type="button"
+                onClick={() => setSlotFilter("Slot 1")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "7px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: slotFilter === "Slot 1" ? "#0284c7" : "transparent",
+                  color: slotFilter === "Slot 1" ? "#ffffff" : "#475569",
+                  boxShadow: slotFilter === "Slot 1" ? "0 2px 6px rgba(2, 132, 199, 0.3)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>Slot 1 (10:00 AM)</span>
+                <span style={{
+                  background: slotFilter === "Slot 1" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+                  color: slotFilter === "Slot 1" ? "#ffffff" : "#0369a1",
+                  padding: "1px 8px",
+                  borderRadius: "10px",
+                  fontSize: "11.5px",
+                  fontWeight: 800
+                }}>
+                  {slotCounts.slot1}
+                </span>
+              </button>
+
+              {/* Slot 2 Tab */}
+              <button
+                type="button"
+                onClick={() => setSlotFilter("Slot 2")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "7px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: slotFilter === "Slot 2" ? "#7c3aed" : "transparent",
+                  color: slotFilter === "Slot 2" ? "#ffffff" : "#475569",
+                  boxShadow: slotFilter === "Slot 2" ? "0 2px 6px rgba(124, 58, 237, 0.3)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>Slot 2 (02:00 PM)</span>
+                <span style={{
+                  background: slotFilter === "Slot 2" ? "rgba(255,255,255,0.25)" : "#f3e8ff",
+                  color: slotFilter === "Slot 2" ? "#ffffff" : "#7c3aed",
+                  padding: "1px 8px",
+                  borderRadius: "10px",
+                  fontSize: "11.5px",
+                  fontWeight: 800
+                }}>
+                  {slotCounts.slot2}
+                </span>
+              </button>
+
+              {/* All Slots Tab */}
+              <button
+                type="button"
+                onClick={() => setSlotFilter("ALL")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "7px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: slotFilter === "ALL" ? "#017846" : "transparent",
+                  color: slotFilter === "ALL" ? "#ffffff" : "#475569",
+                  boxShadow: slotFilter === "ALL" ? "0 2px 6px rgba(1, 120, 70, 0.3)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>All Slots</span>
+                <span style={{
+                  background: slotFilter === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+                  color: slotFilter === "ALL" ? "#ffffff" : "#475569",
+                  padding: "1px 8px",
+                  borderRadius: "10px",
+                  fontSize: "11.5px",
+                  fontWeight: 800
+                }}>
+                  {slotCounts.total}
+                </span>
+              </button>
             </div>
-          )}
-          {slotFilter === "ALL" && (
-            <div style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "#f8fafc",
-              border: "1px solid #cbd5e1",
-              padding: "5px 12px",
-              borderRadius: "8px",
-              fontSize: "12px",
-              color: "#475569",
-              fontWeight: 600
-            }}>
-              <span>Showing All Candidate Submissions Across All Slots</span>
-            </div>
-          )}
+          </div>
+
+          {/* Slot Info Badge */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            {slotFilter === "Slot 1" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#f0f9ff",
+                border: "1px solid #bae6fd",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#0369a1",
+                fontWeight: 600
+              }}>
+                <CheckCircle2 size={14} color="#0284c7" />
+                <span>Slot 1 Exam: <strong>Completed (10:00 AM – 11:00 AM)</strong> &bull; {slotCounts.slot1} Attendees</span>
+              </div>
+            )}
+            {slotFilter === "Slot 2" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#faf5ff",
+                border: "1px solid #e9d5ff",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#7e22ce",
+                fontWeight: 600
+              }}>
+                <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#a855f7" }} />
+                <span>Slot 2 Exam: <strong>Completed (02:00 PM – 03:00 PM)</strong> &bull; {slotCounts.slot2} Attendees</span>
+              </div>
+            )}
+            {slotFilter === "ALL" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: "#f8fafc",
+                border: "1px solid #cbd5e1",
+                padding: "5px 12px",
+                borderRadius: "8px",
+                fontSize: "12px",
+                color: "#475569",
+                fontWeight: 600
+              }}>
+                <span>Showing All Candidate Submissions Across All Slots ({slotCounts.total})</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Dynamic Metric Cards (Updated per selected Slot) */}
+      {/* Dynamic Metric Cards (Updated per selected Date & Slot) */}
       <div className="stat-cards-row">
         <div className="stat-card">
           <div className="stat-card-info">
@@ -991,7 +1275,7 @@ export default function ResultsPage() {
             <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", display: "flex", alignItems: "center", gap: "8px" }}>
               <span>Export Candidates ({exportCandidates.length})</span>
               <span style={{ fontSize: "11px", fontWeight: 600, color: "#64748b" }}>
-                from <strong>{getSlotExportTitle()}</strong>
+                from <strong>{getSlotExportTitle()}</strong> &bull; {formatDateLabel(selectedDate, todayIst, yesterdayIst)}
               </span>
             </div>
             <div style={{ fontSize: "11.5px", color: "#64748b" }}>
@@ -1123,7 +1407,7 @@ export default function ResultsPage() {
                 <th>Answered / Unanswered</th>
                 <th>Score / Total Marks</th>
                 <th>Qualification Status</th>
-                <th>Submission Time</th>
+                <th>Date & Submission Time</th>
                 <th style={{ textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
@@ -1139,35 +1423,79 @@ export default function ResultsPage() {
                   <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <BarChart3 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
-                      No examination attempts match your selected criteria
+                      {results.length === 0 
+                        ? `No examination attempts recorded for ${formatDateLabel(selectedDate, todayIst, yesterdayIst)}`
+                        : "No examination attempts match your selected criteria"}
                     </p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                      {hasActiveFilters ? "Try clearing or adjusting your slot, search, or marks filters." : "Candidate exam submissions will appear here with automatic backend scoring and pass status."}
+                      {results.length === 0 
+                        ? "Select 'Today' to view today's active examinations or switch to 'All Dates Combined'."
+                        : hasActiveFilters 
+                          ? "Try clearing or adjusting your slot, search, or marks filters." 
+                          : "Candidate exam submissions will appear here with automatic backend scoring and pass status."}
                     </small>
-                    {hasActiveFilters && (
-                      <button
-                        type="button"
-                        onClick={resetAllFilters}
-                        style={{
-                          marginTop: "12px",
-                          padding: "6px 14px",
-                          borderRadius: "6px",
-                          background: "#017846",
-                          color: "#ffffff",
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          border: "none",
-                          cursor: "pointer"
-                        }}
-                      >
-                        Reset All Filters
-                      </button>
-                    )}
+                    <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "14px", flexWrap: "wrap" }}>
+                      {results.length === 0 && selectedDate !== todayIst && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(todayIst)}
+                          style={{
+                            padding: "6px 14px",
+                            borderRadius: "6px",
+                            background: "#017846",
+                            color: "#ffffff",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        >
+                          View Today's Results ({formatDateShort(todayIst)})
+                        </button>
+                      )}
+                      {results.length === 0 && selectedDate !== "ALL" && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate("ALL")}
+                          style={{
+                            padding: "6px 14px",
+                            borderRadius: "6px",
+                            background: "#0f172a",
+                            color: "#ffffff",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        >
+                          View All Dates Combined
+                        </button>
+                      )}
+                      {results.length > 0 && hasActiveFilters && (
+                        <button
+                          type="button"
+                          onClick={resetAllFilters}
+                          style={{
+                            padding: "6px 14px",
+                            borderRadius: "6px",
+                            background: "#017846",
+                            color: "#ffffff",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            border: "none",
+                            cursor: "pointer"
+                          }}
+                        >
+                          Reset All Filters
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
                 filtered.map(r => {
                   const candidateSlot = getCandidateSlot(r);
+                  const attemptDate = r.examDate || getCandidateExamDate(r);
                   return (
                     <tr key={r.attemptId}>
                       <td>
@@ -1219,8 +1547,25 @@ export default function ResultsPage() {
                         </span>
                       </td>
                       <td>
+                        {/* Exam Date Badge */}
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "3px" }}>
+                          <span style={{
+                            fontSize: "10.5px",
+                            fontWeight: 700,
+                            padding: "1px 6px",
+                            borderRadius: "4px",
+                            background: "#f1f5f9",
+                            color: "#334155",
+                            border: "1px solid #e2e8f0"
+                          }}>
+                            📅 {formatDisplayDate(attemptDate)}
+                          </span>
+                        </div>
+                        {/* Submission / Live Status */}
                         <small style={{ color: "#0f172a", fontWeight: 600, display: "block" }}>
-                          {r.submittedAt ? new Date(r.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (
+                          {r.submittedAt ? (
+                            `🕒 ${new Date(r.submittedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+                          ) : (
                             <span style={{ color: "#d97706", fontWeight: 600 }}>{r.attemptStatus === "IN_PROGRESS" ? "In Progress • Live" : (r.attemptStatus || "Pending")}</span>
                           )}
                         </small>

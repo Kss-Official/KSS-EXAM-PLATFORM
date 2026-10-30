@@ -1,5 +1,6 @@
 from typing import List, Optional
-from sqlalchemy import func
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
@@ -46,11 +47,34 @@ class DashboardService:
         )
 
     @classmethod
-    def get_exam_results(cls, db: Session, exam_id: Optional[int] = None) -> List[ExamResultDto]:
+    def get_available_dates(cls, db: Session) -> List[str]:
         """
-        Loads all candidate exam results using eager joins to avoid N+1 queries.
-        Answer counts are retrieved via a single SQL GROUP BY aggregation of distinct question IDs.
+        Retrieves all distinct examination dates (in IST UTC+5:30) with recorded attempts.
         """
+        IST = timezone(timedelta(hours=5, minutes=30))
+        dates_raw = db.execute(text("""
+            SELECT DISTINCT to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt
+            FROM exam_attempts
+            WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+            ORDER BY dt DESC
+        """)).fetchall()
+        result = [r[0] for r in dates_raw if r[0]]
+        now_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+        if now_ist not in result:
+            result.insert(0, now_ist)
+        return result
+
+    @classmethod
+    def get_exam_results(
+        cls, 
+        db: Session, 
+        exam_id: Optional[int] = None,
+        date: Optional[str] = None
+    ) -> List[ExamResultDto]:
+        """
+        Loads candidate exam results filtered by optional exam_id and specific examination date (in IST).
+        """
+        IST = timezone(timedelta(hours=5, minutes=30))
         query = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.candidate).joinedload(Candidate.department),
             joinedload(ExamAttempt.exam),
@@ -59,6 +83,21 @@ class DashboardService:
         )
         if exam_id:
             query = query.filter(ExamAttempt.exam_id == exam_id)
+
+        if date and date.strip() and date.strip().upper() != "ALL":
+            try:
+                dt_obj = datetime.strptime(date.strip(), "%Y-%m-%d").date()
+                start_ist = datetime(dt_obj.year, dt_obj.month, dt_obj.day, 0, 0, 0, tzinfo=IST)
+                end_ist = start_ist + timedelta(days=1)
+                start_utc = start_ist.astimezone(timezone.utc)
+                end_utc = end_ist.astimezone(timezone.utc)
+                query = query.filter(
+                    func.coalesce(ExamAttempt.submitted_at, ExamAttempt.started_at, ExamAttempt.created_at) >= start_utc,
+                    func.coalesce(ExamAttempt.submitted_at, ExamAttempt.started_at, ExamAttempt.created_at) < end_utc
+                )
+            except Exception:
+                pass
+
         attempts = query.order_by(ExamAttempt.created_at.desc()).all()
 
         if not attempts:
@@ -105,6 +144,12 @@ class DashboardService:
             elif a.slot and a.slot.slot_number:
                 slot_num = a.slot.slot_number
 
+            ts = a.submitted_at or a.started_at or a.created_at
+            exam_dt_str = None
+            if ts:
+                ist_dt = ts.astimezone(IST) if ts.tzinfo else ts.replace(tzinfo=timezone.utc).astimezone(IST)
+                exam_dt_str = ist_dt.strftime("%Y-%m-%d")
+
             dto = ExamResultDto(
                 attempt_id=a.id,
                 candidate_id=a.candidate_id,
@@ -135,6 +180,8 @@ class DashboardService:
                 incorrect_answers=a.incorrect_answers,
                 duration_seconds=a.duration_seconds,
                 started_at=a.started_at,
+                created_at=a.created_at,
+                exam_date=exam_dt_str,
                 candidate_code=a.candidate_code or reg_num,
                 question_set_code=set_cd,
             )

@@ -11,18 +11,36 @@ router = APIRouter(prefix="/api/admin/results", tags=["Admin Exam Results"])
 
 @router.get("", response_model=List[ExamResultDto])
 def get_all_results(
+    date: Optional[str] = None,
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return DashboardService.get_exam_results(db, None)
+    """
+    Retrieves candidate examination results with optional date filtering (YYYY-MM-DD in IST).
+    """
+    return DashboardService.get_exam_results(db, None, date=date)
+
+@router.get("/dates", response_model=List[str])
+def get_available_dates(
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves all distinct examination dates with recorded candidate attempts.
+    """
+    return DashboardService.get_available_dates(db)
 
 @router.get("/exam/{exam_id}", response_model=List[ExamResultDto])
 def get_results_by_exam(
     exam_id: int,
+    date: Optional[str] = None,
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return DashboardService.get_exam_results(db, exam_id)
+    """
+    Retrieves examination results for a specific exam with optional date filtering.
+    """
+    return DashboardService.get_exam_results(db, exam_id, date=date)
 
 @router.post("/exam/{exam_id}/publish")
 def publish_results(
@@ -87,4 +105,3 @@ def reset_candidate_attempt(
         "examId": exam_id,
         "message": "Examination attempt reset successfully. The candidate can now log in and retake the exam."
     }
-

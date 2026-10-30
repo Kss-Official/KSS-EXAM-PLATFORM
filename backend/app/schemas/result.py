@@ -55,5 +55,7 @@ class ExamResultDto(CamelModel):
     incorrect_answers: Optional[int] = None
     duration_seconds: Optional[int] = None
     started_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    exam_date: Optional[str] = None
     candidate_code: Optional[str] = None
     question_set_code: Optional[str] = None

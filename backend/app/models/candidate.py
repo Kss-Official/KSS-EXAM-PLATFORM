@@ -20,6 +20,7 @@ class Candidate(Base):
     department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
     college_id = Column(BigInteger, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
     batch = Column(String(50), nullable=True)  # Slot 1, Slot 2, Batch 1, Batch 2, etc.
+    exam_date = Column(String(20), nullable=True, index=True)  # YYYY-MM-DD
     assigned_set = Column(String(10), nullable=True)  # Set A, Set B, Set C, Set D, or None
     status = Column(String(20), default="ACTIVE")
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

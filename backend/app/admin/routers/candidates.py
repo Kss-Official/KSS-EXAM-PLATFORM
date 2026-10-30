@@ -18,6 +18,7 @@ def get_candidates(
     college_id: Optional[int] = Query(None, alias="collegeId", description="Filter by college ID"),
     status: Optional[str] = Query(None, description="Filter by status (COMPLETED, GOING ON, PENDING, ALL)"),
     batch: Optional[str] = Query(None, description="Filter by batch (Slot 1, Slot 2, UNASSIGNED, ALL)"),
+    date: Optional[str] = Query(None, description="Filter by candidate examination date (YYYY-MM-DD or ALL)"),
     sort_by: str = Query("registration_number", alias="sortBy", description="Sort field"),
     sort_order: str = Query("asc", alias="sortOrder", description="Sort order (asc or desc)"),
     all: bool = Query(False, description="Return all candidates unpaginated"),
@@ -25,7 +26,7 @@ def get_candidates(
     db: Session = Depends(get_db)
 ):
     if all:
-        return CandidateService.get_all_candidates(db)
+        return CandidateService.get_all_candidates(db, date=date)
     p = page if page is not None else 1
     l = limit if limit is not None else 30
     return CandidateService.get_paginated_candidates(
@@ -37,9 +38,18 @@ def get_candidates(
         college_id=college_id,
         status=status,
         batch=batch,
+        date=date,
         sort_by=sort_by,
         sort_order=sort_order
     )
+
+@router.get("/dates", response_model=List[str])
+def get_available_candidate_dates(
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Returns all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD)."""
+    return CandidateService.get_available_candidate_dates(db)
 
 @router.post("", response_model=CandidateDto)
 def create_candidate(

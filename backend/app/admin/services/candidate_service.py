@@ -4,7 +4,7 @@ import re
 import secrets
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile, status
 
@@ -47,19 +47,33 @@ class CandidateService:
             status=computed_status,
             created_at=c.created_at,
             assigned_set=c.assigned_set,
-            batch=c.batch
+            batch=c.batch,
+            exam_date=getattr(c, "exam_date", None)
         )
 
     @classmethod
-    def get_all_candidates(cls, db: Session) -> List[CandidateDto]:
+    def get_all_candidates(cls, db: Session, date: Optional[str] = None) -> List[CandidateDto]:
         """
         Retrieves all registered candidates with eager-loaded departments, colleges, and access codes in a single query.
+        Optionally filters by examination date (YYYY-MM-DD).
         """
-        cands = db.query(Candidate).options(
+        query = db.query(Candidate).options(
             joinedload(Candidate.department),
             joinedload(Candidate.college),
             joinedload(Candidate.access_codes)
-        ).all()
+        )
+        if date and date.strip() and date.strip().upper() != "ALL":
+            d_clean = date.strip()
+            query = query.filter(
+                or_(
+                    Candidate.exam_date == d_clean,
+                    and_(
+                        Candidate.exam_date == None,
+                        func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+                    )
+                )
+            )
+        cands = query.all()
 
         # Query all attempts to accurately determine candidate progress in real time
         attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).all()
@@ -83,6 +97,29 @@ class CandidateService:
         return [cls._to_dto(c, attempt_status=attempt_map.get(c.id)) for c in cands]
 
     @classmethod
+    def get_available_candidate_dates(cls, db: Session) -> List[str]:
+        """
+        Retrieves all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD),
+        sorted in descending order (most upcoming/recent date first).
+        """
+        raw_dates = db.query(Candidate.exam_date).filter(
+            Candidate.exam_date != None,
+            Candidate.exam_date != ""
+        ).distinct().all()
+        dates_set = {d[0] for d in raw_dates if d[0]}
+
+        fallback_dates = db.query(
+            func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD')
+        ).filter(
+            or_(Candidate.exam_date == None, Candidate.exam_date == "")
+        ).distinct().all()
+        for fd in fallback_dates:
+            if fd[0]:
+                dates_set.add(fd[0])
+
+        return sorted(list(dates_set), reverse=True)
+
+    @classmethod
     def get_paginated_candidates(
         cls,
         db: Session,
@@ -93,6 +130,7 @@ class CandidateService:
         college_id: Optional[int] = None,
         status: Optional[str] = None,
         batch: Optional[str] = None,
+        date: Optional[str] = None,
         sort_by: str = "registration_number",
         sort_order: str = "asc"
     ) -> PaginatedCandidatesResponse:
@@ -138,6 +176,19 @@ class CandidateService:
             else:
                 query = query.filter(Candidate.batch == b_clean)
 
+        # 3c. Server-side Date filter (e.g. '2026-10-31', '2026-10-30', 'ALL')
+        if date and date.strip() and date.strip().upper() != "ALL":
+            d_clean = date.strip()
+            query = query.filter(
+                or_(
+                    Candidate.exam_date == d_clean,
+                    and_(
+                        Candidate.exam_date == None,
+                        func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+                    )
+                )
+            )
+
         # 4. Server-side Real-time Status filter (COMPLETED, GOING ON, PENDING, DISABLED)
         if status and status.strip() and status.strip().upper() != "ALL":
             st = status.strip().upper()
@@ -174,6 +225,7 @@ class CandidateService:
             (department_id is not None) or 
             (college_id is not None) or 
             bool(batch and batch.strip() and batch.strip().upper() != "ALL") or
+            bool(date and date.strip() and date.strip().upper() != "ALL") or
             bool(status and status.strip() and status.strip().upper() != "ALL")
         )
         if not has_filter:

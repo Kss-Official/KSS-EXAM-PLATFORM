@@ -172,6 +172,7 @@ export interface CandidateDto {
   collegeId?: number;
   collegeName?: string;
   batch?: string;
+  examDate?: string;
   status: string;
   createdAt?: string;
 }
@@ -202,6 +203,7 @@ export interface CandidateQueryParams {
   departmentId?: number;
   collegeId?: number;
   batch?: string;
+  date?: string;
   status?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
@@ -294,6 +296,8 @@ export interface SubmissionResponse {
   unansweredQuestions?: number;
   durationSeconds?: number;
   startedAt?: string;
+  createdAt?: string;
+  examDate?: string;
   candidateCode?: string;
   questionSetCode?: string;
 }
@@ -328,6 +332,8 @@ export interface ExamResultDto {
   incorrectAnswers?: number;
   durationSeconds?: number;
   startedAt?: string;
+  createdAt?: string;
+  examDate?: string;
   candidateCode?: string;
   questionSetCode?: string;
 }
@@ -795,6 +801,7 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   if (params?.departmentId !== undefined) query.set("departmentId", String(params.departmentId));
   if (params?.collegeId !== undefined) query.set("collegeId", String(params.collegeId));
   if (params?.batch && params.batch !== "ALL") query.set("batch", params.batch);
+  if (params?.date && params.date !== "ALL") query.set("date", params.date);
   if (params?.status && params.status !== "ALL") query.set("status", params.status);
   if (params?.sortBy) query.set("sortBy", params.sortBy);
   if (params?.sortOrder) query.set("sortOrder", params.sortOrder);
@@ -804,10 +811,17 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   return request<PaginatedCandidatesResponse>(`admin/candidates${qs ? `?${qs}` : ""}`);
 }
 
-export async function getAllCandidates(): Promise<CandidateDto[]> {
-  const res = await request<PaginatedCandidatesResponse | CandidateDto[]>("admin/candidates?all=true");
+export async function getAllCandidates(date?: string): Promise<CandidateDto[]> {
+  const query = new URLSearchParams();
+  query.set("all", "true");
+  if (date && date !== "ALL") query.set("date", date);
+  const res = await request<PaginatedCandidatesResponse | CandidateDto[]>(`admin/candidates?${query.toString()}`);
   if (Array.isArray(res)) return res;
   return res.items || [];
+}
+
+export async function getAvailableCandidateDates(): Promise<string[]> {
+  return request<string[]>("admin/candidates/dates");
 }
 
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
@@ -883,9 +897,18 @@ export async function assignCandidateToExam(candidateId: number, examId: number,
    7. RESULTS APIS
    ========================================================================= */
 
-export async function getAllResults(examId?: number): Promise<ExamResultDto[]> {
-  const endpoint = examId ? `admin/results/exam/${examId}` : "admin/results";
+export async function getAllResults(examId?: number, date?: string): Promise<ExamResultDto[]> {
+  const params = new URLSearchParams();
+  if (date && date !== "ALL") {
+    params.set("date", date);
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const endpoint = examId ? `admin/results/exam/${examId}${qs}` : `admin/results${qs}`;
   return request<ExamResultDto[]>(endpoint);
+}
+
+export async function getAvailableResultDates(): Promise<string[]> {
+  return request<string[]>("admin/results/dates");
 }
 
 export async function publishResults(examId: number, published: boolean): Promise<any> {
