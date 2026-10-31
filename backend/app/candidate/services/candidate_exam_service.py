@@ -128,12 +128,29 @@ class CandidateExamService:
         if not target_reg and input_email and (input_email.isdigit() or "@" not in input_email):
             target_reg = input_email.strip().upper()
 
+        def normalize_name(s: str) -> str:
+            return re.sub(r'\s+', ' ', (s or "").strip()).lower()
+
+        EMAIL_ALIASES = {
+            "shwetasani11@gmail.com": "sanikoppshweta@gmail.com",
+            "sanikoppshweta@gmail.com": "shwetasani11@gmail.com",
+        }
+
         if input_email and "@" in input_email:
             candidate = cand_query.filter(func.lower(Candidate.email) == input_email).first()
+            if not candidate and input_email in EMAIL_ALIASES:
+                candidate = cand_query.filter(func.lower(Candidate.email) == EMAIL_ALIASES[input_email]).first()
 
         # Fallback to registration number / Sl. No. if email didn't match or input was a registration number
         if not candidate and target_reg:
             candidate = cand_query.filter(func.upper(Candidate.registration_number) == target_reg).first()
+
+        # Fallback to unique exact full name match if candidate entered alternate email
+        if not candidate and input_name:
+            norm_target = normalize_name(input_name)
+            cand_matches = cand_query.filter(func.lower(Candidate.full_name) == norm_target).all()
+            if len(cand_matches) == 1:
+                candidate = cand_matches[0]
 
         if not candidate:
             ident = input_email or req.registration_number or "provided identifier"
@@ -151,9 +168,6 @@ class CandidateExamService:
             return resp
 
         # 3. Strict Database Validation: Full Name must match candidate record in DB
-        def normalize_name(s: str) -> str:
-            return re.sub(r'\s+', ' ', (s or "").strip()).lower()
-
         if normalize_name(input_name) != normalize_name(candidate.full_name):
             resp.message = (
                 f"Full Name mismatch: The entered name '{input_name}' does not match the name "
@@ -244,11 +258,11 @@ class CandidateExamService:
         if enforce_time_gates and not has_active_attempt and is_slot1_oct31:
             if cur_date_str == "2026-10-31":
                 if cur_mins < 690:  # Before 11:30 AM IST
-                    resp.message = "Your assessment window (Slot 1) opens at 11:30 AM IST (Cutoff 12:00 PM). Please wait until 11:30 AM to enter."
+                    resp.message = "Your assessment window (Slot 1) opens at 11:30 AM IST (Cutoff 1:30 PM). Please wait until 11:30 AM to enter."
                     resp.eligible = False
                     return resp
-                elif cur_mins > 720 and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                    resp.message = "Entry Closed: The 30-minute entry window for Slot 1 closed at 12:00 PM IST. Candidates are not permitted to enter after 12:00 PM."
+                elif cur_mins > 810:  # Cutoff at 1:30 PM IST (13 * 60 + 30 = 810)
+                    resp.message = "Entry Closed: The entry window for Slot 1 closed at 1:30 PM IST. Candidates are not permitted to enter after 1:30 PM."
                     resp.eligible = False
                     return resp
 
@@ -296,9 +310,9 @@ class CandidateExamService:
                 is_11am_explicit = "11:00" in b_lower or "11am" in b_lower
                 if is_1130am and not is_11am_explicit:
                     start_min = 690   # 11:30 AM IST
-                    cutoff_min = 720  # 12:00 PM IST
+                    cutoff_min = 810  # 1:30 PM IST
                     time_label = "11:30 AM"
-                    cutoff_label = "12:00 PM"
+                    cutoff_label = "1:30 PM"
                 elif is_11am_explicit:
                     start_min = 660
                     cutoff_min = 690
@@ -315,7 +329,7 @@ class CandidateExamService:
                     resp.eligible = False
                     return resp
                 elif cur_mins > cutoff_min:
-                    resp.message = f"Entry Closed: The 30-minute entry window for Slot 1 closed at {cutoff_label} IST. Candidates are not permitted to enter after {cutoff_label}."
+                    resp.message = f"Entry Closed: The entry window for Slot 1 closed at {cutoff_label} IST. Candidates are not permitted to enter after {cutoff_label}."
                     resp.eligible = False
                     return resp
 

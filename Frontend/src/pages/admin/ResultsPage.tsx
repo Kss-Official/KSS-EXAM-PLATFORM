@@ -446,7 +446,7 @@ export default function ResultsPage() {
   // Slot title for exports
   const getSlotExportTitle = () => {
     if (selectedExamObj) return `${selectedExamObj.title} (Exam #${selectedExamObj.id})`;
-    if (slotFilter === "Slot 1") return is31Oct ? "Slot 1 (11:30 AM - 12:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
+    if (slotFilter === "Slot 1") return is31Oct ? "Slot 1 (11:30 AM - 1:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
     if (slotFilter === "Slot 2") return is31Oct ? "Slot 2 (04:00 PM - 05:00 PM)" : is30Oct ? "Slot 2 (02:00 PM - 03:00 PM)" : "Slot 2 (Afternoon)";
     if (slotFilter === "Slot 3") return "Slot 3 (04:00 PM - 05:00 PM)";
     if (slotFilter === "OTHER") return "Other & Flexible Exams";

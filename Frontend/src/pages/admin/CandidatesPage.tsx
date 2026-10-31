@@ -525,7 +525,7 @@ export default function CandidatesPage() {
   const is30OctView = selectedDate === "2026-10-30" || selectedDate.includes("30") || selectedDate === yesterdayIst;
 
   const slot1Header = is31OctView ? "Slot 1 • 11:30 AM" : is30OctView ? "Slot 1 • 10:00 AM" : "Slot 1 (Morning)";
-  const slot1Sub = is31OctView ? "Entry: 11:30 AM – 12:00 PM IST" : is30OctView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:30 AM";
+  const slot1Sub = is31OctView ? "Entry: 11:30 AM – 1:30 PM IST" : is30OctView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:30 AM";
   const slot1Btn = is31OctView ? "Slot 1 (11:30 AM)" : is30OctView ? "Slot 1 (10:00 AM)" : "Slot 1";
 
   const slot2Header = is31OctView ? "Slot 2 • 4:00 PM" : is30OctView ? "Slot 2 • 2:00 PM" : "Slot 2 (Afternoon)";
