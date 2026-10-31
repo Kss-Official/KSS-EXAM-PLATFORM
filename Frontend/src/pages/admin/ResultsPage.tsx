@@ -319,11 +319,11 @@ export default function ResultsPage() {
   const is31Oct = selectedDate === "2026-10-31" || selectedDate.includes("31");
   const is30Oct = selectedDate === "2026-10-30" || selectedDate.includes("30");
 
-  const slot1TabLabel = is31Oct ? "Slot 1 (11:00 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)";
+  const slot1TabLabel = is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)";
   const slot2TabLabel = is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)";
 
   const slot1StatusTitle = is31Oct 
-    ? "Slot 1 Exam: Scheduled (11:00 AM – 12:00 PM)" 
+    ? "Slot 1 Exam: Scheduled (11:30 AM – 12:30 PM)" 
     : is30Oct 
     ? "Slot 1 Exam: Completed (10:00 AM – 11:00 AM)" 
     : "Slot 1 Examination";

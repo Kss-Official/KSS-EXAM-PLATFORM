@@ -273,13 +273,25 @@ class CandidateExamService:
                         resp.eligible = False
                         return resp
                 # Eligible: allow through
-            # Slot 1 window: 11:00 AM on Oct 31 (Karnataka batch), 10:00 AM on Oct 30 (LPU batch)
+            # Slot 1 window: 11:30 AM on Oct 31 (Karnataka batch - POSTPONED), 10:00 AM on Oct 30 (LPU batch)
             elif "1" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                is_11am = "11:00" in b_lower or "11am" in b_lower or (candidate.exam_date == "2026-10-31")
-                start_min = 660 if is_11am else 600
-                cutoff_min = 690 if is_11am else 630
-                time_label = "11:00 AM" if is_11am else "10:00 AM"
-                cutoff_label = "11:30 AM" if is_11am else "10:30 AM"
+                is_1130am = "11:30" in b_lower or (candidate.exam_date == "2026-10-31" and "11:00" not in b_lower)
+                is_11am_explicit = "11:00" in b_lower or "11am" in b_lower
+                if is_1130am and not is_11am_explicit:
+                    start_min = 690   # 11:30 AM IST
+                    cutoff_min = 720  # 12:00 PM IST
+                    time_label = "11:30 AM"
+                    cutoff_label = "12:00 PM"
+                elif is_11am_explicit:
+                    start_min = 660
+                    cutoff_min = 690
+                    time_label = "11:00 AM"
+                    cutoff_label = "11:30 AM"
+                else:
+                    start_min = 600
+                    cutoff_min = 630
+                    time_label = "10:00 AM"
+                    cutoff_label = "10:30 AM"
 
                 if cur_mins < start_min:
                     resp.message = f"Your assessment window (Slot 1) opens at {time_label} IST. Please wait until {time_label} to enter."
