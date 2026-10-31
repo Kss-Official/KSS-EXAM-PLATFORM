@@ -76,7 +76,14 @@ class CandidateService:
         cands = query.all()
 
         # Query all attempts to accurately determine candidate progress in real time
-        attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).all()
+        att_query = db.query(ExamAttempt.candidate_id, ExamAttempt.status)
+        if date and date.strip() and date.strip().upper() != "ALL":
+            target_d = date.strip()
+            if target_d == "2026-10-31":
+                att_query = att_query.filter(ExamAttempt.exam_id.in_([102, 103]))
+            elif target_d == "2026-10-30":
+                att_query = att_query.filter(ExamAttempt.exam_id.in_([97, 98, 99, 100, 101]))
+        attempts = att_query.all()
         attempt_map: Dict[int, str] = {}
         for cand_id, att_st in attempts:
             if not cand_id:
@@ -196,31 +203,40 @@ class CandidateService:
         # 4. Server-side Real-time Status filter (COMPLETED, GOING ON, PENDING, DISABLED)
         if status and status.strip() and status.strip().upper() != "ALL":
             st = status.strip().upper()
+            target_exam_ids = None
+            if date and date.strip() and date.strip().upper() != "ALL":
+                target_d = date.strip()
+                if target_d == "2026-10-31":
+                    target_exam_ids = [102, 103]
+                elif target_d == "2026-10-30":
+                    target_exam_ids = [97, 98, 99, 100, 101]
+
             if st in ("COMPLETED", "SUBMITTED"):
-                query = query.filter(
-                    Candidate.id.in_(
-                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
-                    )
-                )
+                sub_q = db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
+                if target_exam_ids:
+                    sub_q = sub_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
+                query = query.filter(Candidate.id.in_(sub_q))
             elif st in ("GOING ON", "IN_PROGRESS", "IN PROGRESS"):
+                sub_q = db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "IN_PROGRESS")
+                sub_sub_q = db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
+                if target_exam_ids:
+                    sub_q = sub_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
+                    sub_sub_q = sub_sub_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
                 query = query.filter(
-                    Candidate.id.in_(
-                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "IN_PROGRESS")
-                    ),
-                    Candidate.id.not_in(
-                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
-                    )
+                    Candidate.id.in_(sub_q),
+                    Candidate.id.not_in(sub_sub_q)
                 )
             elif st == "DISABLED":
                 query = query.filter(Candidate.status == "DISABLED")
             elif st == "PENDING":
+                act_q = db.query(ExamAttempt.candidate_id).filter(
+                    ExamAttempt.status.in_(["SUBMITTED", "IN_PROGRESS"])
+                )
+                if target_exam_ids:
+                    act_q = act_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
                 query = query.filter(
                     Candidate.status != "DISABLED",
-                    Candidate.id.not_in(
-                        db.query(ExamAttempt.candidate_id).filter(
-                            ExamAttempt.status.in_(["SUBMITTED", "IN_PROGRESS"])
-                        )
-                    )
+                    Candidate.id.not_in(act_q)
                 )
 
         # 5. Total record count via fast scalar count
@@ -265,9 +281,16 @@ class CandidateService:
         cand_ids = [c.id for c in cands]
         attempt_map: Dict[int, str] = {}
         if cand_ids:
-            attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).filter(
+            att_query = db.query(ExamAttempt.candidate_id, ExamAttempt.status).filter(
                 ExamAttempt.candidate_id.in_(cand_ids)
-            ).all()
+            )
+            if date and date.strip() and date.strip().upper() != "ALL":
+                target_d = date.strip()
+                if target_d == "2026-10-31":
+                    att_query = att_query.filter(ExamAttempt.exam_id.in_([102, 103]))
+                elif target_d == "2026-10-30":
+                    att_query = att_query.filter(ExamAttempt.exam_id.in_([97, 98, 99, 100, 101]))
+            attempts = att_query.all()
             for cid, att_st in attempts:
                 if not cid:
                     continue

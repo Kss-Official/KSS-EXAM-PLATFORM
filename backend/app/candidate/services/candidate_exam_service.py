@@ -228,10 +228,8 @@ class CandidateExamService:
             ExamAttempt.status.in_(["ASSIGNED", "IN_PROGRESS"])
         ).first()
 
-        # Automated Slot Time-Gate Verification:
-        # Batch 1 / Slot 1: Starts at 10:00 AM IST, entry cutoff at 10:30 AM IST.
-        # Batch 2 / Slot 2: Starts at 12:00 PM / 2:00 PM IST, entry cutoff 30 mins after start.
-        # Candidates already IN_PROGRESS are always permitted to resume.
+        # Automated Slot & Date Access Control:
+        # Strict validation: Only candidates scheduled for today's active slots can enter.
         raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES")
         if raw_gate is None:
             from app.core.config import settings
@@ -239,114 +237,53 @@ class CandidateExamService:
         enforce_time_gates = str(raw_gate).lower() == "true"
         has_active_attempt = bool(existing_attempt and existing_attempt.status == "IN_PROGRESS")
 
-        # Determine if target active exam is open / anytime (DURATION_FROM_START: candidates can attend anytime)
-        active_exam_obj = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).first()
-        is_duration_based = bool(active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "DURATION_FROM_START")
-
         IST = timezone(timedelta(hours=5, minutes=30))
         now_ist = datetime.now(timezone.utc).astimezone(IST)
         cur_mins = now_ist.hour * 60 + now_ist.minute
         cur_date_str = now_ist.strftime("%Y-%m-%d")
         b_lower = (candidate.batch or "").strip().lower()
 
-        # Strict Slot 1 gate for October 31 (Postponed Karnataka Batch - 11:30 AM to 12:30 PM IST)
-        # Must NEVER attend before 11:30 AM IST on Oct 31, regardless of exam timing_mode (DURATION_FROM_START or SCHEDULED)
-        is_slot1_oct31 = (
-            ("1" in b_lower or "11:30" in b_lower or "11:00" in b_lower or "slot 1" in b_lower or "slot1" in b_lower)
-            and candidate.exam_date == "2026-10-31"
-        )
-        if enforce_time_gates and not has_active_attempt and is_slot1_oct31:
-            if cur_date_str == "2026-10-31":
-                if cur_mins < 690:  # Before 11:30 AM IST
+        if enforce_time_gates and not has_active_attempt:
+            # 1. Strict Date Validation: Candidate must be scheduled for today
+            cand_date = str(candidate.exam_date or "").strip()
+            if not cand_date or cand_date != cur_date_str:
+                if cand_date and cand_date > cur_date_str:
+                    resp.message = f"Access Denied: Your examination is scheduled for {cand_date}. Entry is not permitted prior to the examination date."
+                elif cand_date and cand_date < cur_date_str:
+                    resp.message = f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
+                else:
+                    resp.message = "Access Denied: No scheduled examination date found for your account. Please contact your administrator."
+                resp.eligible = False
+                return resp
+
+            # 2. Strict Slot Validation for Today's Exam:
+            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am"])
+            is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00"])
+
+            if is_slot1:
+                # Slot 1: 11:30 AM to 1:30 PM IST (690 to 810 mins)
+                if cur_mins < 690:
                     resp.message = "Your assessment window (Slot 1) opens at 11:30 AM IST (Cutoff 1:30 PM). Please wait until 11:30 AM to enter."
                     resp.eligible = False
                     return resp
-                elif cur_mins > 810:  # Cutoff at 1:30 PM IST (13 * 60 + 30 = 810)
+                elif cur_mins > 810:
                     resp.message = "Entry Closed: The entry window for Slot 1 closed at 1:30 PM IST. Candidates are not permitted to enter after 1:30 PM."
                     resp.eligible = False
                     return resp
-
-        # Strict Slot 2 gate for October 31 (Rescheduled LPU batch - 4:00 PM to 5:00 PM IST)
-        # Must NEVER attend before 4:00 PM IST on Oct 31, regardless of exam timing_mode (DURATION_FROM_START or SCHEDULED)
-        is_slot2_oct31 = (
-            ("4:00" in b_lower or "4pm" in b_lower or "slot 2" in b_lower or "slot2" in b_lower)
-            and (candidate.exam_date == "2026-10-31" or "4:00" in b_lower or "4pm" in b_lower)
-        )
-        if enforce_time_gates and not has_active_attempt and is_slot2_oct31:
-            if cur_date_str < "2026-10-31":
-                resp.message = "Your assessment (Slot 2) is scheduled for October 31, 2026 at 4:00 PM IST. Entry is not permitted prior to the examination date."
-                resp.eligible = False
-                return resp
-            elif cur_date_str == "2026-10-31":
-                if cur_mins < 960:  # Before 16:00 (4:00 PM IST)
+            elif is_slot2:
+                # Slot 2: 4:00 PM to 4:30 PM IST (960 to 990 mins)
+                if cur_mins < 960:
                     resp.message = "Slot 2 entry opens at 4:00 PM IST (Cutoff 4:30 PM). Please wait until 4:00 PM to enter your assessment."
                     resp.eligible = False
                     return resp
-                elif cur_mins > 990 and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
+                elif cur_mins > 990:
                     resp.message = "Entry Closed: The 30-minute entry window for Slot 2 closed at 4:30 PM IST. Candidates are not permitted to enter after the cutoff."
                     resp.eligible = False
                     return resp
-
-        if enforce_time_gates and not has_active_attempt and not is_duration_based and candidate.batch:
-            # Skip time gates for flexible/open/anytime batches
-            if any(w in b_lower for w in ["anytime", "open", "flexible"]):
-                pass
-            # Check for authorized mock/test batch candidates (Window: 1:30 PM - 2:00 PM IST for scheduled mock exams)
-            elif ("test" in b_lower or "mock" in b_lower) and active_exam_obj and "mock" in active_exam_obj.title.lower() and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                in_mock = 800 <= cur_mins <= 845
-                if not in_mock:
-                    if cur_mins < 800:
-                        resp.message = "Mock Test assessment opens at 1:30 PM IST. Please wait until your scheduled test time."
-                        resp.eligible = False
-                        return resp
-                    elif cur_mins > 845:
-                        resp.message = "Entry Closed: The entry window for the 1:30 PM Mock Test has ended."
-                        resp.eligible = False
-                        return resp
-                # Eligible: allow through
-            # Slot 1 window: 11:30 AM on Oct 31 (Karnataka batch - POSTPONED), 10:00 AM on Oct 30 (LPU batch)
-            elif "1" in b_lower and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                is_1130am = "11:30" in b_lower or (candidate.exam_date == "2026-10-31" and "11:00" not in b_lower)
-                is_11am_explicit = "11:00" in b_lower or "11am" in b_lower
-                if is_1130am and not is_11am_explicit:
-                    start_min = 690   # 11:30 AM IST
-                    cutoff_min = 810  # 1:30 PM IST
-                    time_label = "11:30 AM"
-                    cutoff_label = "1:30 PM"
-                elif is_11am_explicit:
-                    start_min = 660
-                    cutoff_min = 690
-                    time_label = "11:00 AM"
-                    cutoff_label = "11:30 AM"
-                else:
-                    start_min = 600
-                    cutoff_min = 630
-                    time_label = "10:00 AM"
-                    cutoff_label = "10:30 AM"
-
-                if cur_mins < start_min:
-                    resp.message = f"Your assessment window (Slot 1) opens at {time_label} IST. Please wait until {time_label} to enter."
-                    resp.eligible = False
-                    return resp
-                elif cur_mins > cutoff_min:
-                    resp.message = f"Entry Closed: The entry window for Slot 1 closed at {cutoff_label} IST. Candidates are not permitted to enter after {cutoff_label}."
-                    resp.eligible = False
-                    return resp
-
-            # Slot 2 window: 4:00 PM on Oct 31 (Rescheduled LPU batch), 2:00 PM on Oct 30 (LPU batch)
-            elif ("2" in b_lower or "3" in b_lower or "4:00" in b_lower or "4pm" in b_lower) and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
-                is_4pm = "4:00" in b_lower or "4pm" in b_lower or (candidate.exam_date == "2026-10-31")
-                start_min = 960 if is_4pm else 840
-                cutoff_min = 990 if is_4pm else 870
-                time_label = "4:00 PM" if is_4pm else "2:00 PM"
-                cutoff_label = "4:30 PM" if is_4pm else "2:30 PM"
-
-                if cur_mins < start_min:
-                    resp.message = f"Slot 2 entry opens at {time_label} IST (Cutoff {cutoff_label}). Please wait until {time_label} to enter your assessment."
-                    resp.eligible = False
-                    return resp
-                elif cur_mins > cutoff_min:
-                    resp.message = f"Entry Closed: The 30-minute entry window for Slot 2 closed at {cutoff_label} IST. Candidates are not permitted to enter after the cutoff."
+            else:
+                # Candidate has today's date but is not assigned to Slot 1 or Slot 2
+                if not any(w in b_lower for w in ["demo", "preview", "test"]):
+                    resp.message = "Access Denied: You are not assigned to an active examination slot (Slot 1 or Slot 2) for today. Please contact your examination administrator."
                     resp.eligible = False
                     return resp
 
@@ -659,6 +596,42 @@ class CandidateExamService:
             )
 
         if attempt.status == "ASSIGNED":
+            # Strict date and slot time-gate check before starting fresh attempt
+            raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES", "true")
+            enforce_time_gates = str(raw_gate).lower() == "true"
+            if enforce_time_gates:
+                cand = attempt.candidate or db.query(Candidate).filter(Candidate.id == candidate_id).first()
+                if cand:
+                    IST = timezone(timedelta(hours=5, minutes=30))
+                    now_ist = datetime.now(timezone.utc).astimezone(IST)
+                    cur_mins = now_ist.hour * 60 + now_ist.minute
+                    cur_date_str = now_ist.strftime("%Y-%m-%d")
+                    b_lower = (cand.batch or "").strip().lower()
+
+                    cand_date = str(cand.exam_date or "").strip()
+                    if not cand_date or cand_date != cur_date_str:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Access denied: Your examination date is {cand_date or 'unassigned'}. You are not scheduled for today ({cur_date_str})."
+                        )
+
+                    is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am"])
+                    is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00"])
+
+                    if is_slot1:
+                        if cur_mins < 690:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 1 assessment window opens at 11:30 AM IST.")
+                        elif cur_mins > 810:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 1 entry window closed at 1:30 PM IST.")
+                    elif is_slot2:
+                        if cur_mins < 960:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 2 assessment window opens at 4:00 PM IST.")
+                        elif cur_mins > 990:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 2 entry window closed at 4:30 PM IST.")
+                    else:
+                        if not any(w in b_lower for w in ["demo", "preview", "test"]):
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not assigned to an active examination slot for today.")
+
             # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
             db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
 
