@@ -235,6 +235,23 @@ class CandidateExamService:
         cur_date_str = now_ist.strftime("%Y-%m-%d")
         b_lower = (candidate.batch or "").strip().lower()
 
+        # Strict Slot 1 gate for October 31 (Postponed Karnataka Batch - 11:30 AM to 12:30 PM IST)
+        # Must NEVER attend before 11:30 AM IST on Oct 31, regardless of exam timing_mode (DURATION_FROM_START or SCHEDULED)
+        is_slot1_oct31 = (
+            ("1" in b_lower or "11:30" in b_lower or "11:00" in b_lower or "slot 1" in b_lower or "slot1" in b_lower)
+            and candidate.exam_date == "2026-10-31"
+        )
+        if enforce_time_gates and not has_active_attempt and is_slot1_oct31:
+            if cur_date_str == "2026-10-31":
+                if cur_mins < 690:  # Before 11:30 AM IST
+                    resp.message = "Your assessment window (Slot 1) opens at 11:30 AM IST (Cutoff 12:00 PM). Please wait until 11:30 AM to enter."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > 720 and active_exam_obj and getattr(active_exam_obj, "timing_mode", None) == "SCHEDULED":
+                    resp.message = "Entry Closed: The 30-minute entry window for Slot 1 closed at 12:00 PM IST. Candidates are not permitted to enter after 12:00 PM."
+                    resp.eligible = False
+                    return resp
+
         # Strict Slot 2 gate for October 31 (Rescheduled LPU batch - 4:00 PM to 5:00 PM IST)
         # Must NEVER attend before 4:00 PM IST on Oct 31, regardless of exam timing_mode (DURATION_FROM_START or SCHEDULED)
         is_slot2_oct31 = (
