@@ -521,16 +521,16 @@ export default function CandidatesPage() {
   };
 
   // Dynamic slot titles and timings based on selected date
-  const isTomorrowView = selectedDate === "2026-10-31" || selectedDate.includes("31");
-  const isTodayView = selectedDate === "2026-10-30" || selectedDate.includes("30");
+  const is31OctView = selectedDate === "2026-10-31" || selectedDate.includes("31") || selectedDate === todayIst;
+  const is30OctView = selectedDate === "2026-10-30" || selectedDate.includes("30") || selectedDate === yesterdayIst;
 
-  const slot1Header = isTomorrowView ? "Slot 1 • 11:30 AM" : isTodayView ? "Slot 1 • 10:00 AM" : "Slot 1 (Morning)";
-  const slot1Sub = isTomorrowView ? "Entry: 11:30 AM – 12:00 PM IST" : isTodayView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:30 AM";
-  const slot1Btn = isTomorrowView ? "Slot 1 (11:30 AM)" : isTodayView ? "Slot 1 (10:00 AM)" : "Slot 1";
+  const slot1Header = is31OctView ? "Slot 1 • 11:30 AM" : is30OctView ? "Slot 1 • 10:00 AM" : "Slot 1 (Morning)";
+  const slot1Sub = is31OctView ? "Entry: 11:30 AM – 12:00 PM IST" : is30OctView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:30 AM";
+  const slot1Btn = is31OctView ? "Slot 1 (11:30 AM)" : is30OctView ? "Slot 1 (10:00 AM)" : "Slot 1";
 
-  const slot2Header = isTomorrowView ? "Slot 2 • 4:00 PM" : isTodayView ? "Slot 2 • 2:00 PM" : "Slot 2 (Afternoon)";
-  const slot2Sub = isTomorrowView ? "Entry: 4:00 – 4:30 PM IST" : isTodayView ? "Entry: 2:00 – 2:30 PM IST" : "2:00 PM / 4:00 PM";
-  const slot2Btn = isTomorrowView ? "Slot 2 (4:00 PM)" : isTodayView ? "Slot 2 (2:00 PM)" : "Slot 2";
+  const slot2Header = is31OctView ? "Slot 2 • 4:00 PM" : is30OctView ? "Slot 2 • 2:00 PM" : "Slot 2 (Afternoon)";
+  const slot2Sub = is31OctView ? "Entry: 4:00 – 4:30 PM IST" : is30OctView ? "Entry: 2:00 – 2:30 PM IST" : "2:00 PM / 4:00 PM";
+  const slot2Btn = is31OctView ? "Slot 2 (4:00 PM)" : is30OctView ? "Slot 2 (2:00 PM)" : "Slot 2";
 
   return (
     <div className="admin-page">

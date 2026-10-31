@@ -446,8 +446,8 @@ export default function ResultsPage() {
   // Slot title for exports
   const getSlotExportTitle = () => {
     if (selectedExamObj) return `${selectedExamObj.title} (Exam #${selectedExamObj.id})`;
-    if (slotFilter === "Slot 1") return "Slot 1 (10:00 AM - 11:00 AM)";
-    if (slotFilter === "Slot 2") return "Slot 2 (02:00 PM - 03:00 PM)";
+    if (slotFilter === "Slot 1") return is31Oct ? "Slot 1 (11:30 AM - 12:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
+    if (slotFilter === "Slot 2") return is31Oct ? "Slot 2 (04:00 PM - 05:00 PM)" : is30Oct ? "Slot 2 (02:00 PM - 03:00 PM)" : "Slot 2 (Afternoon)";
     if (slotFilter === "Slot 3") return "Slot 3 (04:00 PM - 05:00 PM)";
     if (slotFilter === "OTHER") return "Other & Flexible Exams";
     return "All Slots Combined";
@@ -1192,7 +1192,7 @@ export default function ResultsPage() {
                 fontWeight: 600
               }}>
                 <CheckCircle2 size={14} color="#0284c7" />
-                <span>Slot 1 Exam: <strong>Completed (10:00 AM – 11:00 AM)</strong> &bull; {slotCounts.slot1} Attendees</span>
+                <span><strong>{slot1StatusTitle}</strong> &bull; {slotCounts.slot1} Attendees</span>
               </div>
             )}
             {!selectedExamObj && slotFilter === "Slot 2" && (
@@ -1209,7 +1209,7 @@ export default function ResultsPage() {
                 fontWeight: 600
               }}>
                 <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#a855f7" }} />
-                <span>Slot 2 Exam: <strong>Completed (02:00 PM – 03:00 PM)</strong> &bull; {slotCounts.slot2} Attendees</span>
+                <span><strong>{slot2StatusTitle}</strong> &bull; {slotCounts.slot2} Attendees</span>
               </div>
             )}
             {!selectedExamObj && slotFilter === "Slot 3" && (
