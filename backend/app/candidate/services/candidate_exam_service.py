@@ -244,19 +244,28 @@ class CandidateExamService:
         b_lower = (candidate.batch or "").strip().lower()
 
         if enforce_time_gates and not has_active_attempt:
-            # 1. Strict Date Validation: Candidate must be scheduled for today
+            # 1. Date Validation: Candidate must be scheduled for today.
+            # If no date was assigned yet, automatically assign today so newly added candidates can give exam immediately!
             cand_date = str(candidate.exam_date or "").strip()
-            if not cand_date or cand_date != cur_date_str:
-                if cand_date and cand_date > cur_date_str:
+            if not cand_date:
+                candidate.exam_date = cur_date_str
+                cand_date = cur_date_str
+                db.flush()
+
+            if cand_date != cur_date_str:
+                if cand_date > cur_date_str:
                     resp.message = f"Access Denied: Your examination is scheduled for {cand_date}. Entry is not permitted prior to the examination date."
-                elif cand_date and cand_date < cur_date_str:
-                    resp.message = f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
                 else:
-                    resp.message = "Access Denied: No scheduled examination date found for your account. Please contact your administrator."
+                    resp.message = f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
                 resp.eligible = False
                 return resp
 
             # 2. Strict Slot Validation for Today's Exam:
+            # If batch is unassigned, auto-assign Slot 1 so newly registered candidates enter smoothly
+            if not b_lower or b_lower in ["unassigned", "none", ""]:
+                candidate.batch = "Slot 1"
+                b_lower = "slot 1"
+                db.flush()
             is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am"])
             is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00"])
 

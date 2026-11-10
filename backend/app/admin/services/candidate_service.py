@@ -341,26 +341,48 @@ class CandidateService:
             cname = dto.college_name.strip()
             college = db.query(College).filter(func.lower(College.name) == cname.lower()).first()
 
+        # Auto-default exam_date to today (IST) so candidate can give the exam immediately
+        from datetime import timedelta as _td
+        _IST = timezone(_td(hours=5, minutes=30))
+        today_ist_str = datetime.now(timezone.utc).astimezone(_IST).strftime("%Y-%m-%d")
+        cand_exam_date = dto.exam_date.strip() if dto.exam_date else today_ist_str
+        cand_batch = dto.batch.strip() if dto.batch else "Slot 1"
+
         c = Candidate(
             registration_number=reg_num,
             full_name=dto.full_name.strip(),
             email=email,
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
-            batch=dto.batch.strip() if dto.batch else None,
-            exam_date=dto.exam_date.strip() if dto.exam_date else None,
+            batch=cand_batch,
+            exam_date=cand_exam_date,
+            assigned_set="A",
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
         db.add(c)
         db.flush()
 
+        # 1. Automatically generate active access code so candidate can log in immediately
+        try:
+            cls.generate_access_code(db, c.id, performed_by=performed_by, round_name="ROUND_1")
+        except Exception:
+            pass
+
+        # 2. Automatically assign to currently active exam if one exists
+        try:
+            active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.id.desc()).first()
+            if active_exam:
+                cls.assign_candidate_to_exam(db, c.id, active_exam.id, slot_id=None, set_code="A", performed_by=performed_by)
+        except Exception:
+            pass
+
         db.add(AuditLog(
             action="CREATE_CANDIDATE",
             entity_type="Candidate",
             entity_id=str(c.id),
             performed_by=performed_by,
-            details=f"Registered candidate: {c.full_name} ({reg_num})"
+            details=f"Registered candidate: {c.full_name} ({reg_num}) ready for live exam on {cand_exam_date}"
         ))
         db.commit()
         db.refresh(c)
