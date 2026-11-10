@@ -348,6 +348,7 @@ class CandidateService:
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
             batch=dto.batch.strip() if dto.batch else None,
+            exam_date=dto.exam_date.strip() if dto.exam_date else None,
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
@@ -721,6 +722,15 @@ class CandidateService:
         slot = None
         if slot_id:
             slot = db.query(ExamSlot).filter(ExamSlot.id == slot_id).first()
+
+        # Auto-populate exam_date on the candidate from the exam's scheduled start time (IST)
+        # so the slot time-gate check doesn't block them on the day of the exam.
+        if not candidate.exam_date and exam.scheduled_start_time:
+            from datetime import timezone as _tz, timedelta as _td
+            IST = _tz(timedelta(hours=5, minutes=30))
+            exam_date_ist = exam.scheduled_start_time.astimezone(IST).strftime("%Y-%m-%d")
+            candidate.exam_date = exam_date_ist
+            db.flush()
 
         try:
             attempt = ExamAttempt(

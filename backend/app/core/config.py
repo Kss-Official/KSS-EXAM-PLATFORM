@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "private-storage"
     MAX_FILE_SIZE_BYTES: int = 25 * 1024 * 1024  # 25 MB
 
+    # Slot Time-Gate Control
+    # Set to False (default) to allow candidates to enter at any time (dev/testing).
+    # Set to True in production to enforce date + Slot 1 / Slot 2 entry windows.
+    ENFORCE_SLOT_TIME_GATES: bool = False
+
     # Database Connection (overridden by DATABASE_URL in .env)
     DATABASE_URL: str = "sqlite:///./examsecure.db"
     DB_POOL_SIZE: int = 50
