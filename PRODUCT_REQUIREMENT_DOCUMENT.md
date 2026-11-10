@@ -9,7 +9,7 @@
 |---|---|
 | **Product Name** | **ExamSecure Enterprise** (KSS Exam Platform) |
 | **Product Version** | **2.4.0** |
-| **Document Version** | **1.0.0 (Master Release)** |
+| **Document Version** | **1.1.0 (MCQ Assessment Edition)** |
 | **Document Status** | **Approved / Active Production** |
 | **Product Owner** | Kalpanaa Software Solutions (KSS-Official) |
 | **Target Scale** | 500 – 1,500 Concurrent Active Candidates per Slot |
@@ -28,18 +28,20 @@ Traditional online examination software suffers from four fundamental architectu
 4. **Proctoring Bandwidth & Hardware Inefficiencies**: Server-side video-stream AI proctoring consumes vast cloud GPU bandwidth ($0.05/minute/user), crashing campus Wi-Fi networks and driving operational bills above ₹1,00,000 per exam.
 
 ### 1.2 Product Vision
-**ExamSecure** is a high-concurrency, zero-disk, double-randomized assessment ecosystem designed for university campus drives, institutional testing, and competitive technical recruitment. 
+**ExamSecure** is a high-concurrency, zero-disk, double-randomized online examination and proctoring ecosystem designed for university campus drives, institutional testing, and competitive recruitment.
 
-It provides an end-to-end recruitment funnel across two sequential stages:
-- **Round 1 (Objective Aptitude & Theory Assessment)**: Double-shuffled 4-set question paper architecture with client-side AI face tracking (WASM) and live behavioral lockdown.
-- **Round 2 (Live Technical Coding IDE Assessment)**: Multi-language browser sandbox for algorithm development with real-time test case verification.
+The platform provides a secure, streamlined assessment lifecycle:
+- **Zero-Disk In-Memory Question Paper Parsing**: Ingests PDF, Word, and Excel question papers in volatile RAM without saving unreleased test papers to permanent disk.
+- **Double-Shuffled 4-Set Architecture (Sets A, B, C, D)**: Candidate-specific randomization of both question sequences and option labels (A, B, C, D), eliminating shoulder surfing.
+- **Client-Side AI Face Proctoring**: Real-time face tracking via MediaPipe WebAssembly (WASM) and BlazeFace neural network executing 100% inside the candidate's browser with zero server video streaming cost.
+- **Sub-150ms Answer Autosave & Precision Scoring**: High-throughput database connection pooling via Neon pgBouncer with automated instant score evaluation.
 
 ---
 
 ## 2. Product Goals, KPIs & Non-Goals
 
 ### 2.1 Key Business & Technical Goals
-- **Zero-Disk In-Memory Paper Processing**: Ingest and parse PDF, Word, and Excel question papers in volatile RAM without persisting unreleased question paper files on permanent disk.
+- **Zero-Disk In-Memory Paper Processing**: Parse and validate question papers in volatile RAM without persisting unreleased question paper files on disk.
 - **Sub-150ms Answer Autosave**: Real-time per-question answer persistence with in-memory caching to eliminate submission bottlenecks during 800-candidate spikes.
 - **Sub-₹1.50 Infrastructure Cost per Candidate**: Client-side execution of AI proctoring models via WebAssembly (WASM) to eliminate server video streaming costs.
 - **100% Deterministic Anti-Cheating**: Candidate-specific randomization of both question sequences and option labels (A, B, C, D).
@@ -53,6 +55,7 @@ It provides an end-to-end recruitment funnel across two sequential stages:
 ### 2.3 Non-Goals
 - Native desktop agent installations (ExamSecure is 100% zero-install web-native).
 - Full remote video call proctoring (replaced by low-bandwidth client-side facial landmark analysis).
+- In-browser code compilers or IDE runtimes (focused exclusively on comprehensive objective assessments).
 
 ---
 
@@ -61,7 +64,7 @@ It provides an end-to-end recruitment funnel across two sequential stages:
 | Persona | Role | Key Needs & Pain Points |
 |---|---|---|
 | **Super Administrator** | Exam Director / Head of HR | Needs centralized visibility, exam lifecycle control (Draft → Published → Activated → Closed), college/department oversight, and tamper-evident audit trails. |
-| **Exam Evaluator / Reviewer** | College Professor / Hiring Manager | Needs department-specific candidate performance dashboards, score distributions, and 1-click candidate shortlisting for Round 2. |
+| **Exam Evaluator / Reviewer** | College Professor / Hiring Manager | Needs department-specific candidate performance dashboards, score distributions, and 1-click candidate shortlisting and export. |
 | **Candidate (Student / Applicant)** | Test Taker | Needs zero-friction login with Name/Email, auto-saving of answers, high-contrast accessible UI, and immediate device compatibility feedback. |
 | **System Administrator / DevOps** | Infrastructure Engineer | Needs connection-pooled PostgreSQL, auto-scaling compute, and health monitoring telemetry. |
 
@@ -78,25 +81,20 @@ flowchart TD
     D --> E["Bulk Import Candidate Roster (CSV / Excel)"]
     E --> F["Activate Exam & Schedule Slots"]
     F --> G["Live Telemetry Monitoring during Exam"]
-    G --> H["Evaluate Results & Shortlist for Round 2"]
+    G --> H["Evaluate Results & Export Official Rankings"]
 ```
 
-### 4.2 Candidate Journey (Round 1 & Round 2)
+### 4.2 Candidate Assessment Journey
 ```mermaid
 flowchart TD
     A1["Candidate Lands on Exam Portal"] --> A2["Enters Full Name + Email + Department"]
     A2 --> A3["Verification Service Validates Eligibility & Slot"]
     A3 --> A4["System Diagnostics (Webcam, Screen, Fullscreen)"]
-    A4 --> A5["Round 1: MCQ Assessment (Double Randomization)"]
+    A4 --> A5["Commence Assessment (Double-Shuffled Sets A-D)"]
     A5 --> A6["Client-Side MediaPipe Face & Tab-Switch Proctoring"]
     A6 --> A7["Real-Time Answer Autosave to Database"]
     A7 --> A8["Final Submission & Immediate Confirmation"]
-    A8 --> B1{"Admin Shortlists Candidate?"}
-    B1 -- "Yes" --> B2["Access Code Dispatched (CODE-XXXX)"]
-    B2 --> B3["Round 2: Live In-Browser Coding IDE"]
-    B3 --> B4["Multi-Language Execution against Test Cases"]
-    B4 --> B5["Final Submission & Technical Score Output"]
-    B1 -- "No" --> B6["Candidate Receives Participation Acknowledgement"]
+    A8 --> A9["Instant Grading & Qualification Determination"]
 ```
 
 ---
@@ -147,37 +145,21 @@ flowchart TD
 - **6.4 Clipboard & Interaction Lockdown**: Disables right-click context menu, text selection, copy (`Ctrl+C`), paste (`Ctrl+V`), and key combinations for browser developer tools (`F12`, `Ctrl+Shift+I`).
 - **6.5 Real-Time Proctoring Telemetry**: Violations are pushed to `/api/candidate/proctor/warning` and logged in `audit_logs` with severity ratings.
 
-### FR-7: Round 2 — Live Technical Coding IDE Assessment
-- **7.1 In-Browser IDE Workspace**: Embedded syntax-highlighted editor with multi-language execution support:
-  - Python (3.11+)
-  - Java (OpenJDK 17+)
-  - C++ (GCC 11+)
-  - JavaScript / TypeScript (Node.js 20+)
-  - C# (.NET 8+)
-  - C (GCC 11+)
-- **7.2 Test Case Verification Engine**:
-  - *Public Test Cases*: Immediate feedback on execution with input, expected output, and actual output.
-  - *Hidden Test Cases*: Evaluated during final submission to prevent hardcoding of answers.
-  - *Custom Input Testing*: On-demand execution against user-supplied inputs.
-- **7.3 Resilience & Draft Autosave**: Code state is continuously autosaved per-keystroke to `localStorage` and synchronized across question switching.
-
-### FR-8: Precision Scoring & Evaluation Engine
-- **8.1 Automatic MCQ Evaluation**: Immediate calculation upon submission:
+### FR-7: Precision Scoring & Evaluation Engine
+- **7.1 Automatic MCQ Evaluation**: Immediate calculation upon submission:
   $$\text{Total Score} = (\text{Correct Answers} \times \text{Marks Per Question}) - (\text{Wrong Answers} \times \text{Negative Marks})$$
-- **8.2 Qualification Categorization**:
+- **7.2 Qualification Categorization**:
   - Percentage threshold (e.g., 60.00%) or absolute mark cutoff.
   - Automatic designation: `QUALIFIED`, `NOT_QUALIFIED`, `PENDING`.
-- **8.3 Results & Analytics Dashboard**:
+- **7.3 Results & Analytics Dashboard**:
   - College-wise and department-wise performance filters.
   - Score distribution histograms and percentile rankings.
   - 1-click export of official candidate shortlists to CSV (`ExamSecure_Official_Shortlist.csv`).
 
-### FR-9: Unique Access Code & Candidate Dispatch Lifecycle
-- **9.1 Format Standardization**:
-  - Round 1: `MCQ-<REGISTRATION_NUMBER>`
-  - Round 2: `CODE-<REGISTRATION_NUMBER>`
-- **9.2 Attempt Enforcement**: Access codes enforce a strict usage limit (default: 3 to 5 authorized logins).
-- **9.3 Reset & Reissue**: Super admins can reset candidate access codes or issue incremented codes (`MCQ-...-2`) in case of hardware crashes.
+### FR-8: Unique Access Code & Candidate Dispatch Lifecycle
+- **8.1 Format Standardization**: Canonical format `MCQ-<REGISTRATION_NUMBER>` (e.g. `MCQ-AKSHIT-001`).
+- **8.2 Attempt Enforcement**: Access codes enforce a strict usage limit (default: 3 to 5 authorized logins).
+- **8.3 Reset & Reissue**: Super admins can reset candidate access codes or issue incremented codes (`MCQ-...-2`) in case of hardware crashes.
 
 ---
 
@@ -217,9 +199,6 @@ erDiagram
     EXAM_ATTEMPTS ||--o{ ATTEMPT_ANSWERS : "stores"
     EXAM_ATTEMPTS ||--o{ ATTEMPT_RANDOMIZED_QUESTIONS : "shuffles"
     EXAM_ATTEMPTS ||--o{ ATTEMPT_RANDOMIZED_OPTIONS : "permutates"
-    EXAMS ||--o{ CODING_QUESTIONS : "features"
-    CODING_QUESTIONS ||--o{ CODING_TEST_CASES : "evaluates"
-    CANDIDATES ||--o{ CODING_ATTEMPTS : "submits"
 ```
 
 ---
@@ -234,8 +213,6 @@ erDiagram
 | `/api/candidate/answers` | `POST` | Candidate | Autosaves candidate answer selections with sub-100ms latency |
 | `/api/candidate/submit` | `POST` | Candidate | Finalizes assessment, executes scoring engine, locks attempt |
 | `/api/candidate/proctor/warning` | `POST` | Candidate | Logs face absence, multiple faces, or tab-switch violations |
-| `/api/candidate/coding/run` | `POST` | Candidate | Executes code snippet against sample test cases in sandbox |
-| `/api/candidate/coding/submit` | `POST` | Candidate | Submits final solution and scores against hidden test cases |
 | `/api/admin/exams` | `GET/POST` | Admin | Lists or creates examinations with 4-set architecture |
 | `/api/admin/exams/{id}/publish` | `POST` | Admin | Publishes exam and establishes candidate accessibility |
 | `/api/admin/candidates` | `GET/POST` | Admin | Manages candidate roster with server-side pagination |
@@ -266,10 +243,10 @@ erDiagram
 ### 10.2 Exam Day Live Monitoring (T-Minus 0 Hours)
 1. Monitor live candidate entries on `/admin/dashboard`.
 2. Review real-time candidate proctoring alerts in `/admin/audit-logs`.
-3. In case of unexpected student hardware crash, use `Reschedule Slot` or `Reset Access Code` to restore their 3 allowed attempts.
+3. In case of unexpected student hardware crash, use `Reschedule Slot` or `Reset Access Code` to restore their allowed attempts.
 
 ### 10.3 Post-Exam Evaluation (T-Plus 1 Hour)
 1. Navigate to `/admin/results`.
 2. Toggle status to **`COMPLETED`**.
 3. Apply qualification threshold (e.g., 60%).
-4. Export official shortlist CSV for Round 2 dispatch.
+4. Export official ranked shortlist CSV for final qualification lists.
