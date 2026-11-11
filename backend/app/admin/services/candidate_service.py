@@ -4,7 +4,7 @@ import re
 import secrets
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
-from sqlalchemy import func, or_, and_
+from sqlalchemy import func, or_, and_, text
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile, status
 
@@ -122,27 +122,47 @@ class CandidateService:
         return [cls._to_dto(c, attempt_status=attempt_map.get(c.id)) for c in cands]
 
     @classmethod
+    def get_candidate_date_counts(cls, db: Session) -> Dict[str, int]:
+        """
+        Computes total candidates per scheduled exam date in a single aggregated SQL query,
+        including total combined examinees under 'ALL'.
+        """
+        counts: Dict[str, int] = {}
+        try:
+            query = text("""
+                SELECT 
+                    COALESCE(NULLIF(exam_date, ''), to_char(timezone('Asia/Kolkata', created_at), 'YYYY-MM-DD')) AS dt,
+                    COUNT(*) AS cnt
+                FROM candidates
+                GROUP BY dt
+                ORDER BY dt DESC
+            """)
+            rows = db.execute(query).fetchall()
+            for r in rows:
+                if r[0]:
+                    counts[str(r[0])] = int(r[1])
+        except Exception:
+            # Fallback for SQLite or engines without timezone/to_char
+            candidates = db.query(Candidate.exam_date, Candidate.created_at).all()
+            for exam_date, created_at in candidates:
+                d = exam_date
+                if not d and created_at:
+                    d = created_at.astimezone(IST).strftime("%Y-%m-%d") if created_at.tzinfo else created_at.strftime("%Y-%m-%d")
+                if d:
+                    counts[d] = counts.get(d, 0) + 1
+
+        total = sum(counts.values())
+        counts["ALL"] = total
+        return counts
+
+    @classmethod
     def get_available_candidate_dates(cls, db: Session) -> List[str]:
         """
         Retrieves all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD),
         sorted in descending order (most upcoming/recent date first).
         """
-        raw_dates = db.query(Candidate.exam_date).filter(
-            Candidate.exam_date != None,
-            Candidate.exam_date != ""
-        ).distinct().all()
-        dates_set = {d[0] for d in raw_dates if d[0]}
-
-        fallback_dates = db.query(
-            func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD')
-        ).filter(
-            or_(Candidate.exam_date == None, Candidate.exam_date == "")
-        ).distinct().all()
-        for fd in fallback_dates:
-            if fd[0]:
-                dates_set.add(fd[0])
-
-        return sorted(list(dates_set), reverse=True)
+        counts = cls.get_candidate_date_counts(db)
+        return [d for d in counts.keys() if d != "ALL"]
 
     @classmethod
     def get_paginated_candidates(

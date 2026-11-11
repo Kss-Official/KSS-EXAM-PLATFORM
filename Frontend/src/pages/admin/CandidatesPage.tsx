@@ -34,6 +34,7 @@ import {
   rescheduleCandidateSlot,
   batchRescheduleCandidateSlot,
   getAvailableCandidateDates,
+  getCandidateDateCounts,
   getSlotTimings,
   updateSlotTimings,
   type SlotTimingsConfig,
@@ -238,20 +239,30 @@ export default function CandidatesPage() {
 
   const loadAvailableDates = useCallback(async () => {
     try {
+      try {
+        const counts = await getCandidateDateCounts();
+        if (counts && typeof counts === "object") {
+          const dates = Object.keys(counts).filter((d) => d !== "ALL").sort().reverse();
+          setAvailableDates(dates);
+          setDateCounts(counts);
+          return;
+        }
+      } catch {
+        // Fallback to dates list if date-counts endpoint is unavailable
+      }
+
       const dates = await getAvailableCandidateDates();
       setAvailableDates(dates);
       const counts: { [d: string]: number } = {};
       const datesToFetch = Array.from(new Set([...dates, todayIst, yesterdayIst, tomorrowIst]));
-      await Promise.all(
-        datesToFetch.map(async (d) => {
-          try {
-            const r = await getCandidates({ limit: 1, date: d });
-            counts[d] = r.total;
-          } catch {
-            counts[d] = 0;
-          }
-        })
-      );
+      for (const d of datesToFetch) {
+        try {
+          const r = await getCandidates({ limit: 1, date: d });
+          counts[d] = r.total;
+        } catch {
+          counts[d] = 0;
+        }
+      }
       try {
         const allR = await getCandidates({ limit: 1 });
         counts["ALL"] = allR.total;

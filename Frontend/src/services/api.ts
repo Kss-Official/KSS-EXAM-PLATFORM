@@ -824,6 +824,10 @@ export async function getAvailableCandidateDates(): Promise<string[]> {
   return request<string[]>("admin/candidates/dates");
 }
 
+export async function getCandidateDateCounts(): Promise<{ [d: string]: number }> {
+  return request<{ [d: string]: number }>("admin/candidates/date-counts");
+}
+
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
   return request<CandidateDto>("admin/candidates", {
     method: "POST",

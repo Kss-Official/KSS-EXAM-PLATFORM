@@ -51,6 +51,14 @@ def get_available_candidate_dates(
     """Returns all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD)."""
     return CandidateService.get_available_candidate_dates(db)
 
+@router.get("/date-counts")
+def get_candidate_date_counts(
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Returns candidate counts grouped by scheduled date and total ('ALL') in a single fast query."""
+    return CandidateService.get_candidate_date_counts(db)
+
 @router.post("", response_model=CandidateDto)
 def create_candidate(
     dto: CandidateDto,

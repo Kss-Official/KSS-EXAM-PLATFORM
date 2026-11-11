@@ -31,12 +31,13 @@ def _init_engine():
 
     if is_postgres:
         try:
-            # Quick connectivity verification with 15s timeout for Neon serverless
-            probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
-            with probe_engine.connect() as conn:
-                pass
-            probe_engine.dispose()  # Prevent socket leak from probe connection
-            logger.info("Successfully connected to primary PostgreSQL database.")
+            if not is_serverless:
+                # Quick connectivity verification with 15s timeout for non-serverless
+                probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
+                with probe_engine.connect() as conn:
+                    pass
+                probe_engine.dispose()  # Prevent socket leak from probe connection
+                logger.info("Successfully connected to primary PostgreSQL database.")
 
             # Optimized PostgreSQL pool for load
             pg_connect_args = {
