@@ -10,6 +10,7 @@ class DepartmentDto(CamelModel):
     active: bool = True
     created_at: Optional[datetime] = None
     associated_exams_count: Optional[int] = 0
+    candidates_count: Optional[int] = 0
 
 class DepartmentSetSummary(CamelModel):
     id: int

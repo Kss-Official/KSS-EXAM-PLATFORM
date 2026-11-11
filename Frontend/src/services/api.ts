@@ -35,6 +35,7 @@ export interface DepartmentDto {
   active: boolean;
   createdAt?: string;
   associatedExamsCount?: number;
+  candidatesCount?: number;
 }
 
 export interface ExamDto {

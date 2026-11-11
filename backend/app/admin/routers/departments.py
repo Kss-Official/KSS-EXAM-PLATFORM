@@ -1,6 +1,7 @@
 from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core import get_db, require_super_admin
@@ -28,8 +29,9 @@ def is_academic_department(d: Department) -> bool:
         return False
     return True
 
-def to_dto(d: Department) -> DepartmentDto:
+def to_dto(d: Department, cand_counts: Optional[dict] = None) -> DepartmentDto:
     assoc_count = len(d.exams) if d.exams else 0
+    c_count = (cand_counts or {}).get(d.id, 0)
     return DepartmentDto(
         id=d.id,
         name=d.name,
@@ -37,7 +39,8 @@ def to_dto(d: Department) -> DepartmentDto:
         description=d.description,
         active=d.active,
         created_at=d.created_at,
-        associated_exams_count=assoc_count
+        associated_exams_count=assoc_count,
+        candidates_count=c_count
     )
 
 @router.get("", response_model=List[DepartmentDto])
@@ -50,11 +53,18 @@ def get_all_departments(
         joinedload(Department.exams)
     ).order_by(Department.name.asc()).all()
     
+    cand_counts = dict(
+        db.query(Candidate.department_id, func.count(Candidate.id))
+        .filter(Candidate.department_id != None)
+        .group_by(Candidate.department_id)
+        .all()
+    )
+    
     if type == "academic":
         depts = [d for d in depts if is_academic_department(d)]
     elif type == "college":
         depts = [d for d in depts if not is_academic_department(d)]
-    return [to_dto(d) for d in depts]
+    return [to_dto(d, cand_counts) for d in depts]
 
 @router.get("/active", response_model=List[DepartmentDto])
 def get_active_departments(
@@ -66,11 +76,18 @@ def get_active_departments(
         joinedload(Department.exams)
     ).filter(Department.active == True).order_by(Department.name.asc()).all()
     
+    cand_counts = dict(
+        db.query(Candidate.department_id, func.count(Candidate.id))
+        .filter(Candidate.department_id != None)
+        .group_by(Candidate.department_id)
+        .all()
+    )
+    
     if type == "academic":
         depts = [d for d in depts if is_academic_department(d)]
     elif type == "college":
         depts = [d for d in depts if not is_academic_department(d)]
-    return [to_dto(d) for d in depts]
+    return [to_dto(d, cand_counts) for d in depts]
 
 @router.get("/colleges", response_model=List[DepartmentDto])
 def get_all_colleges(
