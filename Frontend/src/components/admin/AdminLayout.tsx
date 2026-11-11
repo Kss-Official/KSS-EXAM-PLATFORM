@@ -539,7 +539,7 @@ export default function AdminLayout({
               </div>
 
               <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 12px", marginBottom: "18px", fontSize: "11.5px", color: "#475569", border: "1px solid #e2e8f0" }}>
-                <strong>Assigned Session:</strong> Campus Placement Assessment 2026 (800 Candidates ┬╖ 4 Question Sets AΓÇôD)
+                <strong>Active Database Telemetry:</strong> {dashboardData ? `${dashboardData.totalExams} Examinations • ${dashboardData.totalCandidates} Enrolled Examinees • ${dashboardData.totalDepartments} Academic Departments` : "Database connected"}
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>

@@ -842,6 +842,13 @@ export async function getCandidateDateCounts(): Promise<{ [d: string]: number }>
   return request<{ [d: string]: number }>("admin/candidates/date-counts");
 }
 
+export async function getCandidateSlotCounts(date?: string): Promise<{ total: number; slot1: number; slot2: number; unassigned?: number }> {
+  const query = new URLSearchParams();
+  if (date && date !== "ALL") query.set("date", date);
+  const qs = query.toString();
+  return request<{ total: number; slot1: number; slot2: number; unassigned?: number }>(`admin/candidates/slot-counts${qs ? `?${qs}` : ""}`);
+}
+
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
   return request<CandidateDto>("admin/candidates", {
     method: "POST",

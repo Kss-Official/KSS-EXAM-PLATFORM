@@ -12,6 +12,10 @@ export default function SettingsPage() {
   const [sebKey, setSebKey] = useState("a8f93e2b10c9d4827103a4b9c1d2e3f4a5b6c7d8e9f0123456789abcdef01234");
   const [quitPassword, setQuitPassword] = useState("PlacementAdmin@2026");
 
+  const candidateUrl = typeof window !== "undefined" && window.location?.origin 
+    ? `${window.location.origin}/candidate` 
+    : "http://localhost:5173/candidate";
+
   const sebConfigXml = `<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -19,7 +23,7 @@ export default function SettingsPage() {
     <key>originatorVersion</key>
     <string>SEB_Win_3.4.0</string>
     <key>startURL</key>
-    <string>http://localhost:5173/candidate</string>
+    <string>${candidateUrl}</string>
     <key>browserExamKey</key>
     <string>${sebKey}</string>
     <key>allowQuit</key>
@@ -130,7 +134,7 @@ export default function SettingsPage() {
               <label>Candidate Start URL</label>
               <input 
                 type="text" 
-                value="http://localhost:5173/candidate" 
+                value={candidateUrl} 
                 readOnly
                 style={{ background: "#f8fafc" }}
               />

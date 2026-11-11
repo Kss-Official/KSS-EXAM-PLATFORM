@@ -39,6 +39,7 @@ import {
   batchRescheduleCandidateSlot,
   getAvailableCandidateDates,
   getCandidateDateCounts,
+  getCandidateSlotCounts,
   getSlotTimings,
   updateSlotTimings,
   type SlotTimingsConfig,
@@ -263,10 +264,11 @@ export default function CandidatesPage() {
 
   // Global Slot Counts for high-level statistics
   const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
-    total: 842,
-    slot1: 421,
-    slot2: 421
+    total: 0,
+    slot1: 0,
+    slot2: 0
   });
+  const [slotCountsLoading, setSlotCountsLoading] = useState<boolean>(true);
 
   // Multi-select state for bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -332,20 +334,37 @@ export default function CandidatesPage() {
   }, []);
 
   const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
+    setSlotCountsLoading(true);
     try {
       const dParam = activeDate !== "ALL" ? activeDate : undefined;
-      const [allRes, s1Res, s2Res] = await Promise.all([
-        getCandidates({ limit: 1, date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
-      ]);
-      setSlotCounts({
-        total: allRes.total,
-        slot1: s1Res.total,
-        slot2: s2Res.total
-      });
+      // Fast single aggregated slot-counts endpoint
+      try {
+        const counts = await getCandidateSlotCounts(dParam);
+        if (counts && typeof counts.total === "number") {
+          setSlotCounts({
+            total: counts.total,
+            slot1: counts.slot1,
+            slot2: counts.slot2
+          });
+          return;
+        }
+      } catch {
+        // Fallback to parallel count queries if slot-counts is not available
+        const [allRes, s1Res, s2Res] = await Promise.all([
+          getCandidates({ limit: 1, date: dParam }),
+          getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
+          getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
+        ]);
+        setSlotCounts({
+          total: allRes.total,
+          slot1: s1Res.total,
+          slot2: s2Res.total
+        });
+      }
     } catch {
       // ignore
+    } finally {
+      setSlotCountsLoading(false);
     }
   }, [selectedDate]);
 
@@ -385,7 +404,7 @@ export default function CandidatesPage() {
     }
   }, [todayIst, yesterdayIst, tomorrowIst]);
 
-  // Fetch both Colleges and Academic Departments from their separate tables
+  // Fetch both Colleges and Academic Departments from their separate tables once on mount
   useEffect(() => {
     try {
       localStorage.removeItem("examsecure_cached_candidates_v2");
@@ -395,8 +414,7 @@ export default function CandidatesPage() {
     getColleges().then(setColleges).catch(() => {});
     getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
     loadAvailableDates();
-    refreshSlotCounts(selectedDate);
-  }, [refreshSlotCounts, loadAvailableDates, selectedDate]);
+  }, [loadAvailableDates]);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -783,7 +801,7 @@ export default function CandidatesPage() {
   const slot2Btn = `Slot 2 (${s2ActiveStart})`;
 
   return (
-    <div className="admin-page">
+    <div className="admin-page-container">
       <style>{`
         @keyframes shimmerPulse {
           0% { background-position: -200% 0; }
@@ -893,9 +911,19 @@ export default function CandidatesPage() {
           title="Click to view all candidates"
         >
           <div className="stat-card-info">
-            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>Total Candidates</small>
-            <div className="stat-card-value" style={{ color: "#017846" }}>{slotCounts.total}</div>
-            <span className="stat-card-sub">All registered examinees</span>
+            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>
+              {selectedDate === "ALL" 
+                ? "Total Candidates" 
+                : `Candidates (${selectedDate === todayIst ? "Today" : selectedDate === yesterdayIst ? "Yesterday" : selectedDate})`}
+            </small>
+            <div className="stat-card-value" style={{ color: "#017846" }}>
+              {slotCountsLoading ? "--" : slotCounts.total}
+            </div>
+            <span className="stat-card-sub">
+              {selectedDate === "ALL"
+                ? "All registered examinees across all dates"
+                : `${dateCounts["ALL"] !== undefined ? `${dateCounts["ALL"]} total enrolled across dates` : "Filtered for active date"}`}
+            </span>
           </div>
           <div className="stat-card-icon blue">
             <Users size={22} />
@@ -940,7 +968,9 @@ export default function CandidatesPage() {
                 <Edit2 size={11} /> Edit
               </button>
             </div>
-            <div className="stat-card-value" style={{ color: "#0284c7" }}>{slotCounts.slot1}</div>
+            <div className="stat-card-value" style={{ color: "#0284c7" }}>
+              {slotCountsLoading ? "--" : slotCounts.slot1}
+            </div>
             <span className="stat-card-sub">{slot1Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#e0f2fe", color: "#0284c7" }}>
@@ -986,7 +1016,9 @@ export default function CandidatesPage() {
                 <Edit2 size={11} /> Edit
               </button>
             </div>
-            <div className="stat-card-value" style={{ color: "#7c3aed" }}>{slotCounts.slot2}</div>
+            <div className="stat-card-value" style={{ color: "#7c3aed" }}>
+              {slotCountsLoading ? "--" : slotCounts.slot2}
+            </div>
             <span className="stat-card-sub">{slot2Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#f3e8ff", color: "#7c3aed" }}>
@@ -1058,7 +1090,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts[todayIst] ?? (selectedDate === todayIst ? totalCandidates : 675)}
+              {dateCounts[todayIst] ?? (selectedDate === todayIst ? totalCandidates : "--")}
             </span>
           </button>
 
@@ -1090,7 +1122,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts[yesterdayIst] ?? 463}
+              {dateCounts[yesterdayIst] ?? "--"}
             </span>
           </button>
 
@@ -1195,7 +1227,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts["ALL"] ?? (totalCandidates || 1138)}
+              {dateCounts["ALL"] ?? (totalCandidates || "--")}
             </span>
           </button>
 
@@ -1250,14 +1282,16 @@ export default function CandidatesPage() {
                 style={{
                   position: "absolute",
                   top: "calc(100% + 8px)",
-                  left: "0",
-                  zIndex: 60,
+                  right: 0,
+                  left: "auto",
+                  zIndex: 100,
                   backgroundColor: "#ffffff",
                   borderRadius: "14px",
                   boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
                   border: "1px solid #cbd5e1",
                   padding: "16px",
-                  width: "350px",
+                  width: "340px",
+                  maxWidth: "calc(100vw - 320px)",
                   animation: "fadeIn 0.15s ease-out"
                 }}
               >
@@ -1468,7 +1502,7 @@ export default function CandidatesPage() {
                         cursor: "pointer"
                       }}
                     >
-                      All Dates Combined ({dateCounts["ALL"] || totalCandidates || 1144})
+                      All Dates Combined ({dateCounts["ALL"] ?? totalCandidates ?? "--"})
                     </button>
 
                     <button
@@ -1565,7 +1599,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {slotCounts.total}
+              {slotCountsLoading ? "--" : slotCounts.total}
             </span>
           </button>
 
@@ -1597,7 +1631,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {slotCounts.slot1}
+              {slotCountsLoading ? "--" : slotCounts.slot1}
             </span>
           </button>
 
@@ -1629,7 +1663,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {slotCounts.slot2}
+              {slotCountsLoading ? "--" : slotCounts.slot2}
             </span>
           </button>
         </div>

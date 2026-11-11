@@ -72,6 +72,8 @@ documents/
 # IDE & OS
 .idea/
 .vscode/
+pyrightconfig.json
+pyproject.toml
 *.suo
 *.ntvs*
 *.njsproj

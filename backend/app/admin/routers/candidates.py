@@ -59,6 +59,15 @@ def get_candidate_date_counts(
     """Returns candidate counts grouped by scheduled date and total ('ALL') in a single fast query."""
     return CandidateService.get_candidate_date_counts(db)
 
+@router.get("/slot-counts")
+def get_candidate_slot_counts(
+    date: Optional[str] = Query(None, description="Filter by candidate examination date (YYYY-MM-DD or ALL)"),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Returns candidate counts broken down by exam slot (Slot 1, Slot 2, Total) in a single fast query."""
+    return CandidateService.get_candidate_slot_counts(db, date=date)
+
 @router.post("", response_model=CandidateDto)
 def create_candidate(
     dto: CandidateDto,

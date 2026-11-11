@@ -156,6 +156,70 @@ class CandidateService:
         return counts
 
     @classmethod
+    def get_candidate_slot_counts(cls, db: Session, date: Optional[str] = None) -> Dict[str, int]:
+        """
+        Returns { total, slot1, slot2, unassigned } for a given date (or ALL dates if date is None or 'ALL')
+        in a single fast SQL aggregate query without firing multiple HTTP requests.
+        """
+        counts: Dict[str, int] = {"total": 0, "slot1": 0, "slot2": 0, "unassigned": 0}
+        try:
+            d_clean = date.strip() if date and date.strip() and date.strip().upper() != "ALL" else None
+            if d_clean:
+                query = text("""
+                    SELECT 
+                        COALESCE(NULLIF(TRIM(batch), ''), 'UNASSIGNED') AS slot,
+                        COUNT(*) AS cnt
+                    FROM candidates
+                    WHERE COALESCE(NULLIF(exam_date, ''), to_char(timezone('Asia/Kolkata', created_at), 'YYYY-MM-DD')) = :d
+                    GROUP BY slot
+                """)
+                rows = db.execute(query, {"d": d_clean}).fetchall()
+            else:
+                query = text("""
+                    SELECT 
+                        COALESCE(NULLIF(TRIM(batch), ''), 'UNASSIGNED') AS slot,
+                        COUNT(*) AS cnt
+                    FROM candidates
+                    GROUP BY slot
+                """)
+                rows = db.execute(query).fetchall()
+
+            for r in rows:
+                slot_raw = str(r[0]).strip().lower()
+                cnt = int(r[1])
+                counts["total"] += cnt
+                if "slot 1" in slot_raw or slot_raw == "1" or "slot1" in slot_raw:
+                    counts["slot1"] += cnt
+                elif "slot 2" in slot_raw or slot_raw == "2" or "slot2" in slot_raw:
+                    counts["slot2"] += cnt
+                else:
+                    counts["unassigned"] += cnt
+            return counts
+        except Exception:
+            # Fallback for SQLite / local test environments
+            counts = {"total": 0, "slot1": 0, "slot2": 0, "unassigned": 0}
+            try:
+                q = db.query(Candidate.batch, Candidate.exam_date, Candidate.created_at)
+                for batch_val, exam_date, created_at in q.all():
+                    d = exam_date
+                    if not d and created_at:
+                        d = created_at.astimezone(IST).strftime("%Y-%m-%d") if created_at.tzinfo else created_at.strftime("%Y-%m-%d")
+                    if date and date.strip() and date.strip().upper() != "ALL":
+                        if d != date.strip():
+                            continue
+                    counts["total"] += 1
+                    b = (batch_val or "").strip().lower()
+                    if "slot 1" in b or "slot1" in b:
+                        counts["slot1"] += 1
+                    elif "slot 2" in b or "slot2" in b:
+                        counts["slot2"] += 1
+                    else:
+                        counts["unassigned"] += 1
+            except Exception:
+                pass
+            return counts
+
+    @classmethod
     def get_available_candidate_dates(cls, db: Session) -> List[str]:
         """
         Retrieves all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD),
