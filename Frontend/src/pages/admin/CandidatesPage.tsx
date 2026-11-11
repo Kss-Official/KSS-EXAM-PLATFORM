@@ -1243,7 +1243,7 @@ export default function CandidatesPage() {
                 boxShadow: "0 2px 4px rgba(124, 58, 237, 0.25)"
               }}
             >
-              <Clock size={15} /> Move All Selected to Slot 2 (2:00 PM)
+              <Clock size={15} /> Move All Selected to Slot 2 ({s2ActiveStart})
             </button>
 
             <button
@@ -1553,7 +1553,7 @@ export default function CandidatesPage() {
                             <button
                               type="button"
                               onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
-                              title="Move candidate to Slot 2 (2:00 PM) with automatic attempt reset"
+                              title={`Move candidate to Slot 2 (${s2ActiveStart}) with automatic attempt reset`}
                               style={{
                                 padding: "3px 8px",
                                 borderRadius: "6px",
@@ -1577,7 +1577,7 @@ export default function CandidatesPage() {
                             <button
                               type="button"
                               onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
-                              title="Move candidate to Slot 1 (10:00 AM) with automatic attempt reset"
+                              title={`Move candidate to Slot 1 (${s1ActiveStart}) with automatic attempt reset`}
                               style={{
                                 padding: "3px 8px",
                                 borderRadius: "6px",
@@ -1696,8 +1696,8 @@ export default function CandidatesPage() {
                   required 
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
-                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Cutoff)</option>
-                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Cutoff)</option>
+                  <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
+                  <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Cutoff)</option>
                   <option value="">Unassigned</option>
                 </select>
               </div>
@@ -1800,8 +1800,8 @@ export default function CandidatesPage() {
                   onChange={e => setRescheduleModal(prev => ({ ...prev, targetSlot: e.target.value }))}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 600 }}
                 >
-                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Window)</option>
-                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Window)</option>
+                  <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Window)</option>
+                  <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Window)</option>
                 </select>
               </div>
 
