@@ -383,7 +383,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   headers.set("Accept", "application/json");
   headers.set("X-Requested-With", "XMLHttpRequest");
 
-  const token = localStorage.getItem("examsecure_auth_token");
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+  const isCandidateRoute = cleanEndpoint.startsWith("candidate/");
+  const token = isCandidateRoute
+    ? (localStorage.getItem("examsecure_candidate_token") || localStorage.getItem("examsecure_auth_token"))
+    : (localStorage.getItem("examsecure_admin_token") || localStorage.getItem("examsecure_auth_token"));
+
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
@@ -421,6 +426,12 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     }
 
     if (response.status === 401) {
+      if (!isCandidateRoute) {
+        localStorage.removeItem("examsecure_admin_token");
+        localStorage.removeItem("examsecure_auth_token");
+      } else {
+        localStorage.removeItem("examsecure_candidate_token");
+      }
       throw new ApiError(
         errorDetail || "401 Unauthorized: Authentication is required for this endpoint.",
         401,
@@ -468,6 +479,7 @@ export async function loginAdmin(email: string, password: string): Promise<AuthR
     body: JSON.stringify({ email: email.trim(), password })
   });
   if (res.token) {
+    localStorage.setItem("examsecure_admin_token", res.token);
     localStorage.setItem("examsecure_auth_token", res.token);
   }
   return res;
@@ -478,6 +490,7 @@ export async function getAuthMe(): Promise<AuthUser> {
 }
 
 export async function logoutAdmin(): Promise<void> {
+  localStorage.removeItem("examsecure_admin_token");
   localStorage.removeItem("examsecure_auth_token");
   try {
     await request<AuthResponseDto>("auth/logout", { method: "POST" });

@@ -24,6 +24,7 @@ import {
   Save,
   X
 } from "lucide-react";
+import { useRouter } from "../../router";
 import { 
   getCandidates,
   createCandidate, 
@@ -101,6 +102,7 @@ const formatDateYear = (dStr: string): string => {
 };
 
 export default function CandidatesPage() {
+  const { navigate } = useRouter();
   const [candidates, setCandidates] = useState<CandidateDto[]>([]);
   const [totalCandidates, setTotalCandidates] = useState<number>(0);
   const [page, setPage] = useState<number>(1);
@@ -317,18 +319,29 @@ export default function CandidatesPage() {
     } catch (e: unknown) {
       const errorObj = e as Error;
       console.warn("[CandidatesPage] Server fetch failed:", errorObj.message);
-      setNotice({
-        text: `Failed to fetch candidate records: ${errorObj.message}`,
-        type: "error"
-      });
+      if (errorObj.message?.includes("Authentication required") || (errorObj as any)?.statusCode === 401) {
+        setNotice({
+          text: "Administrator session expired. Redirecting to sign in...",
+          type: "error"
+        });
+        setTimeout(() => {
+          navigate("/admin/login?expired=true");
+        }, 1500);
+      } else {
+        setNotice({
+          text: `Failed to fetch candidate records: ${errorObj.message}`,
+          type: "error"
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder, navigate]);
 
   useEffect(() => {
     fetchPage1();
-  }, [fetchPage1]);
+    refreshSlotCounts(selectedDate);
+  }, [fetchPage1, refreshSlotCounts, selectedDate]);
 
   // Progressively fetch next page as the user scrolls towards the bottom
   const loadMoreCandidates = useCallback(async () => {

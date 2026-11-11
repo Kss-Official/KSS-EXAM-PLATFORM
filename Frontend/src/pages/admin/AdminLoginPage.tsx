@@ -32,6 +32,12 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("expired=true")) {
+      setErrorMessage("Administrator session expired. Please sign in again to continue.");
+    }
+  }, []);
+
   // Check if session is already active on load
   useEffect(() => {
     let isCancelled = false;

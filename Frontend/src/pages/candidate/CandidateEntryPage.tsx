@@ -127,7 +127,7 @@ export default function CandidateEntryPage({
       }
 
       if (verifyRes.token) {
-        localStorage.setItem("examsecure_auth_token", verifyRes.token);
+        localStorage.setItem("examsecure_candidate_token", verifyRes.token);
       }
 
       onContinue({

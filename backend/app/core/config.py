@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     # Security & Cryptography
     SECRET_KEY: str = "examsecure-enterprise-jwt-super-secret-key-production-grade-2026-min-64-bytes-entropy-kalpanaaa-software"
     SESSION_COOKIE_NAME: str = "JSESSIONID"
-    SESSION_MAX_AGE: int = 7200  # 2 hours
+    SESSION_MAX_AGE: int = 604800  # 7 days
     COOKIE_SECURE: bool = False  # Set to True in production HTTPS environments
     ALLOW_SQLITE_FAILOVER: bool = True  # In production, set to False to prevent silent SQLite split-brain
     BCRYPT_ROUNDS: int = 12
