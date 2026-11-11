@@ -257,27 +257,39 @@ class CandidateExamService:
                 return resp
 
             # 2. Strict Slot Validation for Today's Exam:
-            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am"])
-            is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00"])
+            from app.core.slot_config import get_slot_timings_config
+            slot_cfg = get_slot_timings_config()
+            s1_info = slot_cfg.get("slot1", {})
+            s2_info = slot_cfg.get("slot2", {})
+            s1_start = s1_info.get("startMinutes", 690)
+            s1_cutoff = s1_info.get("cutoffMinutes", 810)
+            s1_start_str = s1_info.get("startTime", "11:30 AM")
+            s1_cutoff_str = s1_info.get("cutoffTime", "1:30 PM")
+
+            s2_start = s2_info.get("startMinutes", 960)
+            s2_cutoff = s2_info.get("cutoffMinutes", 990)
+            s2_start_str = s2_info.get("startTime", "4:00 PM")
+            s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
+
+            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
+            is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
 
             if is_slot1:
-                # Slot 1: 11:30 AM to 1:30 PM IST (690 to 810 mins)
-                if cur_mins < 690:
-                    resp.message = "Your assessment window (Slot 1) opens at 11:30 AM IST (Cutoff 1:30 PM). Please wait until 11:30 AM to enter."
+                if cur_mins < s1_start:
+                    resp.message = f"Your assessment window (Slot 1) opens at {s1_start_str} IST (Cutoff {s1_cutoff_str}). Please wait until {s1_start_str} to enter."
                     resp.eligible = False
                     return resp
-                elif cur_mins > 810:
-                    resp.message = "Entry Closed: The entry window for Slot 1 closed at 1:30 PM IST. Candidates are not permitted to enter after 1:30 PM."
+                elif cur_mins > s1_cutoff:
+                    resp.message = f"Entry Closed: The entry window for Slot 1 closed at {s1_cutoff_str} IST. Candidates are not permitted to enter after {s1_cutoff_str}."
                     resp.eligible = False
                     return resp
             elif is_slot2:
-                # Slot 2: 4:00 PM to 4:30 PM IST (960 to 990 mins)
-                if cur_mins < 960:
-                    resp.message = "Slot 2 entry opens at 4:00 PM IST (Cutoff 4:30 PM). Please wait until 4:00 PM to enter your assessment."
+                if cur_mins < s2_start:
+                    resp.message = f"Slot 2 entry opens at {s2_start_str} IST (Cutoff {s2_cutoff_str}). Please wait until {s2_start_str} to enter your assessment."
                     resp.eligible = False
                     return resp
-                elif cur_mins > 990:
-                    resp.message = "Entry Closed: The 30-minute entry window for Slot 2 closed at 4:30 PM IST. Candidates are not permitted to enter after the cutoff."
+                elif cur_mins > s2_cutoff:
+                    resp.message = f"Entry Closed: The entry window for Slot 2 closed at {s2_cutoff_str} IST. Candidates are not permitted to enter after the cutoff."
                     resp.eligible = False
                     return resp
             else:
@@ -615,19 +627,33 @@ class CandidateExamService:
                             detail=f"Access denied: Your examination date is {cand_date or 'unassigned'}. You are not scheduled for today ({cur_date_str})."
                         )
 
-                    is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am"])
-                    is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00"])
+                    from app.core.slot_config import get_slot_timings_config
+                    slot_cfg = get_slot_timings_config()
+                    s1_info = slot_cfg.get("slot1", {})
+                    s2_info = slot_cfg.get("slot2", {})
+                    s1_start = s1_info.get("startMinutes", 690)
+                    s1_cutoff = s1_info.get("cutoffMinutes", 810)
+                    s1_start_str = s1_info.get("startTime", "11:30 AM")
+                    s1_cutoff_str = s1_info.get("cutoffTime", "1:30 PM")
+
+                    s2_start = s2_info.get("startMinutes", 960)
+                    s2_cutoff = s2_info.get("cutoffMinutes", 990)
+                    s2_start_str = s2_info.get("startTime", "4:00 PM")
+                    s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
+
+                    is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
+                    is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
 
                     if is_slot1:
-                        if cur_mins < 690:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 1 assessment window opens at 11:30 AM IST.")
-                        elif cur_mins > 810:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 1 entry window closed at 1:30 PM IST.")
+                        if cur_mins < s1_start:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 1 assessment window opens at {s1_start_str} IST.")
+                        elif cur_mins > s1_cutoff:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 1 entry window closed at {s1_cutoff_str} IST.")
                     elif is_slot2:
-                        if cur_mins < 960:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 2 assessment window opens at 4:00 PM IST.")
-                        elif cur_mins > 990:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Slot 2 entry window closed at 4:30 PM IST.")
+                        if cur_mins < s2_start:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 assessment window opens at {s2_start_str} IST.")
+                        elif cur_mins > s2_cutoff:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 entry window closed at {s2_cutoff_str} IST.")
                     else:
                         if not any(w in b_lower for w in ["demo", "preview", "test"]):
                             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not assigned to an active examination slot for today.")

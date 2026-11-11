@@ -653,7 +653,7 @@ export default function CandidateExamPage({
 
             <div className="exam-qbody-content">
               <h2 className="exam-question-heading">
-                {currentQuestion.questionText || currentQuestion.q}
+                {currentQuestion.questionText || currentQuestion.question_text || currentQuestion.q}
               </h2>
               <p className="exam-question-hint">Select one answer from the options below.</p>
 
@@ -662,7 +662,7 @@ export default function CandidateExamPage({
                 {(currentQuestion.options || []).map((opt: any, i: number) => {
                   const isSelected = answers[idx + 1] === i;
                   const label = opt.displayLabel || opt.label || opt.optionLabel || String.fromCharCode(65 + i);
-                  const text = typeof opt === "string" ? opt : (opt.optionText || opt.text || "");
+                  const text = typeof opt === "string" ? opt : (opt.optionText || opt.option_text || opt.text || "");
 
                   return (
                     <button

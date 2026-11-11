@@ -1,0 +1,20 @@
+{
+  "slot1": {
+    "header": "Slot 1 \u2022 11:30 AM",
+    "sub": "Entry: 11:30 AM \u2013 1:30 PM IST",
+    "btn": "Slot 1 (11:30 AM)",
+    "startTime": "11:30 AM",
+    "cutoffTime": "1:30 PM",
+    "startMinutes": 690,
+    "cutoffMinutes": 810
+  },
+  "slot2": {
+    "header": "Slot 2 \u2022 4:00 PM",
+    "sub": "Entry: 4:00 PM \u2013 4:30 PM IST",
+    "btn": "Slot 2 (4:00 PM)",
+    "startTime": "4:00 PM",
+    "cutoffTime": "4:30 PM",
+    "startMinutes": 960,
+    "cutoffMinutes": 990
+  }
+}

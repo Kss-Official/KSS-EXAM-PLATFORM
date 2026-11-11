@@ -1010,6 +1010,34 @@ export async function batchRescheduleCandidateSlot(
   );
 }
 
+export interface SlotInfo {
+  header: string;
+  sub: string;
+  btn: string;
+  startTime: string;
+  cutoffTime: string;
+  startMinutes?: number;
+  cutoffMinutes?: number;
+}
+
+export interface SlotTimingsConfig {
+  slot1: SlotInfo;
+  slot2: SlotInfo;
+}
+
+export async function getSlotTimings(): Promise<SlotTimingsConfig> {
+  return request<SlotTimingsConfig>("admin/candidates/slot-timings");
+}
+
+export async function updateSlotTimings(data: Partial<SlotTimingsConfig>): Promise<SlotTimingsConfig> {
+  return request<SlotTimingsConfig>("admin/candidates/slot-timings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+}
+
+
 /* Legacy helpers for compatibility with existing status banner */
 export function setAdminCredentials(_u: string, _p: string): void {}
 export function clearAdminCredentials(): void {}

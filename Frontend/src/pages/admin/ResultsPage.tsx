@@ -26,6 +26,8 @@ import {
   publishResults, 
   getAllExams, 
   resetCandidateAttempt,
+  getSlotTimings,
+  type SlotTimingsConfig,
   type ExamResultDto, 
   type ExamDto 
 } from "../../services/api";
@@ -143,6 +145,7 @@ export default function ResultsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [attemptToReset, setAttemptToReset] = useState<ExamResultDto | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig | null>(null);
 
   const fetchExams = async () => {
     try {
@@ -185,6 +188,7 @@ export default function ResultsPage() {
   useEffect(() => {
     fetchExams();
     fetchAvailableDates();
+    getSlotTimings().then(data => setSlotTimings(data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -319,20 +323,24 @@ export default function ResultsPage() {
   const is31Oct = selectedDate === "2026-10-31" || selectedDate.includes("31");
   const is30Oct = selectedDate === "2026-10-30" || selectedDate.includes("30");
 
-  const slot1TabLabel = is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)";
-  const slot2TabLabel = is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)";
+  const slot1TabLabel = slotTimings?.slot1?.btn || (is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)");
+  const slot2TabLabel = slotTimings?.slot2?.btn || (is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)");
 
-  const slot1StatusTitle = is31Oct 
+  const slot1StatusTitle = slotTimings?.slot1 
+    ? `Slot 1 Exam (${slotTimings.slot1.sub || slotTimings.slot1.header})`
+    : (is31Oct 
     ? "Slot 1 Exam: Scheduled (11:30 AM – 12:30 PM)" 
     : is30Oct 
     ? "Slot 1 Exam: Completed (10:00 AM – 11:00 AM)" 
-    : "Slot 1 Examination";
+    : "Slot 1 Examination");
 
-  const slot2StatusTitle = is31Oct 
+  const slot2StatusTitle = slotTimings?.slot2 
+    ? `Slot 2 Exam (${slotTimings.slot2.sub || slotTimings.slot2.header})`
+    : (is31Oct 
     ? "Slot 2 Exam: Scheduled (04:00 PM – 05:00 PM)" 
     : is30Oct 
     ? "Slot 2 Exam: Completed (02:00 PM – 03:00 PM)" 
-    : "Slot 2 Examination";
+    : "Slot 2 Examination");
 
   // Compute dynamic pool based on selected slot or selected exam
   const activeSlotPool = useMemo(() => {

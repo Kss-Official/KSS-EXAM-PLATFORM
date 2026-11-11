@@ -19,7 +19,10 @@ import {
   ArrowRight,
   CheckSquare,
   Square,
-  Calendar
+  Calendar,
+  Edit2,
+  Save,
+  X
 } from "lucide-react";
 import { 
   getCandidates,
@@ -31,6 +34,9 @@ import {
   rescheduleCandidateSlot,
   batchRescheduleCandidateSlot,
   getAvailableCandidateDates,
+  getSlotTimings,
+  updateSlotTimings,
+  type SlotTimingsConfig,
   type CandidateDto, 
   type DepartmentDto,
   type CollegeDto 
@@ -169,6 +175,48 @@ export default function CandidatesPage() {
     reason: "",
     loading: false
   });
+
+  // Slot Timings Configuration State
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig>({
+    slot1: {
+      header: "Slot 1 • 11:30 AM",
+      sub: "Entry: 11:30 AM – 1:30 PM IST",
+      btn: "Slot 1 (11:30 AM)",
+      startTime: "11:30 AM",
+      cutoffTime: "1:30 PM"
+    },
+    slot2: {
+      header: "Slot 2 • 4:00 PM",
+      sub: "Entry: 4:00 – 4:30 PM IST",
+      btn: "Slot 2 (4:00 PM)",
+      startTime: "4:00 PM",
+      cutoffTime: "4:30 PM"
+    }
+  });
+
+  const [isEditSlotModalOpen, setIsEditSlotModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    slot1StartTime: "11:30 AM",
+    slot1CutoffTime: "1:30 PM",
+    slot2StartTime: "4:00 PM",
+    slot2CutoffTime: "4:30 PM"
+  });
+  const [savingSlotTimings, setSavingSlotTimings] = useState(false);
+
+  // Load slot timings configuration on mount
+  useEffect(() => {
+    getSlotTimings().then(cfg => {
+      if (cfg && cfg.slot1 && cfg.slot2) {
+        setSlotTimings(cfg);
+        setEditForm({
+          slot1StartTime: cfg.slot1.startTime || "11:30 AM",
+          slot1CutoffTime: cfg.slot1.cutoffTime || "1:30 PM",
+          slot2StartTime: cfg.slot2.startTime || "4:00 PM",
+          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM"
+        });
+      }
+    }).catch(() => {});
+  }, []);
 
   const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
     try {
@@ -520,17 +568,45 @@ export default function CandidatesPage() {
     }
   };
 
-  // Dynamic slot titles and timings based on selected date
-  const is31OctView = selectedDate === "2026-10-31" || selectedDate.includes("31") || selectedDate === todayIst;
-  const is30OctView = selectedDate === "2026-10-30" || selectedDate.includes("30") || selectedDate === yesterdayIst;
+  // Handle Slot Timings Save
+  const handleSaveSlotTimings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSlotTimings(true);
+    try {
+      const updated = await updateSlotTimings({
+        slot1: {
+          ...slotTimings.slot1,
+          startTime: editForm.slot1StartTime.trim(),
+          cutoffTime: editForm.slot1CutoffTime.trim()
+        },
+        slot2: {
+          ...slotTimings.slot2,
+          startTime: editForm.slot2StartTime.trim(),
+          cutoffTime: editForm.slot2CutoffTime.trim()
+        }
+      });
+      setSlotTimings(updated);
+      setNotice({
+        text: `Slot timings updated successfully! Slot 1: ${updated.slot1.startTime} – ${updated.slot1.cutoffTime} | Slot 2: ${updated.slot2.startTime} – ${updated.slot2.cutoffTime}`,
+        type: "success"
+      });
+      setIsEditSlotModalOpen(false);
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Failed to update slot timings: " + errorObj.message, type: "error" });
+    } finally {
+      setSavingSlotTimings(false);
+    }
+  };
 
-  const slot1Header = is31OctView ? "Slot 1 • 11:30 AM" : is30OctView ? "Slot 1 • 10:00 AM" : "Slot 1 (Morning)";
-  const slot1Sub = is31OctView ? "Entry: 11:30 AM – 1:30 PM IST" : is30OctView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:30 AM";
-  const slot1Btn = is31OctView ? "Slot 1 (11:30 AM)" : is30OctView ? "Slot 1 (10:00 AM)" : "Slot 1";
+  // Dynamic slot titles and timings from persistent configuration
+  const slot1Header = slotTimings.slot1.header;
+  const slot1Sub = slotTimings.slot1.sub;
+  const slot1Btn = slotTimings.slot1.btn;
 
-  const slot2Header = is31OctView ? "Slot 2 • 4:00 PM" : is30OctView ? "Slot 2 • 2:00 PM" : "Slot 2 (Afternoon)";
-  const slot2Sub = is31OctView ? "Entry: 4:00 – 4:30 PM IST" : is30OctView ? "Entry: 2:00 – 2:30 PM IST" : "2:00 PM / 4:00 PM";
-  const slot2Btn = is31OctView ? "Slot 2 (4:00 PM)" : is30OctView ? "Slot 2 (2:00 PM)" : "Slot 2";
+  const slot2Header = slotTimings.slot2.header;
+  const slot2Sub = slotTimings.slot2.sub;
+  const slot2Btn = slotTimings.slot2.btn;
 
   return (
     <div className="admin-page">
@@ -593,6 +669,15 @@ export default function CandidatesPage() {
           <button 
             type="button" 
             className="secondary" 
+            onClick={() => setIsEditSlotModalOpen(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#0284c7", borderColor: "#bae6fd", backgroundColor: "#f0f9ff" }}
+            title="Edit Slot 1 and Slot 2 timings & entry windows"
+          >
+            <Clock size={15} color="#0284c7" /> Edit Slot Timings
+          </button>
+          <button 
+            type="button" 
+            className="secondary" 
             onClick={() => setIsCsvModalOpen(true)}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
@@ -648,13 +733,39 @@ export default function CandidatesPage() {
           style={{ 
             cursor: "pointer", 
             border: batchFilter === "Slot 1" ? "2px solid #0284c7" : "1px solid #e2e8f0",
-            backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : "#ffffff"
+            backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : "#ffffff",
+            position: "relative"
           }}
           onClick={() => setBatchFilter(prev => prev === "Slot 1" ? "ALL" : "Slot 1")}
-          title="Click to filter Slot 1 (10:00 AM)"
+          title="Click to filter Slot 1"
         >
           <div className="stat-card-info">
-            <small style={{ color: "#0284c7" }}>{slot1Header}</small>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#0284c7", fontWeight: 700 }}>{slot1Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditSlotModalOpen(true);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#0284c7",
+                  backgroundColor: "#e0f2fe",
+                  border: "1px solid #bae6fd",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 1 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
             <div className="stat-card-value" style={{ color: "#0284c7" }}>{slotCounts.slot1}</div>
             <span className="stat-card-sub">{slot1Sub}</span>
           </div>
@@ -668,13 +779,39 @@ export default function CandidatesPage() {
           style={{ 
             cursor: "pointer", 
             border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : "1px solid #e2e8f0",
-            backgroundColor: batchFilter === "Slot 2" ? "#faf5ff" : "#ffffff"
+            backgroundColor: batchFilter === "Slot 2" ? "#faf5ff" : "#ffffff",
+            position: "relative"
           }}
           onClick={() => setBatchFilter(prev => prev === "Slot 2" ? "ALL" : "Slot 2")}
-          title="Click to filter Slot 2 (2:00 PM)"
+          title="Click to filter Slot 2"
         >
           <div className="stat-card-info">
-            <small style={{ color: "#7c3aed" }}>{slot2Header}</small>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#7c3aed", fontWeight: 700 }}>{slot2Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditSlotModalOpen(true);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#7c3aed",
+                  backgroundColor: "#f3e8ff",
+                  border: "1px solid #ddd6fe",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 2 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
             <div className="stat-card-value" style={{ color: "#7c3aed" }}>{slotCounts.slot2}</div>
             <span className="stat-card-sub">{slot2Sub}</span>
           </div>
@@ -1700,6 +1837,132 @@ export default function CandidatesPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Slot Timings Modal */}
+      {isEditSlotModalOpen && (
+        <div className="admin-modal-backdrop" onClick={() => setIsEditSlotModalOpen(false)}>
+          <div className="admin-modal-box" style={{ maxWidth: "560px", width: "95%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#e0f2fe", color: "#0284c7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16.5px", color: "#0f172a", fontWeight: 700 }}>Configure Slot Timings</h3>
+                  <small style={{ color: "#64748b" }}>Update examination entry windows & schedules</small>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsEditSlotModalOpen(false)} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#64748b" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSlotTimings}>
+              {/* Slot 1 Settings */}
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0369a1" }}>SLOT 1 (Forenoon / Morning)</span>
+                  <span style={{ fontSize: "11px", color: "#0284c7", background: "#e0f2fe", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot1StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot1StartTime: e.target.value }))}
+                      placeholder="e.g. 11:30 AM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot1CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot1CutoffTime: e.target.value }))}
+                      placeholder="e.g. 1:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#0284c7" }}>
+                  Preview: <strong>Slot 1 • {editForm.slot1StartTime}</strong> (Entry: {editForm.slot1StartTime} – {editForm.slot1CutoffTime} IST)
+                </div>
+              </div>
+
+              {/* Slot 2 Settings */}
+              <div style={{ background: "#faf5ff", border: "1px solid #ddd6fe", borderRadius: "10px", padding: "14px", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#6d28d9" }}>SLOT 2 (Afternoon / Evening)</span>
+                  <span style={{ fontSize: "11px", color: "#7c3aed", background: "#f3e8ff", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot2StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot2StartTime: e.target.value }))}
+                      placeholder="e.g. 4:00 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot2CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot2CutoffTime: e.target.value }))}
+                      placeholder="e.g. 4:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#7c3aed" }}>
+                  Preview: <strong>Slot 2 • {editForm.slot2StartTime}</strong> (Entry: {editForm.slot2StartTime} – {editForm.slot2CutoffTime} IST)
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setIsEditSlotModalOpen(false)}
+                  disabled={savingSlotTimings}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={savingSlotTimings}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#0284c7" }}
+                >
+                  {savingSlotTimings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Save Timings
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

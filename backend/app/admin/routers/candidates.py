@@ -190,4 +190,20 @@ def batch_reschedule_candidate_slot(
         reason=reason
     )
 
+@router.get("/slot-timings")
+def get_slot_timings():
+    """Retrieve the current examination slot timings and display metadata."""
+    from app.core.slot_config import get_slot_timings_config
+    return get_slot_timings_config()
+
+@router.put("/slot-timings")
+def update_slot_timings(
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin)
+):
+    """Update examination slot timings (startTime, cutoffTime, custom labels)."""
+    from app.core.slot_config import update_slot_timings_config
+    return update_slot_timings_config(payload)
+
+
 
