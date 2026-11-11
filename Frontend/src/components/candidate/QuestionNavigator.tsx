@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, Send, ChevronDown, ChevronRight } from "lucide-react";
 import LiveProctorFeed from "./LiveProctorFeed";
 
@@ -14,7 +14,7 @@ interface QuestionNavigatorProps {
 }
 
 export default function QuestionNavigator({
-  total = 60,
+  total = 0,
   currentIndex,
   answers,
   flags,
@@ -23,22 +23,37 @@ export default function QuestionNavigator({
   onSelectQuestion,
   onRequestSubmit
 }: QuestionNavigatorProps) {
-  void total;
-  // 4 Sections: A (1-15), B (16-30), C (31-45), D (46-60)
-  const sections = [
-    { id: "A", name: "Section A", start: 1, end: 15, title: "Quantitative Aptitude" },
-    { id: "B", name: "Section B", start: 16, end: 30, title: "Logical Reasoning" },
-    { id: "C", name: "Section C", start: 31, end: 45, title: "Technical Core" },
-    { id: "D", name: "Section D", start: 46, end: 60, title: "Verbal Ability" }
-  ];
+  // Dynamically calculate sections based on actual total questions
+  const sections = useMemo(() => {
+    if (!total || total <= 0) return [];
+    if (total <= 25) {
+      return [
+        { id: "A", name: "Section A", start: 1, end: total, title: "All Questions" }
+      ];
+    }
+    if (total <= 50) {
+      const half = Math.ceil(total / 2);
+      return [
+        { id: "A", name: "Section A", start: 1, end: half, title: "Part 1" },
+        { id: "B", name: "Section B", start: half + 1, end: total, title: "Part 2" }
+      ];
+    }
+    const q1 = Math.ceil(total / 4);
+    const q2 = Math.ceil((total * 2) / 4);
+    const q3 = Math.ceil((total * 3) / 4);
+    return [
+      { id: "A", name: "Section A", start: 1, end: q1, title: "Quantitative Aptitude" },
+      { id: "B", name: "Section B", start: q1 + 1, end: q2, title: "Logical Reasoning" },
+      { id: "C", name: "Section C", start: q2 + 1, end: q3, title: "Domain Core" },
+      { id: "D", name: "Section D", start: q3 + 1, end: total, title: "Specialization" }
+    ];
+  }, [total]);
 
   // Determine which section the current question belongs to
   const getSectionIdForIndex = (qIdx: number) => {
     const qNum = qIdx + 1;
-    if (qNum <= 15) return "A";
-    if (qNum <= 30) return "B";
-    if (qNum <= 45) return "C";
-    return "D";
+    const matched = sections.find(s => qNum >= s.start && qNum <= s.end);
+    return matched ? matched.id : (sections[0]?.id || "A");
   };
 
   // Only one section can be open at a time (single-open accordion)
@@ -48,7 +63,7 @@ export default function QuestionNavigator({
   useEffect(() => {
     const secId = getSectionIdForIndex(currentIndex);
     setActiveSection(secId);
-  }, [currentIndex]);
+  }, [currentIndex, sections]);
 
   const toggleSection = (secId: string) => {
     // If the clicked section is already open, toggle it closed; otherwise open it and close all others

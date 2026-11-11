@@ -43,7 +43,7 @@ export interface ExamDto {
   description?: string;
   durationMinutes: number;
   totalQuestions: number;
-  status: "DRAFT" | "PUBLISHED" | "COMPLETED" | "CANCELLED";
+  status: "ACTIVATED" | "DEACTIVATED" | "DRAFT" | "PUBLISHED" | "COMPLETED" | "CANCELLED";
   qualificationMode: "PERCENTAGE" | "ABSOLUTE";
   qualificationThreshold: number;
   timingMode: "DURATION_FROM_START" | "SCHEDULED";
@@ -171,6 +171,8 @@ export interface CandidateDto {
   departmentName?: string;
   collegeId?: number;
   collegeName?: string;
+  batch?: string;
+  examDate?: string;
   status: string;
   createdAt?: string;
 }
@@ -200,6 +202,8 @@ export interface CandidateQueryParams {
   search?: string;
   departmentId?: number;
   collegeId?: number;
+  batch?: string;
+  date?: string;
   status?: string;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
@@ -240,6 +244,7 @@ export interface CandidateVerifyResponse {
   scheduledEndTime?: string;
   setCode?: string;
   questionSetCode?: string;
+  token?: string;
 }
 
 export interface CandidateOptionDto {
@@ -291,6 +296,8 @@ export interface SubmissionResponse {
   unansweredQuestions?: number;
   durationSeconds?: number;
   startedAt?: string;
+  createdAt?: string;
+  examDate?: string;
   candidateCode?: string;
   questionSetCode?: string;
 }
@@ -304,7 +311,7 @@ export interface ExamResultDto {
   examId: number;
   examTitle: string;
   setCode: string;
-  slotNumber: number;
+  slotNumber?: number | null;
   attemptStatus: string;
   answeredCount: number;
   unansweredCount: number;
@@ -318,12 +325,15 @@ export interface ExamResultDto {
   submittedAt?: string;
   receiptId?: string;
   candidateEmail?: string;
+  candidateBatch?: string;
   totalQuestions?: number;
   questionsAnswered?: number;
   correctAnswers?: number;
   incorrectAnswers?: number;
   durationSeconds?: number;
   startedAt?: string;
+  createdAt?: string;
+  examDate?: string;
   candidateCode?: string;
   questionSetCode?: string;
 }
@@ -388,7 +398,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   } catch (err: unknown) {
     const error = err as Error;
     throw new ApiError(
-      `Cannot connect to backend at ${url}. Either the backend server is offline or browser CORS restrictions blocked the connection (${error.message}).`,
+      "Temporary network hiccup on your device. Please ensure your Wi-Fi is connected, wait 3 seconds, and click 'Continue to Role & Application' again.",
       0,
       { isCorsOrNetworkError: true }
     );
@@ -428,14 +438,17 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
     if (response.status === 502 || response.status === 503 || response.status === 504) {
       throw new ApiError(
-        "Backend server is offline or restarting. Please verify the backend is running.",
+        "Temporary network delay. Please wait a few seconds and try again.",
         response.status,
         { isCorsOrNetworkError: true, backendMessage: errorDetail }
       );
     }
 
+    const cleanDetail = (errorDetail && !errorDetail.includes("<html") && !errorDetail.includes("<!DOCTYPE") && errorDetail.length < 150)
+      ? errorDetail
+      : "Unable to process request right now. Please try again.";
     throw new ApiError(
-      `Backend error ${response.status}: ${errorDetail || response.statusText}`,
+      cleanDetail,
       response.status,
       { backendMessage: errorDetail }
     );
@@ -587,9 +600,13 @@ export async function publishExam(id: number): Promise<ExamDto> {
   return request<ExamDto>(`admin/exams/${id}/publish`, { method: "POST" });
 }
 
+export const activateExam = publishExam;
+
 export async function closeExam(id: number): Promise<ExamDto> {
   return request<ExamDto>(`admin/exams/${id}/close`, { method: "POST" });
 }
+
+export const deactivateExam = closeExam;
 
 export async function deleteExam(id: number, force: boolean = false): Promise<{ success: boolean; message: string; requiresConfirmation?: boolean }> {
   return request<{ success: boolean; message: string; requiresConfirmation?: boolean }>(`admin/exams/${id}?force=${force}`, {
@@ -783,6 +800,8 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   if (params?.search && params.search.trim()) query.set("search", params.search.trim());
   if (params?.departmentId !== undefined) query.set("departmentId", String(params.departmentId));
   if (params?.collegeId !== undefined) query.set("collegeId", String(params.collegeId));
+  if (params?.batch && params.batch !== "ALL") query.set("batch", params.batch);
+  if (params?.date && params.date !== "ALL") query.set("date", params.date);
   if (params?.status && params.status !== "ALL") query.set("status", params.status);
   if (params?.sortBy) query.set("sortBy", params.sortBy);
   if (params?.sortOrder) query.set("sortOrder", params.sortOrder);
@@ -792,10 +811,17 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   return request<PaginatedCandidatesResponse>(`admin/candidates${qs ? `?${qs}` : ""}`);
 }
 
-export async function getAllCandidates(): Promise<CandidateDto[]> {
-  const res = await request<PaginatedCandidatesResponse | CandidateDto[]>("admin/candidates?all=true");
+export async function getAllCandidates(date?: string): Promise<CandidateDto[]> {
+  const query = new URLSearchParams();
+  query.set("all", "true");
+  if (date && date !== "ALL") query.set("date", date);
+  const res = await request<PaginatedCandidatesResponse | CandidateDto[]>(`admin/candidates?${query.toString()}`);
   if (Array.isArray(res)) return res;
   return res.items || [];
+}
+
+export async function getAvailableCandidateDates(): Promise<string[]> {
+  return request<string[]>("admin/candidates/dates");
 }
 
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
@@ -803,6 +829,28 @@ export async function createCandidate(cand: Partial<CandidateDto>): Promise<Cand
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cand)
+  });
+}
+
+export async function batchAssignCandidateBatch(
+  candidateIds: number[], 
+  batch: string | null
+): Promise<{ success: boolean; updatedCount: number; batch?: string }> {
+  return request<{ success: boolean; updatedCount: number; batch?: string }>("admin/candidates/batch-assign-batch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateIds, batch })
+  });
+}
+
+export async function assignCandidateBatch(
+  candidateId: number, 
+  batch: string | null
+): Promise<{ success: boolean; candidateId: number; batch?: string }> {
+  return request<{ success: boolean; candidateId: number; batch?: string }>(`admin/candidates/${candidateId}/assign-batch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ batch })
   });
 }
 
@@ -849,9 +897,18 @@ export async function assignCandidateToExam(candidateId: number, examId: number,
    7. RESULTS APIS
    ========================================================================= */
 
-export async function getAllResults(examId?: number): Promise<ExamResultDto[]> {
-  const endpoint = examId ? `admin/results/exam/${examId}` : "admin/results";
+export async function getAllResults(examId?: number, date?: string): Promise<ExamResultDto[]> {
+  const params = new URLSearchParams();
+  if (date && date !== "ALL") {
+    params.set("date", date);
+  }
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const endpoint = examId ? `admin/results/exam/${examId}${qs}` : `admin/results${qs}`;
   return request<ExamResultDto[]>(endpoint);
+}
+
+export async function getAvailableResultDates(): Promise<string[]> {
+  return request<string[]>("admin/results/dates");
 }
 
 export async function publishResults(examId: number, published: boolean): Promise<any> {
@@ -859,6 +916,12 @@ export async function publishResults(examId: number, published: boolean): Promis
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ published })
+  });
+}
+
+export async function resetCandidateAttempt(attemptId: number): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>(`admin/results/attempt/${attemptId}/reset`, {
+    method: "POST"
   });
 }
 
@@ -911,7 +974,72 @@ export async function submitCandidateAttempt(
   });
 }
 
+export async function rescheduleCandidateSlot(
+  candidateId: number,
+  data: { targetSlot?: string; resetAttempt?: boolean; reason?: string }
+): Promise<{ success: boolean; message: string; candidateId: number; newSlot: string }> {
+  return request<{ success: boolean; message: string; candidateId: number; newSlot: string }>(
+    `admin/candidates/${candidateId}/reschedule-slot`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        targetSlot: data.targetSlot || "Slot 2",
+        resetAttempt: data.resetAttempt ?? true,
+        reason: data.reason || "Admin slot reschedule"
+      })
+    }
+  );
+}
+
+export async function batchRescheduleCandidateSlot(
+  data: { candidateIds: number[]; targetSlot?: string; resetAttempt?: boolean; reason?: string }
+): Promise<{ success: boolean; rescheduledCount: number; message: string }> {
+  return request<{ success: boolean; rescheduledCount: number; message: string }>(
+    `admin/candidates/batch-reschedule-slot`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        candidateIds: data.candidateIds,
+        targetSlot: data.targetSlot || "Slot 2",
+        resetAttempt: data.resetAttempt ?? true,
+        reason: data.reason || "Batch slot reschedule"
+      })
+    }
+  );
+}
+
+export interface SlotInfo {
+  header: string;
+  sub: string;
+  btn: string;
+  startTime: string;
+  cutoffTime: string;
+  startMinutes?: number;
+  cutoffMinutes?: number;
+}
+
+export interface SlotTimingsConfig {
+  slot1: SlotInfo;
+  slot2: SlotInfo;
+}
+
+export async function getSlotTimings(): Promise<SlotTimingsConfig> {
+  return request<SlotTimingsConfig>("admin/candidates/slot-timings");
+}
+
+export async function updateSlotTimings(data: Partial<SlotTimingsConfig>): Promise<SlotTimingsConfig> {
+  return request<SlotTimingsConfig>("admin/candidates/slot-timings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+}
+
+
 /* Legacy helpers for compatibility with existing status banner */
 export function setAdminCredentials(_u: string, _p: string): void {}
 export function clearAdminCredentials(): void {}
 export function hasAdminCredentials(): boolean { return false; }
+

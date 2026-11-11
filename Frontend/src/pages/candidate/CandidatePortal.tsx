@@ -89,6 +89,13 @@ export default function CandidatePortal() {
   // Handlers
   const handleContinueFromEntry = (profile: CandidateProfile) => {
     setDraftProfile(profile);
+    const existing = loadCandidateSession();
+    // If candidate already has an active in-progress assessment, take them straight to exam
+    if (existing && !existing.isSubmitted && (existing.profile?.email?.toLowerCase() === profile.email?.toLowerCase())) {
+      setActiveSession(existing);
+      navigate("/candidate/exam");
+      return;
+    }
     navigate("/candidate/role-application");
   };
 
@@ -109,6 +116,14 @@ export default function CandidatePortal() {
     const profileToUse = draftProfile || activeSession?.profile;
     if (!profileToUse) {
       navigate("/candidate");
+      return;
+    }
+
+    // If an active session is already ongoing, resume it rather than overwriting
+    const existing = activeSession || loadCandidateSession();
+    if (existing && !existing.isSubmitted) {
+      setActiveSession(existing);
+      navigate("/candidate/exam");
       return;
     }
 

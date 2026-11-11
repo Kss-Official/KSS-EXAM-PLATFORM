@@ -164,15 +164,24 @@ export default function CreateExamPage() {
       return { success: false, error: `A sub-department named "${trimmedName}" is already configured in this examination.` };
     }
 
-    const codeExists = allConfigured.some(s => s.code.trim().toUpperCase() === trimmedCode);
+    let finalCode = trimmedCode;
+    const codeExists = allConfigured.some(s => s.code.trim().toUpperCase() === finalCode);
     if (codeExists) {
-      return { success: false, error: `Department code "${trimmedCode}" is already in use by another sub-department in this examination.` };
+      if (existingDeptId) {
+        return { success: false, error: `Department code "${finalCode}" is already in use by another sub-department in this examination.` };
+      }
+      // Auto-disambiguate code for newly created custom role so user is never blocked
+      let counter = 2;
+      while (allConfigured.some(s => s.code.trim().toUpperCase() === `${trimmedCode}_${counter}`)) {
+        counter++;
+      }
+      finalCode = `${trimmedCode}_${counter}`;
     }
 
     const matchedBackend = existingDeptId 
       ? departments.find(d => d.id === existingDeptId)
       : departments.find(d => 
-          d.code.toUpperCase() === trimmedCode ||
+          d.code.toUpperCase() === finalCode ||
           d.name.toLowerCase() === trimmedName.toLowerCase()
         );
 
@@ -180,7 +189,7 @@ export default function CreateExamPage() {
       id: existingDeptId || matchedBackend?.id,
       tempId: `${category.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       name: trimmedName,
-      code: trimmedCode,
+      code: finalCode,
       description: description?.trim() || undefined,
       category,
       isDefault: false
@@ -468,6 +477,23 @@ export default function CreateExamPage() {
       setErrors(prev => ({ ...prev, departments: "Please configure at least one sub-department under Technical or Non-Technical." }));
       return false;
     }
+
+    const hasAnyTechQuestions = (technicalBank.masterQuestions && technicalBank.masterQuestions.length > 0) || 
+      (technicalBank.sets.A.parsedQuestions && technicalBank.sets.A.parsedQuestions.length > 0) || 
+      !!technicalBank.masterQuestionPaperFile || !!technicalBank.sets.A.questionPaperFile;
+
+    const hasAnyNonTechQuestions = (nonTechnicalBank.masterQuestions && nonTechnicalBank.masterQuestions.length > 0) || 
+      (nonTechnicalBank.sets.A.parsedQuestions && nonTechnicalBank.sets.A.parsedQuestions.length > 0) || 
+      !!nonTechnicalBank.masterQuestionPaperFile || !!nonTechnicalBank.sets.A.questionPaperFile;
+
+    if (!hasAnyTechQuestions && !hasAnyNonTechQuestions) {
+      setErrors(prev => ({ 
+        ...prev, 
+        departments: "No questions configured! Please click into either the Technical or Non-Technical track to upload your Question Paper before launching." 
+      }));
+      return false;
+    }
+
     setErrors(prev => {
       const copy = { ...prev };
       delete copy.departments;
@@ -614,24 +640,16 @@ export default function CreateExamPage() {
               const slot = bank.sets[s.setCode];
               if (!slot) continue;
 
-              // Upload question paper
-              if (slot.questionPaperFile) {
-                setSubmissionProgress(`Uploading Question Paper for ${sub.name} (${s.name})...`);
-                await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.questionPaperFile, "QUESTION_PAPER");
-                deptSetsUploaded++;
-              }
+              // 1. First, always persist questions directly into the database!
+              const questionsToPersist = (slot.parsedQuestions && slot.parsedQuestions.length > 0)
+                ? slot.parsedQuestions
+                : (bank.masterQuestions && bank.masterQuestions.length > 0)
+                  ? bank.masterQuestions
+                  : (bank.sets.A.parsedQuestions || []);
 
-              // Upload answer key
-              if (slot.answerKeyFile) {
-                setSubmissionProgress(`Uploading Answer Key for ${sub.name} (${s.name})...`);
-                await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.answerKeyFile, "ANSWER_KEY");
-                deptSetsUploaded++;
-              }
-
-              // Bulk save extracted MCQs to this set
-              if (slot.parsedQuestions && slot.parsedQuestions.length > 0) {
-                setSubmissionProgress(`Persisting ${slot.parsedQuestions.length} MCQs to ${sub.name} (${s.name})...`);
-                const dtos = slot.parsedQuestions.map((q, idx) => ({
+              if (questionsToPersist && questionsToPersist.length > 0) {
+                setSubmissionProgress(`Persisting ${questionsToPersist.length} MCQs to ${sub.name} (${s.name})...`);
+                const dtos = questionsToPersist.map((q, idx) => ({
                   questionText: q.questionText,
                   marks: q.marks != null ? q.marks : parseFloat(marksPerQuestion) || 1,
                   negativeMarks: q.negativeMarks != null ? q.negativeMarks : parseFloat(negativeMarks) || 0,
@@ -647,10 +665,28 @@ export default function CreateExamPage() {
                 await bulkUpdateSetQuestions(s.id, dtos);
                 questionsUploadedCount += dtos.length;
               }
+
+              // 2. Archival of raw question paper & answer key files (non-blocking)
+              try {
+                if (slot.questionPaperFile) {
+                  setSubmissionProgress(`Archiving Question Paper for ${sub.name} (${s.name})...`);
+                  await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.questionPaperFile, "QUESTION_PAPER");
+                  deptSetsUploaded++;
+                }
+                if (slot.answerKeyFile) {
+                  setSubmissionProgress(`Archiving Answer Key for ${sub.name} (${s.name})...`);
+                  await uploadDeptSetDocument(created.id, sub.backendId, s.id, slot.answerKeyFile, "ANSWER_KEY");
+                  deptSetsUploaded++;
+                }
+              } catch (archivalErr) {
+                console.warn(`Non-blocking document archival notice for ${sub.name}:`, archivalErr);
+              }
             }
           }
         } catch (upErr) {
-          console.warn(`Could not sync sets for sub-department ${sub.name}:`, upErr);
+          console.error(`Could not sync sets for sub-department ${sub.name}:`, upErr);
+          const errDetail = upErr instanceof Error ? upErr.message : "Question set persistence failed";
+          setServerError(`Error saving questions to ${sub.name}: ${errDetail}`);
         }
       }
 
@@ -1131,11 +1167,9 @@ export default function CreateExamPage() {
                     type="button"
                     className="primary"
                     onClick={() => {
-                      if (technicalSubDepts.length === 0 && nonTechnicalSubDepts.length === 0) {
-                        setErrors(prev => ({ ...prev, departments: "Please configure at least one sub-department." }));
-                        return;
+                      if (validateStep3()) {
+                        setWizardStep(4);
                       }
-                      setWizardStep(4);
                     }}
                     style={{
                       display: "inline-flex",
@@ -1155,7 +1189,7 @@ export default function CreateExamPage() {
             {categoryView === "TECHNICAL" && (
               <DepartmentTrackConfigView
                 category="TECHNICAL"
-                subDepartments={technicalSubDepts}
+                subDepartments={[...technicalSubDepts, ...nonTechnicalSubDepts]}
                 availableDepartments={departments}
                 bank={technicalBank}
                 onBackToOverview={() => setCategoryView("OVERVIEW")}
@@ -1174,7 +1208,7 @@ export default function CreateExamPage() {
             {categoryView === "NON_TECHNICAL" && (
               <DepartmentTrackConfigView
                 category="NON_TECHNICAL"
-                subDepartments={nonTechnicalSubDepts}
+                subDepartments={[...technicalSubDepts, ...nonTechnicalSubDepts]}
                 availableDepartments={departments}
                 bank={nonTechnicalBank}
                 onBackToOverview={() => setCategoryView("OVERVIEW")}

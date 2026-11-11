@@ -79,6 +79,7 @@ def get_eligible_departments(db: Session = Depends(get_db)):
 def verify_candidate(
     req: CandidateVerifyRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db)
 ):
     """
@@ -86,22 +87,27 @@ def verify_candidate(
     Accepts candidate credentials (fullName, email, department/college) and returns examination eligibility.
     Available at both /api/candidate/verify and /api/candidate/login for full compatibility with load testing suites.
     """
-    client_ip = get_client_ip(request)
-    email_key = f"candidate_email:{req.email.strip().lower()}"
-    ip_key = f"candidate_ip:{client_ip}"
+    email_str = (req.email or "").strip().lower()
+    email_key = f"candidate_email:{email_str}" if email_str else f"candidate_anon:{get_client_ip(request)}"
 
-    if rate_limiter.is_blocked(email_key) or rate_limiter.is_blocked(ip_key):
+    if rate_limiter.is_blocked(email_key):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Too many verification attempts. Please wait 15 minutes before retrying."
+            detail="Too many verification attempts for this account. Please wait 15 minutes before retrying."
         )
     res = CandidateExamService.verify_candidate(db, req)
     if not res.eligible:
-        rate_limiter.record_failed_attempt(email_key)
-        rate_limiter.record_failed_attempt(ip_key)
+        msg_l = (res.message or "").lower()
+        is_timing_or_system = any(w in msg_l for w in ["opens at", "entry closed", "scheduled for", "activated examination", "not available"])
+        if not is_timing_or_system:
+            rate_limiter.record_failed_attempt(email_key)
     else:
         rate_limiter.record_successful_attempt(email_key)
-        rate_limiter.record_successful_attempt(ip_key)
+        if res.token:
+            try:
+                set_auth_cookie(response, res.token)
+            except Exception:
+                pass
     return res
 
 @router.post("/start", response_model=CandidateStartAttemptResponse)
@@ -200,13 +206,13 @@ from app.admin.services.coding_exam_service import CodingExamService
 @router.get("/coding/exams", response_model=List[CodingExamDto])
 def list_available_coding_exams(db: Session = Depends(get_db)):
     """Retrieves all active Round 2 Coding assessments for candidates."""
-    return [_candidate_safe_exam(e) for e in CodingExamService.get_all_coding_exams(db) if e.status == "PUBLISHED"]
+    return [_candidate_safe_exam(e) for e in CodingExamService.get_all_coding_exams(db) if e.status in ("ACTIVATED", "PUBLISHED")]
 
 @router.get("/coding/exams/{exam_id}", response_model=CodingExamDto)
 def get_coding_exam_for_candidate(exam_id: int, db: Session = Depends(get_db)):
     """Retrieves problem definitions and public test cases for a coding exam."""
     exam = CodingExamService.get_coding_exam_by_id(db, exam_id)
-    if exam.status != "PUBLISHED":
+    if exam.status not in ("ACTIVATED", "PUBLISHED"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Coding exam {exam_id} not found")
     return _candidate_safe_exam(exam)
 

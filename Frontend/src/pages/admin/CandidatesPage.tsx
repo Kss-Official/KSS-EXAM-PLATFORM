@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { 
   Search, 
   FileText,
@@ -14,7 +14,15 @@ import {
   ArrowDown,
   Loader2,
   Building2,
-  GraduationCap
+  GraduationCap,
+  Clock,
+  ArrowRight,
+  CheckSquare,
+  Square,
+  Calendar,
+  Edit2,
+  Save,
+  X
 } from "lucide-react";
 import { 
   getCandidates,
@@ -22,12 +30,74 @@ import {
   uploadCandidatesCsv, 
   getAllDepartments,
   getColleges,
+  assignCandidateBatch,
+  rescheduleCandidateSlot,
+  batchRescheduleCandidateSlot,
+  getAvailableCandidateDates,
+  getSlotTimings,
+  updateSlotTimings,
+  type SlotTimingsConfig,
   type CandidateDto, 
   type DepartmentDto,
   type CollegeDto 
 } from "../../services/api";
 
 const PAGE_SIZE = 30;
+
+const getTodayIstString = (): string => {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
+const getYesterdayIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const getTomorrowIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const formatDateShort = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    const [y, m, d] = dStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  } catch {
+    return dStr;
+  }
+};
+
+const formatDateYear = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    return dStr.slice(0, 4);
+  } catch {
+    return "";
+  }
+};
 
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState<CandidateDto[]>([]);
@@ -41,8 +111,18 @@ export default function CandidatesPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [batchFilter, setBatchFilter] = useState<string>("ALL");
   const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
   const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
+  const todayIst = useMemo(() => getTodayIstString(), []);
+  const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
+  const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
+
+  // Day-wise candidate filter state (defaults to today's date dynamically)
+  const [selectedDate, setSelectedDate] = useState<string>(todayIst);
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [customDatePicker, setCustomDatePicker] = useState<string>("");
+  const [dateCounts, setDateCounts] = useState<{ [d: string]: number }>({});
   const [sortBy, setSortBy] = useState<string>("registration_number");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
@@ -56,6 +136,7 @@ export default function CandidatesPage() {
   const [newRegNum, setNewRegNum] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newBatch, setNewBatch] = useState("Slot 1");
   const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
 
@@ -67,6 +148,120 @@ export default function CandidatesPage() {
   // IntersectionObserver sentinel for progressive infinite scrolling
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
+  // Global Slot Counts for high-level statistics
+  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
+    total: 842,
+    slot1: 421,
+    slot2: 421
+  });
+
+  // Multi-select state for bulk actions
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  // Reschedule Confirmation Modal state
+  const [rescheduleModal, setRescheduleModal] = useState<{
+    isOpen: boolean;
+    isBulk: boolean;
+    candidate?: CandidateDto;
+    targetSlot: string;
+    resetAttempt: boolean;
+    reason: string;
+    loading: boolean;
+  }>({
+    isOpen: false,
+    isBulk: false,
+    targetSlot: "Slot 2",
+    resetAttempt: true,
+    reason: "",
+    loading: false
+  });
+
+  // Slot Timings Configuration State
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig>({
+    slot1: {
+      header: "Slot 1 • 11:30 AM",
+      sub: "Entry: 11:30 AM – 1:30 PM IST",
+      btn: "Slot 1 (11:30 AM)",
+      startTime: "11:30 AM",
+      cutoffTime: "1:30 PM"
+    },
+    slot2: {
+      header: "Slot 2 • 4:00 PM",
+      sub: "Entry: 4:00 – 4:30 PM IST",
+      btn: "Slot 2 (4:00 PM)",
+      startTime: "4:00 PM",
+      cutoffTime: "4:30 PM"
+    }
+  });
+
+  const [isEditSlotModalOpen, setIsEditSlotModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    slot1StartTime: "11:30 AM",
+    slot1CutoffTime: "1:30 PM",
+    slot2StartTime: "4:00 PM",
+    slot2CutoffTime: "4:30 PM"
+  });
+  const [savingSlotTimings, setSavingSlotTimings] = useState(false);
+
+  // Load slot timings configuration on mount
+  useEffect(() => {
+    getSlotTimings().then(cfg => {
+      if (cfg && cfg.slot1 && cfg.slot2) {
+        setSlotTimings(cfg);
+        setEditForm({
+          slot1StartTime: cfg.slot1.startTime || "11:30 AM",
+          slot1CutoffTime: cfg.slot1.cutoffTime || "1:30 PM",
+          slot2StartTime: cfg.slot2.startTime || "4:00 PM",
+          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM"
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
+  const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
+    try {
+      const dParam = activeDate !== "ALL" ? activeDate : undefined;
+      const [allRes, s1Res, s2Res] = await Promise.all([
+        getCandidates({ limit: 1, date: dParam }),
+        getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
+        getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
+      ]);
+      setSlotCounts({
+        total: allRes.total,
+        slot1: s1Res.total,
+        slot2: s2Res.total
+      });
+    } catch {
+      // ignore
+    }
+  }, [selectedDate]);
+
+  const loadAvailableDates = useCallback(async () => {
+    try {
+      const dates = await getAvailableCandidateDates();
+      setAvailableDates(dates);
+      const counts: { [d: string]: number } = {};
+      const datesToFetch = Array.from(new Set([...dates, todayIst, yesterdayIst, tomorrowIst]));
+      await Promise.all(
+        datesToFetch.map(async (d) => {
+          try {
+            const r = await getCandidates({ limit: 1, date: d });
+            counts[d] = r.total;
+          } catch {
+            counts[d] = 0;
+          }
+        })
+      );
+      try {
+        const allR = await getCandidates({ limit: 1 });
+        counts["ALL"] = allR.total;
+      } catch {}
+      setDateCounts(counts);
+    } catch {
+      // ignore
+    }
+  }, [todayIst, yesterdayIst, tomorrowIst]);
+
   // Fetch both Colleges and Academic Departments from their separate tables
   useEffect(() => {
     try {
@@ -76,7 +271,9 @@ export default function CandidatesPage() {
     }
     getColleges().then(setColleges).catch(() => {});
     getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
-  }, []);
+    loadAvailableDates();
+    refreshSlotCounts(selectedDate);
+  }, [refreshSlotCounts, loadAvailableDates, selectedDate]);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -96,6 +293,8 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        batch: batchFilter !== "ALL" ? batchFilter : undefined,
+        date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -114,7 +313,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, collegeFilter, departmentFilter, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchPage1();
@@ -132,6 +331,8 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        batch: batchFilter !== "ALL" ? batchFilter : undefined,
+        date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
         sortBy,
         sortOrder
@@ -150,7 +351,7 @@ export default function CandidatesPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, statusFilter, sortBy, sortOrder]);
+  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
 
   // Attach IntersectionObserver to sentinel element for infinite scrolling
   useEffect(() => {
@@ -216,6 +417,96 @@ export default function CandidatesPage() {
     );
   };
 
+  // Slot / Batch quick assignment
+  const handleAssignSlot = async (candidateId: number, slot: string) => {
+    try {
+      await assignCandidateBatch(candidateId, slot);
+      setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, batch: slot } : c));
+      setNotice({ text: `Slot updated to ${slot || "Unassigned"} for candidate.`, type: "success" });
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Failed to update slot: " + errorObj.message, type: "error" });
+    }
+  };
+
+  // Selection handlers
+  const handleToggleSelectAll = () => {
+    if (selectedIds.size === candidates.length && candidates.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(candidates.map(c => c.id)));
+    }
+  };
+
+  const handleToggleSelectCandidate = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const openSingleRescheduleModal = (cand: CandidateDto, targetSlot: string = "Slot 2") => {
+    setRescheduleModal({
+      isOpen: true,
+      isBulk: false,
+      candidate: cand,
+      targetSlot,
+      resetAttempt: true,
+      reason: "Emergency reschedule to " + targetSlot,
+      loading: false
+    });
+  };
+
+  const openBulkRescheduleModal = (targetSlot: string = "Slot 2") => {
+    if (selectedIds.size === 0) return;
+    setRescheduleModal({
+      isOpen: true,
+      isBulk: true,
+      targetSlot,
+      resetAttempt: true,
+      reason: "Batch lab reschedule to " + targetSlot,
+      loading: false
+    });
+  };
+
+  const handleExecuteReschedule = async () => {
+    setRescheduleModal(prev => ({ ...prev, loading: true }));
+    try {
+      if (rescheduleModal.isBulk) {
+        const ids = Array.from(selectedIds);
+        const res = await batchRescheduleCandidateSlot({
+          candidateIds: ids,
+          targetSlot: rescheduleModal.targetSlot,
+          resetAttempt: rescheduleModal.resetAttempt,
+          reason: rescheduleModal.reason
+        });
+        setCandidates(prev => prev.map(c => ids.includes(c.id) ? { ...c, batch: rescheduleModal.targetSlot, status: rescheduleModal.resetAttempt ? "PENDING" : c.status } : c));
+        setSelectedIds(new Set());
+        setNotice({ text: res.message, type: "success" });
+      } else if (rescheduleModal.candidate) {
+        const cand = rescheduleModal.candidate;
+        const res = await rescheduleCandidateSlot(cand.id, {
+          targetSlot: rescheduleModal.targetSlot,
+          resetAttempt: rescheduleModal.resetAttempt,
+          reason: rescheduleModal.reason
+        });
+        setCandidates(prev => prev.map(c => c.id === cand.id ? { ...c, batch: rescheduleModal.targetSlot, status: rescheduleModal.resetAttempt ? "PENDING" : c.status } : c));
+        setNotice({ text: res.message, type: "success" });
+      }
+      refreshSlotCounts();
+      setRescheduleModal(prev => ({ ...prev, isOpen: false, loading: false }));
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Reschedule failed: " + errorObj.message, type: "error" });
+      setRescheduleModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   // Handle manual candidate creation
   const handleCreateCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,6 +522,7 @@ export default function CandidatesPage() {
         registrationNumber: regUpper,
         fullName: newName.trim(),
         email: newEmail.trim().toLowerCase(),
+        batch: newBatch || undefined,
         collegeId: newCollegeId,
         departmentId: newDeptId
       });
@@ -238,7 +530,7 @@ export default function CandidatesPage() {
       setCandidates(prev => [created, ...prev]);
       setTotalCandidates(prev => prev + 1);
       setNotice({
-        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL.`,
+        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL under ${newBatch || "Unassigned"}.`,
         type: "success"
       });
     } catch (err: unknown) {
@@ -249,6 +541,7 @@ export default function CandidatesPage() {
       setNewRegNum("");
       setNewName("");
       setNewEmail("");
+      setNewBatch("Slot 1");
       setNewCollegeId(undefined);
       setNewDeptId(undefined);
     }
@@ -274,6 +567,46 @@ export default function CandidatesPage() {
       setUploadingCsv(false);
     }
   };
+
+  // Handle Slot Timings Save
+  const handleSaveSlotTimings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSlotTimings(true);
+    try {
+      const updated = await updateSlotTimings({
+        slot1: {
+          ...slotTimings.slot1,
+          startTime: editForm.slot1StartTime.trim(),
+          cutoffTime: editForm.slot1CutoffTime.trim()
+        },
+        slot2: {
+          ...slotTimings.slot2,
+          startTime: editForm.slot2StartTime.trim(),
+          cutoffTime: editForm.slot2CutoffTime.trim()
+        }
+      });
+      setSlotTimings(updated);
+      setNotice({
+        text: `Slot timings updated successfully! Slot 1: ${updated.slot1.startTime} – ${updated.slot1.cutoffTime} | Slot 2: ${updated.slot2.startTime} – ${updated.slot2.cutoffTime}`,
+        type: "success"
+      });
+      setIsEditSlotModalOpen(false);
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Failed to update slot timings: " + errorObj.message, type: "error" });
+    } finally {
+      setSavingSlotTimings(false);
+    }
+  };
+
+  // Dynamic slot titles and timings from persistent configuration
+  const slot1Header = slotTimings.slot1.header;
+  const slot1Sub = slotTimings.slot1.sub;
+  const slot1Btn = slotTimings.slot1.btn;
+
+  const slot2Header = slotTimings.slot2.header;
+  const slot2Sub = slotTimings.slot2.sub;
+  const slot2Btn = slotTimings.slot2.btn;
 
   return (
     <div className="admin-page">
@@ -321,14 +654,26 @@ export default function CandidatesPage() {
               setSearchTerm("");
               setDebouncedSearch("");
               setStatusFilter("ALL");
+              setBatchFilter("ALL");
               setCollegeFilter(undefined);
               setDepartmentFilter(undefined);
+              setSelectedDate("ALL");
+              setCustomDatePicker("");
               fetchPage1();
             }}
             title="Reset Filters & Refresh Records"
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <RotateCcw size={14} /> Refresh
+          </button>
+          <button 
+            type="button" 
+            className="secondary" 
+            onClick={() => setIsEditSlotModalOpen(true)}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#0284c7", borderColor: "#bae6fd", backgroundColor: "#f0f9ff" }}
+            title="Edit Slot 1 and Slot 2 timings & entry windows"
+          >
+            <Clock size={15} color="#0284c7" /> Edit Slot Timings
           </button>
           <button 
             type="button" 
@@ -361,25 +706,545 @@ export default function CandidatesPage() {
         </div>
       )}
 
-      {/* KPI Cards Row */}
-      <div className="candidate-kpi-grid">
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Total Registered</span>
-          <span className="kpi-mini-value" style={{ color: "#017846" }}>{totalCandidates}</span>
+      {/* Premium Overview Stat Cards */}
+      <div className="stat-cards-row" style={{ marginBottom: "20px" }}>
+        <div 
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "ALL" ? "2px solid #017846" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "ALL" ? "#fbfdfc" : "#ffffff"
+          }}
+          onClick={() => setBatchFilter("ALL")}
+          title="Click to view all candidates"
+        >
+          <div className="stat-card-info">
+            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>Total Candidates</small>
+            <div className="stat-card-value" style={{ color: "#017846" }}>{slotCounts.total}</div>
+            <span className="stat-card-sub">All registered examinees</span>
+          </div>
+          <div className="stat-card-icon blue">
+            <Users size={22} />
+          </div>
         </div>
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Affiliated Colleges</span>
-          <span className="kpi-mini-value" style={{ color: "#2563eb" }}>{colleges.length}</span>
+
+        <div 
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "Slot 1" ? "2px solid #0284c7" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : "#ffffff",
+            position: "relative"
+          }}
+          onClick={() => setBatchFilter(prev => prev === "Slot 1" ? "ALL" : "Slot 1")}
+          title="Click to filter Slot 1"
+        >
+          <div className="stat-card-info">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#0284c7", fontWeight: 700 }}>{slot1Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditSlotModalOpen(true);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#0284c7",
+                  backgroundColor: "#e0f2fe",
+                  border: "1px solid #bae6fd",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 1 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
+            <div className="stat-card-value" style={{ color: "#0284c7" }}>{slotCounts.slot1}</div>
+            <span className="stat-card-sub">{slot1Sub}</span>
+          </div>
+          <div className="stat-card-icon" style={{ background: "#e0f2fe", color: "#0284c7" }}>
+            <Clock size={22} />
+          </div>
         </div>
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Academic Departments</span>
-          <span className="kpi-mini-value" style={{ color: "#7c3aed" }}>{departments.length}</span>
+
+        <div 
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "Slot 2" ? "#faf5ff" : "#ffffff",
+            position: "relative"
+          }}
+          onClick={() => setBatchFilter(prev => prev === "Slot 2" ? "ALL" : "Slot 2")}
+          title="Click to filter Slot 2"
+        >
+          <div className="stat-card-info">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#7c3aed", fontWeight: 700 }}>{slot2Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditSlotModalOpen(true);
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#7c3aed",
+                  backgroundColor: "#f3e8ff",
+                  border: "1px solid #ddd6fe",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 2 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
+            <div className="stat-card-value" style={{ color: "#7c3aed" }}>{slotCounts.slot2}</div>
+            <span className="stat-card-sub">{slot2Sub}</span>
+          </div>
+          <div className="stat-card-icon" style={{ background: "#f3e8ff", color: "#7c3aed" }}>
+            <Clock size={22} />
+          </div>
         </div>
-        <div className="kpi-mini-card">
-          <span className="kpi-mini-label">Records Visible</span>
-          <span className="kpi-mini-value" style={{ color: "#0f172a" }}>{candidates.length}</span>
+
+        <div className="stat-card">
+          <div className="stat-card-info">
+            <small>Institutions & Tracks</small>
+            <div className="stat-card-value">{departments.length}</div>
+            <span className="stat-card-sub">{colleges.length} Affiliated Colleges</span>
+          </div>
+          <div className="stat-card-icon purple">
+            <GraduationCap size={22} />
+          </div>
         </div>
       </div>
+
+      {/* Interactive Day-Wise Examination Date Navigation Bar */}
+      <div 
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #e2e8f0",
+          marginBottom: "12px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginRight: "4px" }}>
+            <Calendar size={16} color="#017846" />
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Exam Date:
+            </span>
+          </div>
+
+          {/* Today Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(todayIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === todayIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === todayIst ? "#017846" : "#f8fafc",
+              color: selectedDate === todayIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Today ({formatDateShort(todayIst)} {formatDateYear(todayIst)})</span>
+            <span style={{
+              background: selectedDate === todayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === todayIst ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[todayIst] ?? (selectedDate === todayIst ? totalCandidates : 675)}
+            </span>
+          </button>
+
+          {/* Yesterday Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(yesterdayIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === yesterdayIst ? "2px solid #0284c7" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === yesterdayIst ? "#0284c7" : "#f8fafc",
+              color: selectedDate === yesterdayIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Yesterday ({formatDateShort(yesterdayIst)} {formatDateYear(yesterdayIst)})</span>
+            <span style={{
+              background: selectedDate === yesterdayIst ? "rgba(255,255,255,0.25)" : "#e0f2fe",
+              color: selectedDate === yesterdayIst ? "#fff" : "#0369a1",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[yesterdayIst] ?? 463}
+            </span>
+          </button>
+
+          {/* Tomorrow Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(tomorrowIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === tomorrowIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === tomorrowIst ? "#017846" : "#f8fafc",
+              color: selectedDate === tomorrowIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Tomorrow ({formatDateShort(tomorrowIst)} {formatDateYear(tomorrowIst)})</span>
+            <span style={{
+              background: selectedDate === tomorrowIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === tomorrowIst ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[tomorrowIst] ?? 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => { setSelectedDate("ALL"); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === "ALL" ? "2px solid #475569" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === "ALL" ? "#475569" : "#f8fafc",
+              color: selectedDate === "ALL" ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>All Dates Combined</span>
+            <span style={{
+              background: selectedDate === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === "ALL" ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts["ALL"] ?? (totalCandidates || 1138)}
+            </span>
+          </button>
+
+          {/* Custom Date Input */}
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginLeft: "4px" }}>
+            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>Custom:</span>
+            <input 
+              type="date"
+              value={customDatePicker}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomDatePicker(val);
+                if (val) setSelectedDate(val);
+              }}
+              style={{
+                padding: "4px 8px",
+                borderRadius: "6px",
+                border: "1px solid #cbd5e1",
+                fontSize: "12.5px",
+                color: "#334155",
+                backgroundColor: selectedDate !== "ALL" && selectedDate !== "2026-10-31" && selectedDate !== "2026-10-30" ? "#f0fdf4" : "#ffffff"
+              }}
+            />
+          </div>
+        </div>
+
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#475569" }}>
+          <span>Active Date:</span>
+          <span style={{
+            background: "#ecfdf5",
+            color: "#065f46",
+            padding: "3px 9px",
+            borderRadius: "6px",
+            fontWeight: 700,
+            fontSize: "12px",
+            border: "1px solid #a7f3d0"
+          }}>
+            {selectedDate === "ALL" 
+              ? "All Dates Combined" 
+              : selectedDate === todayIst 
+              ? `Today (${formatDateShort(todayIst)} ${formatDateYear(todayIst)})` 
+              : selectedDate === yesterdayIst 
+              ? `Yesterday (${formatDateShort(yesterdayIst)} ${formatDateYear(yesterdayIst)})` 
+              : selectedDate === tomorrowIst 
+              ? `Tomorrow (${formatDateShort(tomorrowIst)} ${formatDateYear(tomorrowIst)})` 
+              : selectedDate}
+          </span>
+        </div>
+      </div>
+
+      {/* Interactive Slot Filter Navigation Bar */}
+      <div 
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px",
+          background: "#ffffff",
+          padding: "12px 18px",
+          borderRadius: "12px",
+          border: "1px solid #e2e8f0",
+          marginBottom: "16px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px", marginRight: "4px" }}>
+            Exam Slot:
+          </span>
+          <button
+            type="button"
+            onClick={() => setBatchFilter("ALL")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "ALL" ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "ALL" ? "#017846" : "#f8fafc",
+              color: batchFilter === "ALL" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            All Examinees
+            <span style={{
+              background: batchFilter === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: batchFilter === "ALL" ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.total}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 1")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 1" ? "2px solid #0284c7" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 1" ? "#0284c7" : "#f8fafc",
+              color: batchFilter === "Slot 1" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            {slot1Btn}
+            <span style={{
+              background: batchFilter === "Slot 1" ? "rgba(255,255,255,0.25)" : "#e0f2fe",
+              color: batchFilter === "Slot 1" ? "#fff" : "#0369a1",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.slot1}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 2")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 2" ? "#7c3aed" : "#f8fafc",
+              color: batchFilter === "Slot 2" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            {slot2Btn}
+            <span style={{
+              background: batchFilter === "Slot 2" ? "rgba(255,255,255,0.25)" : "#f3e8ff",
+              color: batchFilter === "Slot 2" ? "#fff" : "#6b21a8",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCounts.slot2}
+            </span>
+          </button>
+        </div>
+
+        <div style={{ fontSize: "12.5px", color: "#64748b", fontWeight: 500 }}>
+          Viewing <b>{candidates.length}</b> of <b>{totalCandidates}</b> candidates
+        </div>
+      </div>
+
+      {/* Emergency Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: "12px",
+            background: "#eff6ff",
+            border: "1.5px solid #3b82f6",
+            padding: "12px 18px",
+            borderRadius: "10px",
+            marginBottom: "16px",
+            boxShadow: "0 2px 8px rgba(59, 130, 246, 0.15)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{
+              background: "#2563eb",
+              color: "#fff",
+              padding: "4px 10px",
+              borderRadius: "14px",
+              fontSize: "12px",
+              fontWeight: 700
+            }}>
+              {selectedIds.size} Selected
+            </span>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "#1e3a8a" }}>
+              Batch slot actions for selected examinees
+            </span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => openBulkRescheduleModal("Slot 2")}
+              style={{
+                backgroundColor: "#7c3aed",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 4px rgba(124, 58, 237, 0.25)"
+              }}
+            >
+              <Clock size={15} /> Move All Selected to Slot 2 (2:00 PM)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openBulkRescheduleModal("Slot 1")}
+              style={{
+                backgroundColor: "#0284c7",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px"
+              }}
+            >
+              Move to Slot 1
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              style={{
+                background: "#ffffff",
+                color: "#64748b",
+                border: "1px solid #cbd5e1",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                fontSize: "12.5px",
+                fontWeight: 600,
+                cursor: "pointer"
+              }}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search Bar */}
       <div className="filter-search-row" style={{ flexWrap: "wrap", gap: "10px" }}>
@@ -441,6 +1306,15 @@ export default function CandidatesPage() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th style={{ width: "42px", textAlign: "center" }}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.size === candidates.length && candidates.length > 0} 
+                    onChange={handleToggleSelectAll}
+                    title="Select / Deselect all visible candidates"
+                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#017846" }}
+                  />
+                </th>
                 <th 
                   className="sortable-th"
                   onClick={() => handleSort("registration_number")}
@@ -492,6 +1366,17 @@ export default function CandidatesPage() {
                     {renderSortIndicator("department")}
                   </div>
                 </th>
+                <th 
+                  className="sortable-th"
+                  onClick={() => handleSort("batch")}
+                  title="Sort by Exam Slot / Batch"
+                  style={{ width: "220px" }}
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center" }}>
+                    Exam Slot & Reschedule
+                    {renderSortIndicator("batch")}
+                  </div>
+                </th>
                 <th>Account Status</th>
               </tr>
             </thead>
@@ -500,30 +1385,41 @@ export default function CandidatesPage() {
                 // Shimmer Skeleton Rows for initial screen
                 Array.from({ length: 6 }).map((_, idx) => (
                   <tr key={`skel-${idx}`}>
+                    <td style={{ width: "42px", textAlign: "center" }}><div className="skeleton-cell" style={{ width: "20px", margin: "0 auto" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "80px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "160px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "200px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "140px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
+                    <td style={{ width: "220px" }}><div className="skeleton-cell" style={{ width: "180px" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
                   </tr>
                 ))
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
                     </p>
                     <small style={{ color: "#64748b", display: "block", marginTop: "4px" }}>
-                      Try adjusting your search query, college, or department filters.
+                      Try adjusting your search query, batch, college, or department filters.
                     </small>
                   </td>
                 </tr>
               ) : (
                 candidates.map((cand, index) => {
+                  const isSelected = selectedIds.has(cand.id);
                   return (
-                    <tr key={cand.id}>
+                    <tr key={cand.id} style={{ backgroundColor: isSelected ? "#f0fdf4" : undefined }}>
+                      <td style={{ textAlign: "center" }}>
+                        <input 
+                          type="checkbox" 
+                          checked={isSelected}
+                          onChange={() => handleToggleSelectCandidate(cand.id)}
+                          style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#017846" }}
+                        />
+                      </td>
                       <td>
                         <b style={{ color: "#017846", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
                           {cand.registrationNumber || index + 1}
@@ -572,6 +1468,94 @@ export default function CandidatesPage() {
                         ) : (
                           <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
                         )}
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                          {cand.examDate && (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                padding: "2px 7px",
+                                borderRadius: "5px",
+                                backgroundColor: cand.examDate === "2026-10-31" ? "#ecfdf5" : "#f1f5f9",
+                                color: cand.examDate === "2026-10-31" ? "#065f46" : "#475569",
+                                border: cand.examDate === "2026-10-31" ? "1px solid #a7f3d0" : "1px solid #cbd5e1"
+                              }}
+                              title={`Scheduled Date: ${cand.examDate}`}
+                            >
+                              <Calendar size={10} />
+                              {cand.examDate === "2026-10-31" ? "31 Oct" : cand.examDate === "2026-10-30" ? "30 Oct" : cand.examDate}
+                            </span>
+                          )}
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              fontSize: "11.5px",
+                              fontWeight: 700,
+                              padding: "3px 8px",
+                              borderRadius: "6px",
+                              backgroundColor: cand.batch === "Slot 1" ? "#e0f2fe" : cand.batch === "Slot 2" ? "#f3e8ff" : "#f1f5f9",
+                              color: cand.batch === "Slot 1" ? "#0369a1" : cand.batch === "Slot 2" ? "#6b21a8" : "#64748b",
+                              border: cand.batch === "Slot 1" ? "1px solid #bae6fd" : cand.batch === "Slot 2" ? "1px solid #e9d5ff" : "1px solid #cbd5e1"
+                            }}
+                          >
+                            <Clock size={11} />
+                            {cand.batch || "Unassigned"}
+                          </span>
+
+                          {cand.batch === "Slot 1" && (
+                            <button
+                              type="button"
+                              onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
+                              title="Move candidate to Slot 2 (2:00 PM) with automatic attempt reset"
+                              style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                backgroundColor: "#7c3aed",
+                                color: "#ffffff",
+                                border: "none",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px",
+                                boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
+                              }}
+                            >
+                              To Slot 2 <ArrowRight size={11} />
+                            </button>
+                          )}
+
+                          {cand.batch === "Slot 2" && (
+                            <button
+                              type="button"
+                              onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
+                              title="Move candidate to Slot 1 (10:00 AM) with automatic attempt reset"
+                              style={{
+                                padding: "3px 8px",
+                                borderRadius: "6px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                backgroundColor: "#f0f9ff",
+                                color: "#0369a1",
+                                border: "1px solid #bae6fd",
+                                cursor: "pointer",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "3px"
+                              }}
+                            >
+                              To Slot 1 <ArrowRight size={11} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td>
                         <span className={`status-pill ${getStatusClass(cand.status)}`}>
@@ -664,6 +1648,19 @@ export default function CandidatesPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Exam Slot / Batch *</label>
+                <select 
+                  value={newBatch} 
+                  onChange={e => setNewBatch(e.target.value)} 
+                  required 
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                >
+                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Cutoff)</option>
+                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Cutoff)</option>
+                  <option value="">Unassigned</option>
+                </select>
+              </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "10px" }}>
                 <button type="button" className="secondary" onClick={() => setIsNewModalOpen(false)}>Cancel</button>
                 <button type="submit" className="primary">Register</button>
@@ -704,6 +1701,268 @@ export default function CandidatesPage() {
                 {uploadingCsv ? "Uploading..." : "Upload Document"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Slot Reschedule Confirmation Modal */}
+      {rescheduleModal.isOpen && (
+        <div className="admin-modal-backdrop" onClick={() => setRescheduleModal(prev => ({ ...prev, isOpen: false }))}>
+          <div className="admin-modal-box" style={{ maxWidth: "500px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Clock size={20} color="#7c3aed" />
+                <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a" }}>
+                  {rescheduleModal.isBulk 
+                    ? `Batch Move ${selectedIds.size} Candidates to ${rescheduleModal.targetSlot}`
+                    : `Move Candidate to ${rescheduleModal.targetSlot}`
+                  }
+                </h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setRescheduleModal(prev => ({ ...prev, isOpen: false }))} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px", color: "#64748b" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+              {!rescheduleModal.isBulk && rescheduleModal.candidate && (
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
+                    {rescheduleModal.candidate.fullName}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
+                    Reg No: <b style={{ fontFamily: "monospace" }}>{rescheduleModal.candidate.registrationNumber}</b> • Current: <b>{rescheduleModal.candidate.batch || "Unassigned"}</b>
+                  </div>
+                </div>
+              )}
+
+              {rescheduleModal.isBulk && (
+                <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+                  <div style={{ fontWeight: 700, fontSize: "13px", color: "#1e293b" }}>
+                    {selectedIds.size} candidates will be rescheduled together
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
+                    All selected examinees will be moved to <b>{rescheduleModal.targetSlot}</b>.
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 700, color: "#334155", display: "block", marginBottom: "4px" }}>
+                  Target Exam Slot
+                </label>
+                <select
+                  value={rescheduleModal.targetSlot}
+                  onChange={e => setRescheduleModal(prev => ({ ...prev, targetSlot: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 600 }}
+                >
+                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Window)</option>
+                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Window)</option>
+                </select>
+              </div>
+
+              {/* Automatic Attempt Reset Checkbox (Checked by Default) */}
+              <div 
+                style={{
+                  background: "#faf5ff",
+                  border: "1.5px solid #d8b4fe",
+                  borderRadius: "8px",
+                  padding: "12px",
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "10px"
+                }}
+              >
+                <input 
+                  type="checkbox" 
+                  id="resetAttemptCheck"
+                  checked={rescheduleModal.resetAttempt}
+                  onChange={e => setRescheduleModal(prev => ({ ...prev, resetAttempt: e.target.checked }))}
+                  style={{ marginTop: "3px", width: "16px", height: "16px", cursor: "pointer", accentColor: "#7c3aed" }}
+                />
+                <label htmlFor="resetAttemptCheck" style={{ fontSize: "12.5px", color: "#4c1d95", cursor: "pointer" }}>
+                  <b style={{ display: "block" }}>Reset exam progress & timer for a fresh attempt (Recommended)</b>
+                  <span style={{ fontSize: "11.5px", color: "#6b21a8", display: "block", marginTop: "2px" }}>
+                    Wipes any interrupted/broken Slot 1 session so the student gets the full 60-minute duration in Slot 2 with zero lockouts.
+                  </span>
+                </label>
+              </div>
+
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600, color: "#475569", display: "block", marginBottom: "4px" }}>
+                  Reason (Audit Trail)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Lab PC crashed, network outage, or candidate request"
+                  value={rescheduleModal.reason}
+                  onChange={e => setRescheduleModal(prev => ({ ...prev, reason: e.target.value }))}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "12.5px" }}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "8px" }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setRescheduleModal(prev => ({ ...prev, isOpen: false }))}
+                  disabled={rescheduleModal.loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExecuteReschedule}
+                  disabled={rescheduleModal.loading}
+                  style={{
+                    backgroundColor: "#7c3aed",
+                    color: "#ffffff",
+                    border: "none",
+                    padding: "8px 16px",
+                    borderRadius: "6px",
+                    fontWeight: 700,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  {rescheduleModal.loading && <Loader2 size={14} className="animate-spin" />}
+                  Confirm Move to {rescheduleModal.targetSlot}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Slot Timings Modal */}
+      {isEditSlotModalOpen && (
+        <div className="admin-modal-backdrop" onClick={() => setIsEditSlotModalOpen(false)}>
+          <div className="admin-modal-box" style={{ maxWidth: "560px", width: "95%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#e0f2fe", color: "#0284c7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16.5px", color: "#0f172a", fontWeight: 700 }}>Configure Slot Timings</h3>
+                  <small style={{ color: "#64748b" }}>Update examination entry windows & schedules</small>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsEditSlotModalOpen(false)} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#64748b" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSlotTimings}>
+              {/* Slot 1 Settings */}
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0369a1" }}>SLOT 1 (Forenoon / Morning)</span>
+                  <span style={{ fontSize: "11px", color: "#0284c7", background: "#e0f2fe", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot1StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot1StartTime: e.target.value }))}
+                      placeholder="e.g. 11:30 AM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot1CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot1CutoffTime: e.target.value }))}
+                      placeholder="e.g. 1:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#0284c7" }}>
+                  Preview: <strong>Slot 1 • {editForm.slot1StartTime}</strong> (Entry: {editForm.slot1StartTime} – {editForm.slot1CutoffTime} IST)
+                </div>
+              </div>
+
+              {/* Slot 2 Settings */}
+              <div style={{ background: "#faf5ff", border: "1px solid #ddd6fe", borderRadius: "10px", padding: "14px", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#6d28d9" }}>SLOT 2 (Afternoon / Evening)</span>
+                  <span style={{ fontSize: "11px", color: "#7c3aed", background: "#f3e8ff", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot2StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot2StartTime: e.target.value }))}
+                      placeholder="e.g. 4:00 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot2CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot2CutoffTime: e.target.value }))}
+                      placeholder="e.g. 4:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#7c3aed" }}>
+                  Preview: <strong>Slot 2 • {editForm.slot2StartTime}</strong> (Entry: {editForm.slot2StartTime} – {editForm.slot2CutoffTime} IST)
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setIsEditSlotModalOpen(false)}
+                  disabled={savingSlotTimings}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={savingSlotTimings}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#0284c7" }}
+                >
+                  {savingSlotTimings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Save Timings
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

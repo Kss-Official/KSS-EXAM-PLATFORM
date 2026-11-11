@@ -80,7 +80,19 @@ def _init_engine():
         echo=False
     )
 
+from sqlalchemy import event
+
 engine = _init_engine()
+
+@event.listens_for(engine, "connect")
+def _set_pg_statement_timeout(dbapi_connection, connection_record):
+    """Guards Neon and PostgreSQL against runaway slow queries (10s limit)."""
+    try:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("SET statement_timeout = 10000;")
+        cursor.close()
+    except Exception:
+        pass
 
 SessionLocal = sessionmaker(
     autocommit=False,

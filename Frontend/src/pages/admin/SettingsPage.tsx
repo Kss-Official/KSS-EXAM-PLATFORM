@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { 
   Server, 
   ShieldCheck, 
@@ -44,7 +44,7 @@ export default function SettingsPage() {
         <div className="panel-card-header">
           <div className="panel-card-title">
             <Server size={16} color="#017846" />
-            <span>Spring Boot REST API Configuration</span>
+            <span>FastAPI & PostgreSQL Backend Configuration</span>
           </div>
           <span className="api-status-pill up">Vite Config</span>
         </div>
@@ -59,29 +59,27 @@ export default function SettingsPage() {
               style={{ background: "#f8fafc", fontFamily: "monospace" }}
             />
             <small style={{ color: "#64748b" }}>
-              Defined in <code>.env</code> / <code>.env.example</code>. Target: Spring Boot 21 at <code>http://localhost:8080/api</code>.
+              Configured via <code>.env</code> / environment variables. Connected to FastAPI backend with Neon PostgreSQL.
             </small>
           </div>
 
           <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "8px", padding: "14px" }}>
             <b style={{ fontSize: "12px", color: "#0f172a", display: "block", marginBottom: "6px" }}>
-              Backend CORS Configuration Requirements:
+              Backend CORS Configuration:
             </b>
             <p style={{ fontSize: "12px", color: "#475569", margin: "0 0 10px 0" }}>
-              Spring Boot must permit requests from <code>http://localhost:5173</code> with standard methods.
+              FastAPI is configured with CORSMiddleware to permit admin portal and candidate portal origins:
             </p>
             <div className="banner-code-box">
-{`@Configuration
-public class WebMvcConfig implements WebMvcConfigurer {
-    @Override
-    public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/api/**")
-                .allowedOrigins("http://localhost:5173")
-                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
-                .allowedHeaders("*")
-                .allowCredentials(true);
-    }
-}`}
+{`app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https://.*\\.vercel\\.app$",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    max_age=3600
+)`}
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 from typing import List, Optional
-from sqlalchemy import func
+from datetime import datetime, timezone, timedelta
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
@@ -18,7 +19,7 @@ class DashboardService:
         # 1. Aggregate Exam metrics in a single query
         total_exams, active_exams = db.query(
             func.count(Exam.id),
-            func.count().filter(Exam.status == "PUBLISHED")
+            func.count().filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"]))
         ).first()
 
         # 2. Aggregate Attempt metrics in a single query
@@ -46,11 +47,34 @@ class DashboardService:
         )
 
     @classmethod
-    def get_exam_results(cls, db: Session, exam_id: Optional[int] = None) -> List[ExamResultDto]:
+    def get_available_dates(cls, db: Session) -> List[str]:
         """
-        Loads all candidate exam results using eager joins to avoid N+1 queries.
-        Answer counts are retrieved via a single SQL GROUP BY aggregation of distinct question IDs.
+        Retrieves all distinct examination dates (in IST UTC+5:30) with recorded attempts.
         """
+        IST = timezone(timedelta(hours=5, minutes=30))
+        dates_raw = db.execute(text("""
+            SELECT DISTINCT to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt
+            FROM exam_attempts
+            WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+            ORDER BY dt DESC
+        """)).fetchall()
+        result = [r[0] for r in dates_raw if r[0]]
+        now_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+        if now_ist not in result:
+            result.insert(0, now_ist)
+        return result
+
+    @classmethod
+    def get_exam_results(
+        cls, 
+        db: Session, 
+        exam_id: Optional[int] = None,
+        date: Optional[str] = None
+    ) -> List[ExamResultDto]:
+        """
+        Loads candidate exam results filtered by optional exam_id and specific examination date (in IST).
+        """
+        IST = timezone(timedelta(hours=5, minutes=30))
         query = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.candidate).joinedload(Candidate.department),
             joinedload(ExamAttempt.exam),
@@ -59,6 +83,21 @@ class DashboardService:
         )
         if exam_id:
             query = query.filter(ExamAttempt.exam_id == exam_id)
+
+        if date and date.strip() and date.strip().upper() != "ALL":
+            try:
+                dt_obj = datetime.strptime(date.strip(), "%Y-%m-%d").date()
+                start_ist = datetime(dt_obj.year, dt_obj.month, dt_obj.day, 0, 0, 0, tzinfo=IST)
+                end_ist = start_ist + timedelta(days=1)
+                start_utc = start_ist.astimezone(timezone.utc)
+                end_utc = end_ist.astimezone(timezone.utc)
+                query = query.filter(
+                    func.coalesce(ExamAttempt.submitted_at, ExamAttempt.started_at, ExamAttempt.created_at) >= start_utc,
+                    func.coalesce(ExamAttempt.submitted_at, ExamAttempt.started_at, ExamAttempt.created_at) < end_utc
+                )
+            except Exception:
+                pass
+
         attempts = query.order_by(ExamAttempt.created_at.desc()).all()
 
         if not attempts:
@@ -94,6 +133,34 @@ class DashboardService:
             reg_num = a.candidate_code or (a.candidate.registration_number if a.candidate else "-")
             dept_name = a.candidate.department.name if (a.candidate and a.candidate.department) else "Unassigned"
             set_cd = a.question_set_code or (a.question_set.set_code if a.question_set else "-")
+            cand_batch = a.candidate.batch if a.candidate else None
+
+            # Determine slot number: strictly based on genuine slot criteria
+            slot_num = None
+            cand_batch_lower = (cand_batch or '').strip().lower()
+            exam_title_lower = (a.exam.title or '').strip().lower() if a.exam else ''
+
+            # Check if this attempt belongs to an independent/test exam
+            is_independent_exam = (
+                a.exam_id in (97, 100, 101, 102, 103) or 
+                'sample' in exam_title_lower or 
+                'mock' in exam_title_lower
+            )
+
+            if not is_independent_exam:
+                if a.exam_id == 98 or 'slot 1' in exam_title_lower or cand_batch_lower == 'slot 1':
+                    slot_num = 1
+                elif a.exam_id == 99 or 'slot 2' in exam_title_lower or '@' in exam_title_lower or cand_batch_lower == 'slot 2':
+                    slot_num = 2
+                elif 'slot 3' in exam_title_lower or '4:00' in exam_title_lower or '4pm' in exam_title_lower or 'slot 3' in cand_batch_lower or '4:00' in cand_batch_lower or '4pm' in cand_batch_lower:
+                    slot_num = 3
+                elif a.slot and a.slot.slot_number in (1, 2, 3):
+                    slot_num = a.slot.slot_number
+            ts = a.submitted_at or a.started_at or a.created_at
+            exam_dt_str = None
+            if ts:
+                ist_dt = ts.astimezone(IST) if ts.tzinfo else ts.replace(tzinfo=timezone.utc).astimezone(IST)
+                exam_dt_str = ist_dt.strftime("%Y-%m-%d")
 
             dto = ExamResultDto(
                 attempt_id=a.id,
@@ -104,7 +171,7 @@ class DashboardService:
                 exam_id=a.exam_id,
                 exam_title=a.exam.title if a.exam else "Exam",
                 set_code=set_cd,
-                slot_number=a.slot.slot_number if a.slot else 1,
+                slot_number=slot_num,
                 attempt_status=a.status,
                 answered_count=answered_cnt,
                 unanswered_count=unanswered_cnt,
@@ -118,12 +185,15 @@ class DashboardService:
                 submitted_at=a.submitted_at,
                 receipt_id=a.receipt_id,
                 candidate_email=a.candidate.email if a.candidate else None,
+                candidate_batch=cand_batch,
                 total_questions=total_q,
                 questions_answered=answered_cnt,
                 correct_answers=a.correct_answers,
                 incorrect_answers=a.incorrect_answers,
                 duration_seconds=a.duration_seconds,
                 started_at=a.started_at,
+                created_at=a.created_at,
+                exam_date=exam_dt_str,
                 candidate_code=a.candidate_code or reg_num,
                 question_set_code=set_cd,
             )

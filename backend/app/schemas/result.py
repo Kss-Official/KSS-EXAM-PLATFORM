@@ -34,7 +34,7 @@ class ExamResultDto(CamelModel):
     exam_id: int
     exam_title: str
     set_code: str
-    slot_number: int
+    slot_number: Optional[int] = None
     attempt_status: str
     answered_count: int
     unanswered_count: int
@@ -48,11 +48,14 @@ class ExamResultDto(CamelModel):
     submitted_at: Optional[datetime] = None
     receipt_id: Optional[str] = None
     candidate_email: Optional[str] = None
+    candidate_batch: Optional[str] = None
     total_questions: Optional[int] = None
     questions_answered: Optional[int] = None
     correct_answers: Optional[int] = None
     incorrect_answers: Optional[int] = None
     duration_seconds: Optional[int] = None
     started_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    exam_date: Optional[str] = None
     candidate_code: Optional[str] = None
     question_set_code: Optional[str] = None

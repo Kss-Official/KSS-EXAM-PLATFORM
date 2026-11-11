@@ -4,12 +4,13 @@ import re
 import secrets
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile, status
 
 from app.models import (
-    Candidate, CandidateAccessCode, Department, College, Exam, ExamSlot, QuestionSet, ExamAttempt, AuditLog
+    Candidate, CandidateAccessCode, Department, College, Exam, ExamSlot, QuestionSet, ExamAttempt,
+    AttemptAnswer, AttemptRandomizedOption, AttemptRandomizedQuestion, AuditLog
 )
 from app.schemas import CandidateDto, CandidateAccessCodeDto, PaginatedCandidatesResponse
 from app.core import EmailService
@@ -45,22 +46,44 @@ class CandidateService:
             college_name=college_name,
             status=computed_status,
             created_at=c.created_at,
-            assigned_set=c.assigned_set
+            assigned_set=c.assigned_set,
+            batch=c.batch,
+            exam_date=getattr(c, "exam_date", None)
         )
 
     @classmethod
-    def get_all_candidates(cls, db: Session) -> List[CandidateDto]:
+    def get_all_candidates(cls, db: Session, date: Optional[str] = None) -> List[CandidateDto]:
         """
         Retrieves all registered candidates with eager-loaded departments, colleges, and access codes in a single query.
+        Optionally filters by examination date (YYYY-MM-DD).
         """
-        cands = db.query(Candidate).options(
+        query = db.query(Candidate).options(
             joinedload(Candidate.department),
             joinedload(Candidate.college),
             joinedload(Candidate.access_codes)
-        ).all()
+        )
+        if date and date.strip() and date.strip().upper() != "ALL":
+            d_clean = date.strip()
+            query = query.filter(
+                or_(
+                    Candidate.exam_date == d_clean,
+                    and_(
+                        Candidate.exam_date == None,
+                        func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+                    )
+                )
+            )
+        cands = query.all()
 
         # Query all attempts to accurately determine candidate progress in real time
-        attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).all()
+        att_query = db.query(ExamAttempt.candidate_id, ExamAttempt.status)
+        if date and date.strip() and date.strip().upper() != "ALL":
+            target_d = date.strip()
+            if target_d == "2026-10-31":
+                att_query = att_query.filter(ExamAttempt.exam_id.in_([102, 103]))
+            elif target_d == "2026-10-30":
+                att_query = att_query.filter(ExamAttempt.exam_id.in_([97, 98, 99, 100, 101]))
+        attempts = att_query.all()
         attempt_map: Dict[int, str] = {}
         for cand_id, att_st in attempts:
             if not cand_id:
@@ -81,6 +104,29 @@ class CandidateService:
         return [cls._to_dto(c, attempt_status=attempt_map.get(c.id)) for c in cands]
 
     @classmethod
+    def get_available_candidate_dates(cls, db: Session) -> List[str]:
+        """
+        Retrieves all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD),
+        sorted in descending order (most upcoming/recent date first).
+        """
+        raw_dates = db.query(Candidate.exam_date).filter(
+            Candidate.exam_date != None,
+            Candidate.exam_date != ""
+        ).distinct().all()
+        dates_set = {d[0] for d in raw_dates if d[0]}
+
+        fallback_dates = db.query(
+            func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD')
+        ).filter(
+            or_(Candidate.exam_date == None, Candidate.exam_date == "")
+        ).distinct().all()
+        for fd in fallback_dates:
+            if fd[0]:
+                dates_set.add(fd[0])
+
+        return sorted(list(dates_set), reverse=True)
+
+    @classmethod
     def get_paginated_candidates(
         cls,
         db: Session,
@@ -90,6 +136,8 @@ class CandidateService:
         department_id: Optional[int] = None,
         college_id: Optional[int] = None,
         status: Optional[str] = None,
+        batch: Optional[str] = None,
+        date: Optional[str] = None,
         sort_by: str = "registration_number",
         sort_order: str = "asc"
     ) -> PaginatedCandidatesResponse:
@@ -97,7 +145,7 @@ class CandidateService:
         High-performance server-side paginated candidate query.
         Filters, sorts, and limits at the SQL level, loading only the visible page
         and querying attempt status strictly for the returned candidate slice.
-        Supports both Academic Department and College institution filters.
+        Supports Academic Department, College institution, and Batch/Slot filters.
         """
         page = max(1, page)
         limit = max(1, min(200, limit))
@@ -127,34 +175,68 @@ class CandidateService:
         if college_id is not None:
             query = query.filter(Candidate.college_id == college_id)
 
+        # 3b. Server-side Batch/Slot filter (e.g. 'Slot 1', 'Slot 2', 'UNASSIGNED', 'ALL')
+        if batch and batch.strip() and batch.strip().upper() != "ALL":
+            b_clean = batch.strip()
+            if b_clean.upper() == "UNASSIGNED":
+                query = query.filter(or_(Candidate.batch == None, Candidate.batch == ""))
+            elif b_clean == "Slot 1":
+                query = query.filter(or_(Candidate.batch == "Slot 1", Candidate.batch.ilike("%Slot 1%")))
+            elif b_clean == "Slot 2":
+                query = query.filter(or_(Candidate.batch == "Slot 2", Candidate.batch.ilike("%Slot 2%")))
+            else:
+                query = query.filter(or_(Candidate.batch == b_clean, Candidate.batch.ilike(f"%{b_clean}%")))
+
+        # 3c. Server-side Date filter (e.g. '2026-10-31', '2026-10-30', 'ALL')
+        if date and date.strip() and date.strip().upper() != "ALL":
+            d_clean = date.strip()
+            query = query.filter(
+                or_(
+                    Candidate.exam_date == d_clean,
+                    and_(
+                        Candidate.exam_date == None,
+                        func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+                    )
+                )
+            )
+
         # 4. Server-side Real-time Status filter (COMPLETED, GOING ON, PENDING, DISABLED)
         if status and status.strip() and status.strip().upper() != "ALL":
             st = status.strip().upper()
+            target_exam_ids = None
+            if date and date.strip() and date.strip().upper() != "ALL":
+                target_d = date.strip()
+                if target_d == "2026-10-31":
+                    target_exam_ids = [102, 103]
+                elif target_d == "2026-10-30":
+                    target_exam_ids = [97, 98, 99, 100, 101]
+
             if st in ("COMPLETED", "SUBMITTED"):
-                query = query.filter(
-                    Candidate.id.in_(
-                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
-                    )
-                )
+                sub_q = db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
+                if target_exam_ids:
+                    sub_q = sub_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
+                query = query.filter(Candidate.id.in_(sub_q))
             elif st in ("GOING ON", "IN_PROGRESS", "IN PROGRESS"):
+                sub_q = db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "IN_PROGRESS")
+                sub_sub_q = db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
+                if target_exam_ids:
+                    sub_q = sub_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
+                    sub_sub_q = sub_sub_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
                 query = query.filter(
-                    Candidate.id.in_(
-                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "IN_PROGRESS")
-                    ),
-                    Candidate.id.not_in(
-                        db.query(ExamAttempt.candidate_id).filter(ExamAttempt.status == "SUBMITTED")
-                    )
+                    Candidate.id.in_(sub_q),
+                    Candidate.id.not_in(sub_sub_q)
                 )
             elif st == "DISABLED":
                 query = query.filter(Candidate.status == "DISABLED")
             elif st == "PENDING":
+                act_q = db.query(ExamAttempt.candidate_id).filter(
+                    ExamAttempt.status.in_(["SUBMITTED", "IN_PROGRESS"])
+                )
+                if target_exam_ids:
+                    act_q = act_q.filter(ExamAttempt.exam_id.in_(target_exam_ids))
                 query = query.filter(
                     Candidate.status != "DISABLED",
-                    Candidate.id.not_in(
-                        db.query(ExamAttempt.candidate_id).filter(
-                            ExamAttempt.status.in_(["SUBMITTED", "IN_PROGRESS"])
-                        )
-                    )
+                    Candidate.id.not_in(act_q)
                 )
 
         # 5. Total record count via fast scalar count
@@ -162,6 +244,8 @@ class CandidateService:
             bool(search and search.strip()) or 
             (department_id is not None) or 
             (college_id is not None) or 
+            bool(batch and batch.strip() and batch.strip().upper() != "ALL") or
+            bool(date and date.strip() and date.strip().upper() != "ALL") or
             bool(status and status.strip() and status.strip().upper() != "ALL")
         )
         if not has_filter:
@@ -179,6 +263,8 @@ class CandidateService:
             query = query.order_by(Department.name.desc() if is_desc else Department.name.asc())
         elif sort_by in ("college", "college_name"):
             query = query.order_by(College.name.desc() if is_desc else College.name.asc())
+        elif sort_by == "batch":
+            query = query.order_by(Candidate.batch.desc() if is_desc else Candidate.batch.asc())
         elif sort_by == "created_at":
             query = query.order_by(Candidate.created_at.desc() if is_desc else Candidate.created_at.asc())
         else:  # registration_number or default
@@ -195,9 +281,16 @@ class CandidateService:
         cand_ids = [c.id for c in cands]
         attempt_map: Dict[int, str] = {}
         if cand_ids:
-            attempts = db.query(ExamAttempt.candidate_id, ExamAttempt.status).filter(
+            att_query = db.query(ExamAttempt.candidate_id, ExamAttempt.status).filter(
                 ExamAttempt.candidate_id.in_(cand_ids)
-            ).all()
+            )
+            if date and date.strip() and date.strip().upper() != "ALL":
+                target_d = date.strip()
+                if target_d == "2026-10-31":
+                    att_query = att_query.filter(ExamAttempt.exam_id.in_([102, 103]))
+                elif target_d == "2026-10-30":
+                    att_query = att_query.filter(ExamAttempt.exam_id.in_([97, 98, 99, 100, 101]))
+            attempts = att_query.all()
             for cid, att_st in attempts:
                 if not cid:
                     continue
@@ -254,6 +347,7 @@ class CandidateService:
             email=email,
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
+            batch=dto.batch.strip() if dto.batch else None,
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
@@ -320,38 +414,52 @@ class CandidateService:
                 try:
                     import pymupdf
                 except ImportError:
-                    import fitz as pymupdf
-                doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
-                for page in doc:
-                    tables = page.find_tables()
-                    if tables and tables.tables:
-                        for t in tables:
-                            for row in t.extract():
-                                if any(row):
-                                    rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
-                    else:
-                        # Fallback: cluster words by vertical y0 coordinate with 3.0pt tolerance
-                        words = page.get_text("words")
-                        if words:
-                            words.sort(key=lambda w: (w[1], w[0]))
-                            curr_line = []
-                            curr_y = None
-                            for w in words:
-                                y = w[1]
-                                if curr_y is None or abs(y - curr_y) > 3.0:
-                                    if curr_line:
-                                        rows.append([" ".join([x[4] for x in curr_line])])
-                                    curr_line = [w]
-                                    curr_y = y
-                                else:
-                                    curr_line.append(w)
-                            if curr_line:
-                                rows.append([" ".join([x[4] for x in curr_line])])
+                    try:
+                        import fitz as pymupdf
+                    except ImportError:
+                        pymupdf = None
+
+                if pymupdf is not None:
+                    doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
+                    for page in doc:
+                        tables = page.find_tables()
+                        if tables and tables.tables:
+                            for t in tables:
+                                for row in t.extract():
+                                    if any(row):
+                                        rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
                         else:
-                            for line in page.get_text("text").splitlines():
+                            # Fallback: cluster words by vertical y0 coordinate with 3.0pt tolerance
+                            words = page.get_text("words")
+                            if words:
+                                words.sort(key=lambda w: (w[1], w[0]))
+                                curr_line = []
+                                curr_y = None
+                                for w in words:
+                                    y = w[1]
+                                    if curr_y is None or abs(y - curr_y) > 3.0:
+                                        if curr_line:
+                                            rows.append([" ".join([x[4] for x in curr_line])])
+                                        curr_line = [w]
+                                        curr_y = y
+                                    else:
+                                        curr_line.append(w)
+                                if curr_line:
+                                    rows.append([" ".join([x[4] for x in curr_line])])
+                            else:
+                                for line in page.get_text("text").splitlines():
+                                    if line.strip():
+                                        rows.append([line.strip()])
+                    doc.close()
+                else:
+                    import pypdf
+                    reader = pypdf.PdfReader(io.BytesIO(content))
+                    for page in reader.pages:
+                        text = page.extract_text()
+                        if text:
+                            for line in text.splitlines():
                                 if line.strip():
                                     rows.append([line.strip()])
-                doc.close()
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse PDF document: {e}")
         else:
@@ -1055,6 +1163,156 @@ class CandidateService:
             "success": True,
             "updatedCount": updated_count,
             "assignedSet": normalized_set
+        }
+
+    @classmethod
+    def batch_assign_candidate_batch(
+        cls, db: Session, candidate_ids: List[int], batch: Optional[str], performed_by: str = "ADMIN"
+    ) -> Dict[str, Any]:
+        """Batch assigns a batch/slot (e.g. Slot 1, Slot 2, or None) to selected candidate IDs."""
+        if not candidate_ids:
+            return {"success": True, "updatedCount": 0, "batch": batch}
+
+        cleaned_batch = (batch or "").strip() if batch and batch.strip().lower() not in ("none", "unassigned", "null", "") else None
+
+        updated_count = db.query(Candidate).filter(
+            Candidate.id.in_(candidate_ids)
+        ).update(
+            {"batch": cleaned_batch},
+            synchronize_session=False
+        )
+        db.add(AuditLog(
+            action="BATCH_ASSIGN_CANDIDATE_BATCH",
+            entity_type="Candidate",
+            entity_id="BATCH",
+            performed_by=performed_by,
+            details=f"Batch assigned {updated_count} candidates to batch '{cleaned_batch or 'Unassigned'}'."
+        ))
+        db.commit()
+        return {"success": True, "updatedCount": updated_count, "batch": cleaned_batch}
+
+    @classmethod
+    def assign_candidate_batch(
+        cls, db: Session, candidate_id: int, batch: Optional[str], performed_by: str = "ADMIN"
+    ) -> Dict[str, Any]:
+        """Assigns or updates a batch/slot for a single candidate."""
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+        cleaned_batch = (batch or "").strip() if batch and batch.strip().lower() not in ("none", "unassigned", "null", "") else None
+        cand.batch = cleaned_batch
+        db.add(AuditLog(
+            action="ASSIGN_CANDIDATE_BATCH",
+            entity_type="Candidate",
+            entity_id=str(cand.id),
+            performed_by=performed_by,
+            details=f"Assigned candidate {cand.registration_number} to batch '{cleaned_batch or 'Unassigned'}'."
+        ))
+        db.commit()
+        db.refresh(cand)
+        return {"success": True, "candidateId": cand.id, "batch": cand.batch}
+
+    @classmethod
+    def reschedule_candidate_slot(
+        cls,
+        db: Session,
+        candidate_id: int,
+        target_slot: str = "Slot 2",
+        reset_attempt: bool = True,
+        performed_by: str = "ADMIN",
+        reason: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Reschedules an individual candidate to a different exam slot (e.g. Slot 1 -> Slot 2)
+        and resets previous attempt records so the student can start fresh without timers
+        being expired or being blocked by previous submissions.
+        """
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+        old_slot = cand.batch or "Unassigned"
+        cleaned_target = (target_slot or "").strip()
+        cand.batch = cleaned_target
+
+        reset_count = 0
+        if reset_attempt:
+            attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
+            for att in attempts:
+                db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == att.id).delete()
+                db.query(AttemptRandomizedOption).filter(AttemptRandomizedOption.attempt_id == att.id).delete()
+                db.query(AttemptRandomizedQuestion).filter(AttemptRandomizedQuestion.attempt_id == att.id).delete()
+                db.delete(att)
+                reset_count += 1
+            cand.status = "ACTIVE"
+
+        db.add(AuditLog(
+            action="RESCHEDULE_CANDIDATE_SLOT",
+            entity_type="Candidate",
+            entity_id=str(cand.id),
+            performed_by=performed_by,
+            details=f"Rescheduled candidate {cand.registration_number} ({cand.full_name}) from '{old_slot}' to '{cleaned_target}'. Attempts reset: {reset_count}. Reason: {reason or 'Candidate reschedule request'}."
+        ))
+        db.commit()
+        db.refresh(cand)
+        return {
+            "success": True,
+            "candidateId": cand.id,
+            "registrationNumber": cand.registration_number,
+            "fullName": cand.full_name,
+            "oldSlot": old_slot,
+            "newSlot": cand.batch,
+            "attemptsReset": reset_count,
+            "message": f"Successfully moved {cand.full_name} ({cand.registration_number}) to {cleaned_target}" + (" with exam attempt reset." if reset_attempt else ".")
+        }
+
+    @classmethod
+    def batch_reschedule_candidate_slot(
+        cls,
+        db: Session,
+        candidate_ids: List[int],
+        target_slot: str = "Slot 2",
+        reset_attempt: bool = True,
+        performed_by: str = "ADMIN",
+        reason: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Batch reschedules multiple candidates to a target slot (e.g., Slot 2)
+        and resets their previous attempts so all candidates can start cleanly.
+        """
+        if not candidate_ids:
+            return {"success": True, "rescheduledCount": 0, "message": "No candidates provided"}
+
+        candidates = db.query(Candidate).filter(Candidate.id.in_(candidate_ids)).all()
+        cleaned_target = (target_slot or "").strip()
+        total_resets = 0
+
+        for cand in candidates:
+            cand.batch = cleaned_target
+            if reset_attempt:
+                attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
+                for att in attempts:
+                    db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == att.id).delete()
+                    db.query(AttemptRandomizedOption).filter(AttemptRandomizedOption.attempt_id == att.id).delete()
+                    db.query(AttemptRandomizedQuestion).filter(AttemptRandomizedQuestion.attempt_id == att.id).delete()
+                    db.delete(att)
+                    total_resets += 1
+                cand.status = "ACTIVE"
+
+        db.add(AuditLog(
+            action="BATCH_RESCHEDULE_CANDIDATE_SLOT",
+            entity_type="Candidate",
+            entity_id=f"count:{len(candidates)}",
+            performed_by=performed_by,
+            details=f"Batch rescheduled {len(candidates)} candidates to '{cleaned_target}'. Total attempts reset: {total_resets}. Reason: {reason or 'Batch emergency slot reassignment'}."
+        ))
+        db.commit()
+        return {
+            "success": True,
+            "rescheduledCount": len(candidates),
+            "targetSlot": cleaned_target,
+            "totalAttemptsReset": total_resets,
+            "message": f"Successfully moved {len(candidates)} candidates to {cleaned_target}."
         }
 
 

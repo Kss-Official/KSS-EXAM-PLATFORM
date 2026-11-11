@@ -129,6 +129,14 @@ export const INITIAL_TECHNICAL_SUBDEPTS: SubDepartmentItem[] = [
     isDefault: true
   },
   {
+    tempId: "tech-dev",
+    name: "Software Developer",
+    code: "DEV",
+    description: "Full Stack Development, Web & Mobile Applications, Architecture",
+    category: "TECHNICAL",
+    isDefault: true
+  },
+  {
     tempId: "tech-tester",
     name: "Software Tester",
     code: "QA",

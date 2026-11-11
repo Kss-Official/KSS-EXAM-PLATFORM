@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { 
   Server, 
   CheckCircle, 
@@ -60,12 +60,12 @@ export default function BackendStatusBanner({
         <div className="banner-header">
           <div className="banner-title">
             <Server size={18} className="animate-spin" />
-            <span>Connecting to Spring Boot Backend API...</span>
+            <span>Connecting to Backend API...</span>
           </div>
           <small style={{ color: "#64748b" }}>{API_BASE_URL}/admin/dashboard</small>
         </div>
         <p className="banner-desc" style={{ margin: 0 }}>
-          Verifying backend health and retrieving admin statistics from Spring Boot.
+          Verifying backend health and retrieving real-time administrator statistics from PostgreSQL.
         </p>
       </div>
     );
@@ -93,11 +93,7 @@ export default function BackendStatusBanner({
           </div>
         </div>
         <p className="banner-desc">
-          <strong>API Message:</strong> "{data.message}" ┬╖ Connected to <code>{API_BASE_URL}</code>.
-          <br />
-          <small style={{ color: "#64748b" }}>
-            Note: Current values (totalExams: {data.totalExams}, totalCandidates: {data.totalCandidates}, activeExams: {data.activeExams}) are demonstration endpoints from the initial backend seed.
-          </small>
+          <strong>Database Status:</strong> {data.message} · Connected to <code>{API_BASE_URL}</code>.
         </p>
       </div>
     );
@@ -206,7 +202,7 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
       <div className="banner-header">
         <div className="banner-title" style={{ color: "#991b1b" }}>
           <XCircle size={18} color="#ef4444" />
-          <span>Cannot Connect to Spring Boot Backend</span>
+          <span>Cannot Connect to Backend Server</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <span className="api-status-pill down">Connection Failed</span>
@@ -225,8 +221,8 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
       <div style={{ fontSize: "11.5px", color: "#7f1d1d", background: "#fee2e2", padding: "10px 12px", borderLeft: "3px solid #dc2626", borderRadius: "6px" }}>
         <strong>Checklist to resolve:</strong>
         <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
-          <li>Ensure Spring Boot backend is running on <code>http://localhost:8080</code>.</li>
-          <li>Ensure CORS headers allow origin <code>http://localhost:5173</code> (e.g., <code>Access-Control-Allow-Origin: http://localhost:5173</code>).</li>
+          <li>Ensure the FastAPI backend service is running and accessible.</li>
+          <li>Ensure CORS headers allow your frontend origin.</li>
           <li>Verify <code>VITE_API_BASE_URL</code> in your <code>.env</code> file.</li>
         </ul>
       </div>

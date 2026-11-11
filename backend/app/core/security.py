@@ -98,11 +98,11 @@ def clear_auth_cookie(response: Response) -> None:
     )
 
 def extract_token_from_request(request: Request) -> Optional[str]:
-    """Extracts session token from either HttpOnly cookie or Authorization Bearer header."""
-    cookie_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
-    if cookie_token:
-        return cookie_token
+    """Extracts session token from either Authorization Bearer header or HttpOnly cookie."""
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         return auth_header[7:].strip()
+    cookie_token = request.cookies.get(settings.SESSION_COOKIE_NAME)
+    if cookie_token:
+        return cookie_token
     return None

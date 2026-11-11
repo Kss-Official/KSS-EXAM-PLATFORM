@@ -51,7 +51,7 @@ export default function OverviewPage({
         fetchRecentExams();
         if (onRetry) onRetry();
       }
-    }, 10000);
+    }, 30000);
 
     return () => { 
       isCancelled = true; 

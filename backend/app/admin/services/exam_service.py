@@ -54,7 +54,7 @@ class ExamService:
         """
         exams = db.query(Exam).options(
             joinedload(Exam.departments)
-        ).filter(Exam.status == "PUBLISHED").order_by(Exam.created_at.desc()).all()
+        ).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).all()
         return [cls._to_dto(e) for e in exams]
 
     @classmethod
@@ -353,13 +353,16 @@ class ExamService:
                                 )
                                 db.add(new_opt)
 
-        exam.status = "PUBLISHED"
+        # Single Active Exam Policy: Deactivate all other exams so exactly one exam is active at any time
+        db.query(Exam).filter(Exam.id != exam_id).update({"status": "DEACTIVATED"})
+
+        exam.status = "ACTIVATED"
         db.add(AuditLog(
-            action="PUBLISH_EXAM",
+            action="ACTIVATE_EXAM",
             entity_type="Exam",
             entity_id=str(exam.id),
             performed_by=performed_by,
-            details=f"Published exam: {exam.title} (auto-replicated sets verified)"
+            details=f"Activated exam: {exam.title} (Single active exam policy enforced; other exams deactivated)"
         ))
         db.commit()
         db.refresh(exam)
@@ -370,13 +373,13 @@ class ExamService:
         exam = db.query(Exam).filter(Exam.id == exam_id).first()
         if not exam:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
-        exam.status = "COMPLETED"
+        exam.status = "DEACTIVATED"
         db.add(AuditLog(
-            action="CLOSE_EXAM",
+            action="DEACTIVATE_EXAM",
             entity_type="Exam",
             entity_id=str(exam.id),
             performed_by=performed_by,
-            details=f"Closed exam: {exam.title}"
+            details=f"Deactivated exam: {exam.title}"
         ))
         db.commit()
         db.refresh(exam)

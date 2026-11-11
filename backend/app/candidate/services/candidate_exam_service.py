@@ -1,3 +1,4 @@
+import os
 import re
 import time
 import secrets
@@ -28,12 +29,72 @@ secure_random = random.SystemRandom()
 _QUESTION_SET_CACHE: Dict[int, Any] = {}
 _QUESTION_SET_CACHE_TTL = 120.0  # seconds
 
+# Authoritative mapping of department categories
+NON_TECHNICAL_CODES = {
+    "HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", 
+    "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT", "CORPREL", "PR"
+}
+NON_TECHNICAL_KEYWORDS = [
+    "human resource", "hr", "sales", "marketing", "business", "management",
+    "non-technical", "non technical", "finance", "accounting", "commerce",
+    "recruitment", "talent acquisition", "data and marketing", "data & marketing",
+    "operations", "corporate", "administration", "public relations", "communications"
+]
+
+def get_department_category(dept_name: str, dept_code: str) -> str:
+    code_upper = (dept_code or "").strip().upper()
+    if code_upper in NON_TECHNICAL_CODES:
+        return "NON_TECHNICAL"
+    name_clean = (dept_name or "").strip().lower()
+    name_clean = re.sub(r'\s*&\s*', ' and ', name_clean)
+    for kw in NON_TECHNICAL_KEYWORDS:
+        if re.search(r'\b' + re.escape(kw) + r'\b', name_clean):
+            return "NON_TECHNICAL"
+    return "TECHNICAL"
+
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
         return None
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+def _get_cached_question_metadata(db: Session, question_set_id: int) -> Dict[str, Any]:
+    """In-memory cache for question set questions & options to eliminate 2-4 DB SELECT queries on every autosave."""
+    now_t = time.time()
+    cached = _QUESTION_SET_CACHE.get(question_set_id)
+    if cached and (now_t - cached["time"] < _QUESTION_SET_CACHE_TTL):
+        return cached["data"]
+
+    questions = db.query(Question).options(
+        joinedload(Question.options)
+    ).filter(
+        Question.question_set_id == question_set_id
+    ).all()
+
+    valid_q_ids = set()
+    q_by_order = {}
+    opt_to_q = {}
+    q_options_by_id = {}
+
+    for q in questions:
+        valid_q_ids.add(q.id)
+        if q.display_order is not None:
+            q_by_order[q.display_order] = q.id
+        opt_ids = []
+        for opt in (q.options or []):
+            opt_to_q[opt.id] = q.id
+            opt_ids.append(opt.id)
+        q_options_by_id[q.id] = opt_ids
+
+    data = {
+        "valid_q_ids": valid_q_ids,
+        "q_by_order": q_by_order,
+        "opt_to_q": opt_to_q,
+        "q_options_by_id": q_options_by_id
+    }
+    _QUESTION_SET_CACHE[question_set_id] = {"time": now_t, "data": data}
+    return data
 
 class CandidateExamService:
     @classmethod
@@ -67,12 +128,29 @@ class CandidateExamService:
         if not target_reg and input_email and (input_email.isdigit() or "@" not in input_email):
             target_reg = input_email.strip().upper()
 
+        def normalize_name(s: str) -> str:
+            return re.sub(r'\s+', ' ', (s or "").strip()).lower()
+
+        EMAIL_ALIASES = {
+            "shwetasani11@gmail.com": "sanikoppshweta@gmail.com",
+            "sanikoppshweta@gmail.com": "shwetasani11@gmail.com",
+        }
+
         if input_email and "@" in input_email:
             candidate = cand_query.filter(func.lower(Candidate.email) == input_email).first()
+            if not candidate and input_email in EMAIL_ALIASES:
+                candidate = cand_query.filter(func.lower(Candidate.email) == EMAIL_ALIASES[input_email]).first()
 
         # Fallback to registration number / Sl. No. if email didn't match or input was a registration number
         if not candidate and target_reg:
             candidate = cand_query.filter(func.upper(Candidate.registration_number) == target_reg).first()
+
+        # Fallback to unique exact full name match if candidate entered alternate email
+        if not candidate and input_name:
+            norm_target = normalize_name(input_name)
+            cand_matches = cand_query.filter(func.lower(Candidate.full_name) == norm_target).all()
+            if len(cand_matches) == 1:
+                candidate = cand_matches[0]
 
         if not candidate:
             ident = input_email or req.registration_number or "provided identifier"
@@ -90,9 +168,6 @@ class CandidateExamService:
             return resp
 
         # 3. Strict Database Validation: Full Name must match candidate record in DB
-        def normalize_name(s: str) -> str:
-            return re.sub(r'\s+', ' ', (s or "").strip()).lower()
-
         if normalize_name(input_name) != normalize_name(candidate.full_name):
             resp.message = (
                 f"Full Name mismatch: The entered name '{input_name}' does not match the name "
@@ -101,11 +176,15 @@ class CandidateExamService:
             return resp
 
         # Authoritative mapping of department categories
-        NON_TECHNICAL_CODES = {"HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", "OPS", "MGMT", "NON_TECH"}
+        NON_TECHNICAL_CODES = {
+            "HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", 
+            "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT", "CORPREL", "PR"
+        }
         NON_TECHNICAL_KEYWORDS = [
             "human resource", "hr", "sales", "marketing", "business", "management",
             "non-technical", "non technical", "finance", "accounting", "commerce",
-            "recruitment", "talent acquisition"
+            "recruitment", "talent acquisition", "data and marketing", "data & marketing",
+            "operations", "corporate", "administration", "public relations", "communications"
         ]
 
         def get_department_category(dept_name: str, dept_code: str) -> str:
@@ -137,6 +216,7 @@ class CandidateExamService:
         resp.email = candidate.email
         resp.department_name = chosen_track
         resp.college_name = candidate.college.name if candidate.college else None
+        resp.batch = candidate.batch
 
         # Eager load attempt relationships
         existing_attempt = db.query(ExamAttempt).options(
@@ -148,8 +228,79 @@ class CandidateExamService:
             ExamAttempt.status.in_(["ASSIGNED", "IN_PROGRESS"])
         ).first()
 
+        # Automated Slot & Date Access Control:
+        # Strict validation: Only candidates scheduled for today's active slots can enter.
+        raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES")
+        if raw_gate is None:
+            from app.core.config import settings
+            raw_gate = getattr(settings, "ENFORCE_SLOT_TIME_GATES", "true")
+        enforce_time_gates = str(raw_gate).lower() == "true"
+        has_active_attempt = bool(existing_attempt and existing_attempt.status == "IN_PROGRESS")
+
+        IST = timezone(timedelta(hours=5, minutes=30))
+        now_ist = datetime.now(timezone.utc).astimezone(IST)
+        cur_mins = now_ist.hour * 60 + now_ist.minute
+        cur_date_str = now_ist.strftime("%Y-%m-%d")
+        b_lower = (candidate.batch or "").strip().lower()
+
+        if enforce_time_gates and not has_active_attempt:
+            # 1. Strict Date Validation: Candidate must be scheduled for today
+            cand_date = str(candidate.exam_date or "").strip()
+            if not cand_date or cand_date != cur_date_str:
+                if cand_date and cand_date > cur_date_str:
+                    resp.message = f"Access Denied: Your examination is scheduled for {cand_date}. Entry is not permitted prior to the examination date."
+                elif cand_date and cand_date < cur_date_str:
+                    resp.message = f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
+                else:
+                    resp.message = "Access Denied: No scheduled examination date found for your account. Please contact your administrator."
+                resp.eligible = False
+                return resp
+
+            # 2. Strict Slot Validation for Today's Exam:
+            from app.core.slot_config import get_slot_timings_config
+            slot_cfg = get_slot_timings_config()
+            s1_info = slot_cfg.get("slot1", {})
+            s2_info = slot_cfg.get("slot2", {})
+            s1_start = s1_info.get("startMinutes", 690)
+            s1_cutoff = s1_info.get("cutoffMinutes", 810)
+            s1_start_str = s1_info.get("startTime", "11:30 AM")
+            s1_cutoff_str = s1_info.get("cutoffTime", "1:30 PM")
+
+            s2_start = s2_info.get("startMinutes", 960)
+            s2_cutoff = s2_info.get("cutoffMinutes", 990)
+            s2_start_str = s2_info.get("startTime", "4:00 PM")
+            s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
+
+            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
+            is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
+
+            if is_slot1:
+                if cur_mins < s1_start:
+                    resp.message = f"Your assessment window (Slot 1) opens at {s1_start_str} IST (Cutoff {s1_cutoff_str}). Please wait until {s1_start_str} to enter."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > s1_cutoff:
+                    resp.message = f"Entry Closed: The entry window for Slot 1 closed at {s1_cutoff_str} IST. Candidates are not permitted to enter after {s1_cutoff_str}."
+                    resp.eligible = False
+                    return resp
+            elif is_slot2:
+                if cur_mins < s2_start:
+                    resp.message = f"Slot 2 entry opens at {s2_start_str} IST (Cutoff {s2_cutoff_str}). Please wait until {s2_start_str} to enter your assessment."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > s2_cutoff:
+                    resp.message = f"Entry Closed: The entry window for Slot 2 closed at {s2_cutoff_str} IST. Candidates are not permitted to enter after the cutoff."
+                    resp.eligible = False
+                    return resp
+            else:
+                # Candidate has today's date but is not assigned to Slot 1 or Slot 2
+                if not any(w in b_lower for w in ["demo", "preview", "test"]):
+                    resp.message = "Access Denied: You are not assigned to an active examination slot (Slot 1 or Slot 2) for today. Please contact your examination administrator."
+                    resp.eligible = False
+                    return resp
+
         # Only reuse existing attempt if its exam is currently active/published
-        if existing_attempt and existing_attempt.exam and existing_attempt.exam.status == "PUBLISHED":
+        if existing_attempt and existing_attempt.exam and existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED"):
             exam = existing_attempt.exam
             # If candidate has an assigned set and attempt has not started yet (ASSIGNED),
             # synchronize the attempt's question set to match candidate's assigned set
@@ -172,11 +323,11 @@ class CandidateExamService:
             published_exams = db.query(Exam).options(
                 joinedload(Exam.departments)
             ).filter(
-                Exam.status == "PUBLISHED"
+                Exam.status.in_(["ACTIVATED", "PUBLISHED"])
             ).order_by(Exam.created_at.desc()).all()
 
             if not published_exams:
-                resp.message = "No published examination is currently available. Please contact administrator."
+                resp.message = "No activated examination is currently available. Please contact administrator."
                 return resp
 
             def exam_matches_track(e, track_cat):
@@ -190,45 +341,56 @@ class CandidateExamService:
             track_matched = [e for e in published_exams if exam_matches_track(e, chosen_category)]
             candidate_pool = track_matched if track_matched else published_exams
 
-            # Filter scrap if standard exams exist within the chosen pool
-            production_exams = [
-                e for e in candidate_pool
-                if not (e.title and (e.title.startswith("Live E2E") or e.title.startswith("Access Limit")))
-                and (e.total_questions or 0) >= 10
-            ]
-            final_pool = production_exams if production_exams else candidate_pool
+            # Segregate Mock Test exam vs Public Slot exam
+            is_mock_cand = bool(candidate.batch and ("test" in candidate.batch.lower() or "mock" in candidate.batch.lower()))
+            if is_mock_cand:
+                mock_exams = [e for e in candidate_pool if "mock" in e.title.lower() or "test" in e.title.lower()]
+                if mock_exams:
+                    candidate_pool = mock_exams
+            else:
+                # General examinees must never be allocated the Mock Test exam
+                regular_exams = [e for e in candidate_pool if "mock" not in e.title.lower() and "test" not in e.title.lower()]
+                if regular_exams:
+                    candidate_pool = regular_exams
 
-            # Sort matched exams:
-            # 1. Total question count (prefer complete 60-question exams over small scrap)
-            # 2. Most recently published exam
-            final_pool.sort(
-                key=lambda e: (
-                    e.total_questions or 0,
-                    e.created_at.timestamp() if e.created_at else 0
-                ),
-                reverse=True
-            )
-
-            exam = final_pool[0]
+            # Target exam in pool
+            exam = candidate_pool[0]
 
             # Set allocation across A, B, C, D
             sets = []
-            track_dept_ids = [
-                d.id for d in exam.departments
-                if get_department_category(d.name, d.code or "") == chosen_category
-            ]
-            if track_dept_ids:
-                sets = db.query(QuestionSet).filter(
-                    QuestionSet.exam_id == exam.id,
-                    QuestionSet.department_id.in_(track_dept_ids)
-                ).order_by(QuestionSet.set_code.asc()).all()
 
-            if not sets and candidate.department_id:
-                sets = db.query(QuestionSet).filter(
+            # 1. Prioritize candidate's exact assigned department if configured in this exam
+            if candidate.department_id:
+                direct_sets = db.query(QuestionSet).filter(
                     QuestionSet.exam_id == exam.id,
                     QuestionSet.department_id == candidate.department_id
                 ).order_by(QuestionSet.set_code.asc()).all()
+                if direct_sets:
+                    sets = direct_sets
 
+            # 2. If candidate is in Computer Science and Engineering (dept 2) or generic technical,
+            # map to Software Developer track (dept 1) in Exam 101
+            if not sets and chosen_category == "TECHNICAL":
+                dev_sets = db.query(QuestionSet).filter(
+                    QuestionSet.exam_id == exam.id,
+                    QuestionSet.department_id == 1
+                ).order_by(QuestionSet.set_code.asc()).all()
+                if dev_sets:
+                    sets = dev_sets
+
+            # 3. Track department match
+            if not sets:
+                track_dept_ids = [
+                    d.id for d in exam.departments
+                    if get_department_category(d.name, d.code or "") == chosen_category
+                ]
+                if track_dept_ids:
+                    sets = db.query(QuestionSet).filter(
+                        QuestionSet.exam_id == exam.id,
+                        QuestionSet.department_id.in_(track_dept_ids)
+                    ).order_by(QuestionSet.set_code.asc()).all()
+
+            # 4. Fallback: Any question sets in this exam
             if not sets:
                 sets = db.query(QuestionSet).filter(
                     QuestionSet.exam_id == exam.id
@@ -315,6 +477,13 @@ class CandidateExamService:
 
     @classmethod
     def start_or_resume_attempt(cls, db: Session, candidate_id: int, exam_id: int) -> CandidateStartAttemptResponse:
+        # Enforce single active exam policy: ensure we target the currently ACTIVATED exam
+        active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).first()
+        if active_exam:
+            req_exam = db.query(Exam).filter(Exam.id == exam_id).first() if exam_id else None
+            if not req_exam or req_exam.status not in ("ACTIVATED", "PUBLISHED"):
+                exam_id = active_exam.id
+
         attempt = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.exam),
             joinedload(ExamAttempt.candidate),
@@ -339,14 +508,16 @@ class CandidateExamService:
         if not attempt:
             # Auto-provision assigned attempt if candidate and published exam exist
             cand = db.query(Candidate).options(joinedload(Candidate.department)).filter(Candidate.id == candidate_id).first()
-            target_exam = db.query(Exam).options(joinedload(Exam.departments)).filter(Exam.id == exam_id, Exam.status == "PUBLISHED").first()
+            target_exam = db.query(Exam).options(joinedload(Exam.departments)).filter(Exam.id == exam_id, Exam.status.in_(["ACTIVATED", "PUBLISHED"])).first()
             if cand and target_exam:
                 dept_id = cand.department_id
 
-                # Enforce department authorization: candidate department MUST be in exam departments
+                # Direct ID match OR Category match (Technical vs Non-Technical)
+                cand_cat = get_department_category(cand.department.name if cand.department else "", cand.department.code if cand.department else "")
                 if target_exam.departments:
                     allowed_dept_ids = {d.id for d in target_exam.departments}
-                    if not dept_id or dept_id not in allowed_dept_ids:
+                    exam_cats = {get_department_category(d.name, d.code or "") for d in target_exam.departments}
+                    if dept_id not in allowed_dept_ids and cand_cat not in exam_cats:
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,
                             detail="Access denied: Candidate's assigned department is not authorized for this examination."
@@ -354,10 +525,31 @@ class CandidateExamService:
 
                 sets = []
                 if dept_id:
-                    sets = db.query(QuestionSet).filter(
+                    direct_sets = db.query(QuestionSet).filter(
                         QuestionSet.exam_id == target_exam.id,
                         QuestionSet.department_id == dept_id
                     ).order_by(QuestionSet.set_code.asc()).all()
+                    if direct_sets:
+                        sets = direct_sets
+
+                if not sets and cand_cat == "TECHNICAL":
+                    dev_sets = db.query(QuestionSet).filter(
+                        QuestionSet.exam_id == target_exam.id,
+                        QuestionSet.department_id == 1
+                    ).order_by(QuestionSet.set_code.asc()).all()
+                    if dev_sets:
+                        sets = dev_sets
+
+                if not sets:
+                    track_dept_ids = [
+                        d.id for d in target_exam.departments
+                        if get_department_category(d.name, d.code or "") == cand_cat
+                    ]
+                    if track_dept_ids:
+                        sets = db.query(QuestionSet).filter(
+                            QuestionSet.exam_id == target_exam.id,
+                            QuestionSet.department_id.in_(track_dept_ids)
+                        ).order_by(QuestionSet.set_code.asc()).all()
 
                 # Only fall back to universal sets if no department-specific sets exist
                 if not sets:
@@ -416,6 +608,56 @@ class CandidateExamService:
             )
 
         if attempt.status == "ASSIGNED":
+            # Strict date and slot time-gate check before starting fresh attempt
+            raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES", "true")
+            enforce_time_gates = str(raw_gate).lower() == "true"
+            if enforce_time_gates:
+                cand = attempt.candidate or db.query(Candidate).filter(Candidate.id == candidate_id).first()
+                if cand:
+                    IST = timezone(timedelta(hours=5, minutes=30))
+                    now_ist = datetime.now(timezone.utc).astimezone(IST)
+                    cur_mins = now_ist.hour * 60 + now_ist.minute
+                    cur_date_str = now_ist.strftime("%Y-%m-%d")
+                    b_lower = (cand.batch or "").strip().lower()
+
+                    cand_date = str(cand.exam_date or "").strip()
+                    if not cand_date or cand_date != cur_date_str:
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=f"Access denied: Your examination date is {cand_date or 'unassigned'}. You are not scheduled for today ({cur_date_str})."
+                        )
+
+                    from app.core.slot_config import get_slot_timings_config
+                    slot_cfg = get_slot_timings_config()
+                    s1_info = slot_cfg.get("slot1", {})
+                    s2_info = slot_cfg.get("slot2", {})
+                    s1_start = s1_info.get("startMinutes", 690)
+                    s1_cutoff = s1_info.get("cutoffMinutes", 810)
+                    s1_start_str = s1_info.get("startTime", "11:30 AM")
+                    s1_cutoff_str = s1_info.get("cutoffTime", "1:30 PM")
+
+                    s2_start = s2_info.get("startMinutes", 960)
+                    s2_cutoff = s2_info.get("cutoffMinutes", 990)
+                    s2_start_str = s2_info.get("startTime", "4:00 PM")
+                    s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
+
+                    is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
+                    is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
+
+                    if is_slot1:
+                        if cur_mins < s1_start:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 1 assessment window opens at {s1_start_str} IST.")
+                        elif cur_mins > s1_cutoff:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 1 entry window closed at {s1_cutoff_str} IST.")
+                    elif is_slot2:
+                        if cur_mins < s2_start:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 assessment window opens at {s2_start_str} IST.")
+                        elif cur_mins > s2_cutoff:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 entry window closed at {s2_cutoff_str} IST.")
+                    else:
+                        if not any(w in b_lower for w in ["demo", "preview", "test"]):
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not assigned to an active examination slot for today.")
+
             # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
             db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
 
@@ -630,46 +872,63 @@ class CandidateExamService:
         real_q_id = question_id
         real_opt_id = selected_option_id
 
-        # Verify or resolve question within the attempt's assigned question set
-        q = db.query(Question).filter(Question.id == question_id).first()
-        if not q or q.question_set_id != attempt.question_set_id:
-            arq = db.query(AttemptRandomizedQuestion).filter(
-                AttemptRandomizedQuestion.attempt_id == attempt_id,
-                AttemptRandomizedQuestion.display_order == question_id
-            ).first()
-            if arq:
-                q = db.query(Question).filter(Question.id == arq.question_id).first()
-            else:
-                q = db.query(Question).filter(
-                    Question.question_set_id == attempt.question_set_id,
-                    Question.display_order == question_id
+        # High-performance question & option resolution using cached question set metadata
+        meta = _get_cached_question_metadata(db, attempt.question_set_id) if attempt.question_set_id else None
+        if meta and real_q_id in meta["valid_q_ids"]:
+            pass  # Fast path: already direct question ID, 0 DB queries!
+        elif meta and real_q_id in meta["q_by_order"]:
+            real_q_id = meta["q_by_order"][real_q_id]  # Display order resolved via cache, 0 DB queries!
+        else:
+            # Fallback to database resolution if not in cache
+            q = db.query(Question).filter(Question.id == question_id).first()
+            if not q or q.question_set_id != attempt.question_set_id:
+                arq = db.query(AttemptRandomizedQuestion).filter(
+                    AttemptRandomizedQuestion.attempt_id == attempt_id,
+                    AttemptRandomizedQuestion.display_order == question_id
                 ).first()
-            if q:
-                real_q_id = q.id
+                if arq:
+                    q = db.query(Question).filter(Question.id == arq.question_id).first()
+                else:
+                    q = db.query(Question).filter(
+                        Question.question_set_id == attempt.question_set_id,
+                        Question.display_order == question_id
+                    ).first()
+                if q:
+                    real_q_id = q.id
 
-        if real_opt_id is not None and q:
-            opt = db.query(QuestionOption).filter(QuestionOption.id == real_opt_id).first()
-            if not opt or opt.question_id != q.id:
-                # Check randomized options first
-                target_opt = None
-                aro = db.query(AttemptRandomizedOption).filter(
-                    AttemptRandomizedOption.attempt_id == attempt_id,
-                    AttemptRandomizedOption.question_id == q.id,
-                    AttemptRandomizedOption.display_order == (real_opt_id if real_opt_id in (1, 2, 3, 4) else -1)
-                ).first()
-                if aro:
-                    target_opt = aro.option
-                if not target_opt and q.options:
-                    if 0 <= real_opt_id < len(q.options):
-                        target_opt = q.options[real_opt_id]
-                    elif 1 <= real_opt_id <= len(q.options):
-                        target_opt = q.options[real_opt_id - 1]
-                    else:
-                        target_opt = q.options[real_opt_id % len(q.options)]
-                if target_opt:
-                    real_opt_id = target_opt.id
-                elif not opt:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected option does not belong to question")
+        if real_opt_id is not None:
+            if meta and meta["opt_to_q"].get(real_opt_id) == real_q_id:
+                pass  # Fast path: option verified in memory, 0 DB queries!
+            elif meta and real_q_id in meta["q_options_by_id"]:
+                q_opts = meta["q_options_by_id"][real_q_id]
+                if 0 <= real_opt_id < len(q_opts):
+                    real_opt_id = q_opts[real_opt_id]
+                elif 1 <= real_opt_id <= len(q_opts):
+                    real_opt_id = q_opts[real_opt_id - 1]
+                else:
+                    target_opt = None
+                    aro = db.query(AttemptRandomizedOption).filter(
+                        AttemptRandomizedOption.attempt_id == attempt_id,
+                        AttemptRandomizedOption.question_id == real_q_id,
+                        AttemptRandomizedOption.display_order == (real_opt_id if real_opt_id in (1, 2, 3, 4) else -1)
+                    ).first()
+                    if aro and aro.option_id:
+                        real_opt_id = aro.option_id
+            else:
+                opt = db.query(QuestionOption).filter(QuestionOption.id == real_opt_id).first()
+                if not opt or opt.question_id != real_q_id:
+                    target_opt = None
+                    aro = db.query(AttemptRandomizedOption).filter(
+                        AttemptRandomizedOption.attempt_id == attempt_id,
+                        AttemptRandomizedOption.question_id == real_q_id,
+                        AttemptRandomizedOption.display_order == (real_opt_id if real_opt_id in (1, 2, 3, 4) else -1)
+                    ).first()
+                    if aro:
+                        target_opt = aro.option
+                    if target_opt:
+                        real_opt_id = target_opt.id
+                    elif not opt:
+                        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Selected option does not belong to question")
 
         try:
             dialect_name = db.bind.dialect.name if db.bind else ""

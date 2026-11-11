@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Clock3 } from "lucide-react";
 
 interface ExamTimerProps {
@@ -10,20 +10,25 @@ interface ExamTimerProps {
 export default function ExamTimer({ deadline, isSubmitted, onExpire }: ExamTimerProps) {
   // Compute initial remaining seconds using absolute deadline timestamp
   const calculateRemainingSeconds = () => {
+    if (!deadline || deadline <= 0 || isNaN(deadline)) {
+      return null;
+    }
     const diff = Math.floor((deadline - Date.now()) / 1000);
     return Math.max(0, diff);
   };
 
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(calculateRemainingSeconds);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(calculateRemainingSeconds);
   const expiredRef = useRef(false);
 
   useEffect(() => {
-    if (isSubmitted) {
+    if (isSubmitted || !deadline || deadline <= 0 || isNaN(deadline)) {
       return;
     }
 
-    // Check immediately upon mount
+    // Check immediately upon mount with valid deadline
     const initialRemaining = calculateRemainingSeconds();
+    if (initialRemaining === null) return;
+
     setRemainingSeconds(initialRemaining);
 
     if (initialRemaining <= 0 && !expiredRef.current) {
@@ -34,6 +39,7 @@ export default function ExamTimer({ deadline, isSubmitted, onExpire }: ExamTimer
 
     const interval = setInterval(() => {
       const remaining = calculateRemainingSeconds();
+      if (remaining === null) return;
       setRemainingSeconds(remaining);
 
       if (remaining <= 0 && !expiredRef.current) {
@@ -46,8 +52,9 @@ export default function ExamTimer({ deadline, isSubmitted, onExpire }: ExamTimer
     return () => clearInterval(interval);
   }, [deadline, isSubmitted, onExpire]);
 
-  const minutes = Math.floor(remainingSeconds / 60);
-  const seconds = remainingSeconds % 60;
+  const displaySeconds = remainingSeconds ?? 3600;
+  const minutes = Math.floor(displaySeconds / 60);
+  const seconds = displaySeconds % 60;
 
   return (
     <div

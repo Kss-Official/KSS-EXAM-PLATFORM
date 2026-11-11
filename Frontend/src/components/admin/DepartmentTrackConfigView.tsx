@@ -99,7 +99,18 @@ export default function DepartmentTrackConfigView({
 
   const categorySubDepts = subDepartments.filter(s => s.category === category);
   const configuredCodes = new Set(subDepartments.map(s => s.code.toUpperCase()));
-  const selectableExisting = availableDepartments.filter(d => !configuredCodes.has(d.code.toUpperCase()));
+  const configuredNames = new Set(subDepartments.map(s => s.name.trim().toLowerCase()));
+  const NON_TECH_CODES = new Set(["HR", "SALES_MKT", "MKT", "SALES", "MARKETING", "FIN", "FINANCE", "OPS", "MGMT", "NON_TECH", "DATAMKT", "BIZDEV", "RECRUIT"]);
+  const isDeptNonTech = (d: DepartmentDto) => {
+    const c = (d.code || "").toUpperCase();
+    const n = (d.name || "").toLowerCase();
+    return NON_TECH_CODES.has(c) || n.includes("human resource") || n.includes("hr") || n.includes("marketing") || n.includes("sales") || n.includes("business") || n.includes("finance");
+  };
+
+  const selectableExisting = availableDepartments.filter(d => {
+    if (configuredCodes.has(d.code.toUpperCase()) || configuredNames.has(d.name.trim().toLowerCase())) return false;
+    return isTech ? !isDeptNonTech(d) : isDeptNonTech(d);
+  });
 
   const handleStartEdit = (sub: SubDepartmentItem) => {
     setEditingTempId(sub.tempId);
