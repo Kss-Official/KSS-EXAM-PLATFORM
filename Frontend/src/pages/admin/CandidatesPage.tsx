@@ -20,6 +20,9 @@ import {
   CheckSquare,
   Square,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
   Edit2,
   Save,
   X
@@ -128,6 +131,113 @@ export default function CandidatesPage() {
   const [dateCounts, setDateCounts] = useState<{ [d: string]: number }>({});
   const [sortBy, setSortBy] = useState<string>("registration_number");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  // Custom Interactive Calendar Popover State
+  const [showCalendarPopover, setShowCalendarPopover] = useState<boolean>(false);
+  const [calendarViewMonth, setCalendarViewMonth] = useState<{ year: number; month: number }>(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const calendarPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Close calendar popover on outside click
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (calendarPopoverRef.current && !calendarPopoverRef.current.contains(event.target as Node)) {
+        setShowCalendarPopover(false);
+      }
+    };
+    if (showCalendarPopover) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showCalendarPopover]);
+
+  // Open calendar popover and sync view to the selected date's month
+  const openCalendarPopover = useCallback(() => {
+    if (selectedDate && selectedDate !== "ALL" && selectedDate.includes("-")) {
+      const parts = selectedDate.split("-");
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      if (!isNaN(y) && !isNaN(m)) {
+        setCalendarViewMonth({ year: y, month: m });
+      }
+    }
+    setShowCalendarPopover((prev) => !prev);
+  }, [selectedDate]);
+
+  // Generate calendar grid for calendarViewMonth
+  const calendarMonthData = useMemo(() => {
+    const { year, month } = calendarViewMonth;
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 is Sunday
+    const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const monthName = new Date(year, month, 1).toLocaleString("en-US", { month: "long" });
+
+    const cells: Array<{
+      day: number;
+      dateStr: string;
+      isCurrentMonth: boolean;
+      candidateCount: number;
+    }> = [];
+
+    // Prefix days from previous month
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      const dNum = daysInPrevMonth - i;
+      const prevM = month === 0 ? 11 : month - 1;
+      const prevY = month === 0 ? year - 1 : year;
+      const dStr = `${prevY}-${String(prevM + 1).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+      cells.push({
+        day: dNum,
+        dateStr: dStr,
+        isCurrentMonth: false,
+        candidateCount: dateCounts[dStr] || 0
+      });
+    }
+
+    // Days in current month
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      const dStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({
+        day: d,
+        dateStr: dStr,
+        isCurrentMonth: true,
+        candidateCount: dateCounts[dStr] || 0
+      });
+    }
+
+    // Suffix days to complete the 7-column grid
+    const remainder = (7 - (cells.length % 7)) % 7;
+    for (let i = 1; i <= remainder; i++) {
+      const nextM = month === 11 ? 0 : month + 1;
+      const nextY = month === 11 ? year + 1 : year;
+      const dStr = `${nextY}-${String(nextM + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+      cells.push({
+        day: i,
+        dateStr: dStr,
+        isCurrentMonth: false,
+        candidateCount: dateCounts[dStr] || 0
+      });
+    }
+
+    return { year, month, monthName, cells };
+  }, [calendarViewMonth, dateCounts]);
+
+  const goToPrevMonth = useCallback(() => {
+    setCalendarViewMonth(prev => {
+      if (prev.month === 0) return { year: prev.year - 1, month: 11 };
+      return { year: prev.year, month: prev.month - 1 };
+    });
+  }, []);
+
+  const goToNextMonth = useCallback(() => {
+    setCalendarViewMonth(prev => {
+      if (prev.month === 11) return { year: prev.year + 1, month: 0 };
+      return { year: prev.year, month: prev.month + 1 };
+    });
+  }, []);
 
   // Distinct Lists from separate Colleges and Departments tables
   const [colleges, setColleges] = useState<CollegeDto[]>([]);
@@ -1016,6 +1126,48 @@ export default function CandidatesPage() {
             </span>
           </button>
 
+          {/* Dynamically highlight any dates with registered candidates from availableDates */}
+          {availableDates
+            .filter((d) => d !== todayIst && d !== yesterdayIst && d !== tomorrowIst && (dateCounts[d] || 0) > 0)
+            .map((d) => {
+              const isSel = selectedDate === d;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => { setSelectedDate(d); setCustomDatePicker(d); }}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: isSel ? "2px solid #059669" : "1.5px solid #10b981",
+                    backgroundColor: isSel ? "#059669" : "#ecfdf5",
+                    color: isSel ? "#ffffff" : "#065f46",
+                    transition: "all 0.15s ease",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: isSel ? "0 2px 4px rgba(5,150,105,0.25)" : "none"
+                  }}
+                  title={`${d}: ${dateCounts[d]} candidate(s)`}
+                >
+                  <span>{formatDateShort(d)} {formatDateYear(d)}</span>
+                  <span style={{
+                    background: isSel ? "rgba(255,255,255,0.3)" : "#d1fae5",
+                    color: isSel ? "#fff" : "#047857",
+                    borderRadius: "12px",
+                    padding: "1px 7px",
+                    fontSize: "11.5px",
+                    fontWeight: 700
+                  }}>
+                    {dateCounts[d]}
+                  </span>
+                </button>
+              );
+            })}
+
           <button
             type="button"
             onClick={() => { setSelectedDate("ALL"); setCustomDatePicker(""); }}
@@ -1047,26 +1199,298 @@ export default function CandidatesPage() {
             </span>
           </button>
 
-          {/* Custom Date Input */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginLeft: "4px" }}>
-            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>Custom:</span>
-            <input 
-              type="date"
-              value={customDatePicker}
-              onChange={(e) => {
-                const val = e.target.value;
-                setCustomDatePicker(val);
-                if (val) setSelectedDate(val);
-              }}
+          {/* Interactive Custom Calendar Popover with Date Highlights */}
+          <div style={{ position: "relative" }} ref={calendarPopoverRef}>
+            <button
+              type="button"
+              onClick={openCalendarPopover}
               style={{
-                padding: "4px 8px",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                fontSize: "12.5px",
-                color: "#334155",
-                backgroundColor: selectedDate !== "ALL" && selectedDate !== "2026-10-31" && selectedDate !== "2026-10-30" ? "#f0fdf4" : "#ffffff"
+                padding: "7px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: (selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? "2px solid #059669"
+                  : "1px solid #cbd5e1",
+                backgroundColor: (selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? "#ecfdf5"
+                  : "#ffffff",
+                color: (selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? "#065f46"
+                  : "#334155",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
               }}
-            />
+            >
+              <CalendarDays size={15} color={(selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst) ? "#059669" : "#64748b"} />
+              <span>
+                {(selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? `${formatDateShort(selectedDate)} ${formatDateYear(selectedDate)}`
+                  : "Pick Date"}
+              </span>
+              {(selectedDate !== "ALL" && (dateCounts[selectedDate] ?? 0) > 0) && (
+                <span style={{
+                  background: "#059669",
+                  color: "#fff",
+                  borderRadius: "12px",
+                  padding: "1px 7px",
+                  fontSize: "11px",
+                  fontWeight: 700
+                }}>
+                  {dateCounts[selectedDate]}
+                </span>
+              )}
+            </button>
+
+            {showCalendarPopover && (
+              <div 
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  left: "0",
+                  zIndex: 60,
+                  backgroundColor: "#ffffff",
+                  borderRadius: "14px",
+                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                  border: "1px solid #cbd5e1",
+                  padding: "16px",
+                  width: "350px",
+                  animation: "fadeIn 0.15s ease-out"
+                }}
+              >
+                {/* Calendar Header with Month & Navigation */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={goToPrevMonth}
+                    style={{
+                      background: "#f1f5f9",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                      padding: "6px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#334155"
+                    }}
+                    title="Previous Month"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>
+                      {calendarMonthData.monthName} {calendarMonthData.year}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b", marginTop: "1px" }}>
+                      Dates with candidates are highlighted
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={goToNextMonth}
+                    style={{
+                      background: "#f1f5f9",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                      padding: "6px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#334155"
+                    }}
+                    title="Next Month"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Quick Month Jump Chips */}
+                <div style={{ display: "flex", gap: "6px", marginBottom: "12px", justifyContent: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMonth({ year: 2026, month: 10 })}
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? 700 : 500,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      border: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? "1px solid #059669" : "1px solid #e2e8f0",
+                      background: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? "#ecfdf5" : "#f8fafc",
+                      color: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? "#065f46" : "#475569",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Nov 2026
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMonth({ year: 2026, month: 9 })}
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? 700 : 500,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      border: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? "1px solid #059669" : "1px solid #e2e8f0",
+                      background: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? "#ecfdf5" : "#f8fafc",
+                      color: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? "#065f46" : "#475569",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Oct 2026 (1,139 Cand.)
+                  </button>
+                </div>
+
+                {/* Weekday Row Header */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "6px", textAlign: "center" }}>
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => (
+                    <div key={d} style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8" }}>
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar 7xN Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+                  {calendarMonthData.cells.map((cell, idx) => {
+                    const isSel = selectedDate === cell.dateStr;
+                    const hasCand = cell.candidateCount > 0;
+                    const isTodayCell = cell.dateStr === todayIst;
+
+                    return (
+                      <button
+                        key={`${cell.dateStr}-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(cell.dateStr);
+                          setCustomDatePicker(cell.dateStr);
+                          setShowCalendarPopover(false);
+                        }}
+                        title={`${cell.dateStr}: ${cell.candidateCount} candidate(s)`}
+                        style={{
+                          height: "44px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          position: "relative",
+                          padding: "2px",
+                          // HIGHLIGHT DATES WITH CANDIDATES IN VIBRANT EMERALD GREEN:
+                          border: isSel 
+                            ? "2px solid #047857" 
+                            : hasCand 
+                            ? "1.5px solid #10b981" 
+                            : isTodayCell 
+                            ? "1px dashed #3b82f6" 
+                            : "1px solid transparent",
+                          backgroundColor: isSel
+                            ? "#059669"
+                            : hasCand
+                            ? "#dcfce7" // Highlight green background
+                            : !cell.isCurrentMonth
+                            ? "#fafafa"
+                            : "#ffffff",
+                          color: isSel
+                            ? "#ffffff"
+                            : hasCand
+                            ? "#065f46" // Bold dark emerald text
+                            : !cell.isCurrentMonth
+                            ? "#cbd5e1"
+                            : "#334155",
+                          fontWeight: hasCand || isSel || isTodayCell ? 700 : 500,
+                          boxShadow: hasCand && !isSel ? "0 1px 3px rgba(16, 185, 129, 0.2)" : "none"
+                        }}
+                      >
+                        <span style={{ fontSize: "12px", lineHeight: "1" }}>{cell.day}</span>
+                        {hasCand ? (
+                          <span 
+                            style={{
+                              fontSize: "8.5px",
+                              fontWeight: 800,
+                              borderRadius: "4px",
+                              padding: "1px 3px",
+                              marginTop: "2px",
+                              backgroundColor: isSel ? "rgba(255,255,255,0.3)" : "#059669",
+                              color: "#ffffff",
+                              lineHeight: "1.1"
+                            }}
+                          >
+                            {cell.candidateCount > 999 ? "999+" : cell.candidateCount}
+                          </span>
+                        ) : isTodayCell ? (
+                          <span style={{ fontSize: "7.5px", color: isSel ? "#fff" : "#2563eb", fontWeight: 700, marginTop: "2px" }}>
+                            TODAY
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Legend & Quick Actions */}
+                <div style={{ marginTop: "14px", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "10px", height: "10px", borderRadius: "3px", backgroundColor: "#dcfce7", border: "1.5px solid #10b981", display: "inline-block" }}></span>
+                      <span style={{ fontWeight: 600, color: "#065f46" }}>Dates with Candidates</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "10px", height: "10px", borderRadius: "3px", backgroundColor: "#ffffff", border: "1px solid #cbd5e1", display: "inline-block" }}></span>
+                      <span>No Candidates</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "space-between" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate("ALL");
+                        setCustomDatePicker("");
+                        setShowCalendarPopover(false);
+                      }}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #cbd5e1",
+                        background: selectedDate === "ALL" ? "#475569" : "#f8fafc",
+                        color: selectedDate === "ALL" ? "#ffffff" : "#475569",
+                        cursor: "pointer"
+                      }}
+                    >
+                      All Dates Combined ({dateCounts["ALL"] || totalCandidates || 1144})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendarPopover(false)}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #e2e8f0",
+                        background: "#ffffff",
+                        color: "#64748b",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
