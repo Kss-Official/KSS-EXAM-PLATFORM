@@ -9,12 +9,12 @@
     "cutoffMinutes": 810
   },
   "slot2": {
-    "header": "Slot 2 \u2022 4:00 PM",
-    "sub": "Entry: 4:00 PM \u2013 4:30 PM IST",
-    "btn": "Slot 2 (4:00 PM)",
-    "startTime": "4:00 PM",
+    "header": "Slot 2 \u2022 3:00 PM",
+    "sub": "Entry: 3:00 PM \u2013 4:30 PM IST",
+    "btn": "Slot 2 (3:00 PM)",
+    "startTime": "3:00 PM",
     "cutoffTime": "4:30 PM",
-    "startMinutes": 960,
+    "startMinutes": 900,
     "cutoffMinutes": 990
   }
 }

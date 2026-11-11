@@ -190,16 +190,6 @@ def batch_reschedule_candidate_slot(
         reason=reason
     )
 
-@router.put("/{candidate_id}", response_model=CandidateDto)
-def update_candidate(
-    candidate_id: int,
-    dto: CandidateDto,
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db)
-):
-    """Update candidate profile, department, batch slot, and scheduled exam date."""
-    return CandidateService.update_candidate(db, candidate_id, dto, current_user.email)
-
 @router.get("/slot-timings")
 def get_slot_timings():
     """Retrieve the current examination slot timings and display metadata."""
@@ -251,6 +241,16 @@ def update_slot_timings(
         print(f"[WARN] Could not sync slot timings to exam_slots in DB: {e}")
 
     return cfg
+
+@router.put("/{candidate_id}", response_model=CandidateDto)
+def update_candidate(
+    candidate_id: int,
+    dto: CandidateDto,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Update candidate profile, department, batch slot, and scheduled exam date."""
+    return CandidateService.update_candidate(db, candidate_id, dto, current_user.email)
 
 
 
