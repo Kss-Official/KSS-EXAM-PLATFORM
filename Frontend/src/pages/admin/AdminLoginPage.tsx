@@ -36,6 +36,15 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
   useEffect(() => {
     let isCancelled = false;
     const checkActiveSession = async () => {
+      const token = localStorage.getItem("examsecure_auth_token");
+      if (!token) {
+        if (!isCancelled) {
+          setCheckingSession(false);
+          setBackendStatus("online");
+        }
+        return;
+      }
+
       try {
         const user = await getAuthMe();
         if (!isCancelled && user && user.role === "SUPER_ADMIN") {
@@ -44,7 +53,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           return;
         }
       } catch {
-        // Unauthenticated is expected here
+        localStorage.removeItem("examsecure_auth_token");
       } finally {
         if (!isCancelled) {
           setCheckingSession(false);

@@ -76,8 +76,9 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
-    // Only fetch dashboard if on an admin route other than login
-    if (path.startsWith("/admin") && !path.startsWith("/admin/login")) {
+    // Only fetch dashboard if on an admin route other than login and user has an active token
+    const token = localStorage.getItem("examsecure_auth_token");
+    if (token && path.startsWith("/admin") && !path.startsWith("/admin/login")) {
       fetchDashboard();
     }
   }, [fetchDashboard, path]);

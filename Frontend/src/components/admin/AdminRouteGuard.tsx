@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { useRouter } from "../../router";
 import { getAuthMe, type AuthUser } from "../../services/api";
@@ -20,6 +20,15 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
       setLoading(true);
       setForbidden(false);
 
+      const token = localStorage.getItem("examsecure_auth_token");
+      if (!token) {
+        if (!isCancelled) {
+          setLoading(false);
+          navigate("/admin/login");
+        }
+        return;
+      }
+
       try {
         const user = await getAuthMe();
         if (isCancelled) return;
@@ -32,6 +41,7 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
         }
       } catch {
         if (!isCancelled) {
+          localStorage.removeItem("examsecure_auth_token");
           // Unauthenticated -> redirect to /admin/login
           navigate("/admin/login");
         }
