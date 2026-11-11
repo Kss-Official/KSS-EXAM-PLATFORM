@@ -67,6 +67,7 @@ replay_pid*
 private-storage/
 documents/
 *.pdf
+*.csv
 *.log
 
 # IDE & OS
