@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "../../router";
 import { 
   BarChart3, 
   Award, 
@@ -116,24 +117,57 @@ const formatDisplayDate = (dStr: string | undefined): string => {
 };
 
 export default function ResultsPage() {
+  const { path, navigate } = useRouter();
+
+  // Helper to extract examId from URL query string
+  const getExamIdFromUrl = (): number | undefined => {
+    try {
+      const searchStr = path.includes("?") 
+        ? path.slice(path.indexOf("?")) 
+        : (typeof window !== "undefined" ? window.location.search : "");
+      const params = new URLSearchParams(searchStr);
+      const e = params.get("examId");
+      return e ? Number(e) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const initialExamId = useMemo(() => getExamIdFromUrl(), []);
   const todayIst = useMemo(() => getTodayIstString(), []);
   const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
   const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
 
   const [exams, setExams] = useState<ExamDto[]>([]);
-  const [selectedExamId, setSelectedExamId] = useState<number | undefined>(undefined);
+  const [selectedExamId, setSelectedExamId] = useState<number | undefined>(initialExamId);
   const [results, setResults] = useState<ExamResultDto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Date Filter States
-  const [selectedDate, setSelectedDate] = useState<string>(todayIst); // Default to today's date
+  // Date Filter States: default to ALL dates if filtering a specific exam, otherwise todayIst
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return initialExamId !== undefined ? "ALL" : todayIst;
+  });
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [todayAttemptCount, setTodayAttemptCount] = useState<number | undefined>(undefined);
   const [yesterdayAttemptCount, setYesterdayAttemptCount] = useState<number | undefined>(undefined);
   const [tomorrowAttemptCount, setTomorrowAttemptCount] = useState<number | undefined>(undefined);
   
-  // Slot & Criteria Filter States
-  const [slotFilter, setSlotFilter] = useState<SlotFilterType>("Slot 1"); // Default to Slot 1 as requested
+  // Slot & Criteria Filter States: default to ALL if filtering a specific exam, otherwise Slot 1
+  const [slotFilter, setSlotFilter] = useState<SlotFilterType>(() => {
+    return initialExamId !== undefined ? "ALL" : "Slot 1";
+  });
+
+  // Sync state if URL path/query parameters change
+  useEffect(() => {
+    const eId = getExamIdFromUrl();
+    if (eId !== undefined) {
+      setSelectedExamId(eId);
+      setSelectedDate("ALL");
+      setSlotFilter("ALL");
+    } else {
+      setSelectedExamId(undefined);
+    }
+  }, [path]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [scorePreset, setScorePreset] = useState<ScorePresetType>("ALL");
@@ -452,6 +486,8 @@ export default function ResultsPage() {
     setMaxScore("");
     setScoreSort("DEFAULT");
     setSelectedExamId(undefined);
+    setSelectedDate(todayIst);
+    navigate("/admin/results");
   };
 
   const selectedExamObj = exams.find(e => e.id === selectedExamId);
@@ -1339,6 +1375,10 @@ export default function ResultsPage() {
             setSelectedExamId(newId);
             if (newId) {
               setSlotFilter("ALL");
+              setSelectedDate("ALL");
+              navigate(`/admin/results?examId=${newId}`);
+            } else {
+              navigate("/admin/results");
             }
           }}
           style={{ height: "42px", padding: "8px 14px", fontSize: "12.5px", borderRadius: "10px", border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#0f172a", outline: "none" }}

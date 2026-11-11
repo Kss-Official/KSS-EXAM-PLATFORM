@@ -379,7 +379,7 @@ export default function ExamsPage() {
                           type="button"
                           className="btn-results" 
                           title="View Results"
-                          onClick={() => navigate("/admin/results")}
+                          onClick={() => navigate(`/admin/results?examId=${exam.id}`)}
                         >
                           <BarChart2 size={12} /> Results
                         </button>

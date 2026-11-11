@@ -135,6 +135,7 @@ export default function CandidatesPage() {
 
   // Custom Interactive Calendar Popover State
   const [showCalendarPopover, setShowCalendarPopover] = useState<boolean>(false);
+  const [popoverAlign, setPopoverAlign] = useState<"left" | "right">("left");
   const [calendarViewMonth, setCalendarViewMonth] = useState<{ year: number; month: number }>(() => {
     const now = new Date();
     return { year: now.getFullYear(), month: now.getMonth() };
@@ -158,6 +159,17 @@ export default function CandidatesPage() {
 
   // Open calendar popover and sync view to the selected date's month
   const openCalendarPopover = useCallback(() => {
+    if (calendarPopoverRef.current) {
+      const rect = calendarPopoverRef.current.getBoundingClientRect();
+      // If there is enough room to the right of the button (at least 360px),
+      // align left: 0 so it extends rightwards into the open content area.
+      // Otherwise align right: 0 so it extends leftwards.
+      if (window.innerWidth - rect.left >= 360) {
+        setPopoverAlign("left");
+      } else {
+        setPopoverAlign("right");
+      }
+    }
     if (selectedDate && selectedDate !== "ALL" && selectedDate.includes("-")) {
       const parts = selectedDate.split("-");
       const y = parseInt(parts[0], 10);
@@ -1282,8 +1294,8 @@ export default function CandidatesPage() {
                 style={{
                   position: "absolute",
                   top: "calc(100% + 8px)",
-                  right: 0,
-                  left: "auto",
+                  left: popoverAlign === "left" ? 0 : "auto",
+                  right: popoverAlign === "right" ? 0 : "auto",
                   zIndex: 100,
                   backgroundColor: "#ffffff",
                   borderRadius: "14px",
