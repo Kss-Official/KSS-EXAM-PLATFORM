@@ -323,19 +323,24 @@ export default function ResultsPage() {
   const is31Oct = selectedDate === "2026-10-31" || selectedDate.includes("31");
   const is30Oct = selectedDate === "2026-10-30" || selectedDate.includes("30");
 
-  const slot1TabLabel = slotTimings?.slot1?.btn || (is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)");
-  const slot2TabLabel = slotTimings?.slot2?.btn || (is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)");
+  const s1StartR = slotTimings?.slot1?.startTime;
+  const s1CutoffR = slotTimings?.slot1?.cutoffTime;
+  const slot1TabLabel = s1StartR ? `Slot 1 (${s1StartR})` : (is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)");
 
-  const slot1StatusTitle = slotTimings?.slot1 
-    ? `Slot 1 Exam (${slotTimings.slot1.sub || slotTimings.slot1.header})`
+  const s2StartR = slotTimings?.slot2?.startTime;
+  const s2CutoffR = slotTimings?.slot2?.cutoffTime;
+  const slot2TabLabel = s2StartR ? `Slot 2 (${s2StartR})` : (is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)");
+
+  const slot1StatusTitle = (s1StartR && s1CutoffR) 
+    ? `Slot 1 Exam (Entry: ${s1StartR} – ${s1CutoffR} IST)`
     : (is31Oct 
     ? "Slot 1 Exam: Scheduled (11:30 AM – 12:30 PM)" 
     : is30Oct 
     ? "Slot 1 Exam: Completed (10:00 AM – 11:00 AM)" 
     : "Slot 1 Examination");
 
-  const slot2StatusTitle = slotTimings?.slot2 
-    ? `Slot 2 Exam (${slotTimings.slot2.sub || slotTimings.slot2.header})`
+  const slot2StatusTitle = (s2StartR && s2CutoffR) 
+    ? `Slot 2 Exam (Entry: ${s2StartR} – ${s2CutoffR} IST)`
     : (is31Oct 
     ? "Slot 2 Exam: Scheduled (04:00 PM – 05:00 PM)" 
     : is30Oct 

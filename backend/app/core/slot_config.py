@@ -77,11 +77,11 @@ def update_slot_timings_config(payload: Dict[str, Any]) -> Dict[str, Any]:
                 slot_curr["cutoffTime"] = str(s_data["cutoffTime"]).strip()
                 slot_curr["cutoffMinutes"] = parse_time_to_minutes(slot_curr["cutoffTime"])
 
-            # Auto-generate display labels if not explicitly supplied
+            # Always synchronize display labels with current startTime & cutoffTime
             slot_num = "1" if slot_key == "slot1" else "2"
-            slot_curr["header"] = s_data.get("header") or f"Slot {slot_num} • {slot_curr['startTime']}"
-            slot_curr["sub"] = s_data.get("sub") or f"Entry: {slot_curr['startTime']} – {slot_curr['cutoffTime']} IST"
-            slot_curr["btn"] = s_data.get("btn") or f"Slot {slot_num} ({slot_curr['startTime']})"
+            slot_curr["header"] = f"Slot {slot_num} • {slot_curr['startTime']}"
+            slot_curr["sub"] = f"Entry: {slot_curr['startTime']} – {slot_curr['cutoffTime']} IST"
+            slot_curr["btn"] = f"Slot {slot_num} ({slot_curr['startTime']})"
 
             current[slot_key] = slot_curr
 

@@ -568,26 +568,62 @@ export default function CandidatesPage() {
     }
   };
 
+  const openEditSlotModal = () => {
+    setEditForm({
+      slot1StartTime: slotTimings.slot1.startTime || "11:30 AM",
+      slot1CutoffTime: slotTimings.slot1.cutoffTime || "1:30 PM",
+      slot2StartTime: slotTimings.slot2.startTime || "4:00 PM",
+      slot2CutoffTime: slotTimings.slot2.cutoffTime || "4:30 PM"
+    });
+    setIsEditSlotModalOpen(true);
+  };
+
   // Handle Slot Timings Save
   const handleSaveSlotTimings = async (e: React.FormEvent) => {
     e.preventDefault();
     setSavingSlotTimings(true);
+    const s1Start = editForm.slot1StartTime.trim();
+    const s1Cutoff = editForm.slot1CutoffTime.trim();
+    const s2Start = editForm.slot2StartTime.trim();
+    const s2Cutoff = editForm.slot2CutoffTime.trim();
+
     try {
       const updated = await updateSlotTimings({
         slot1: {
-          ...slotTimings.slot1,
-          startTime: editForm.slot1StartTime.trim(),
-          cutoffTime: editForm.slot1CutoffTime.trim()
+          startTime: s1Start,
+          cutoffTime: s1Cutoff,
+          header: `Slot 1 • ${s1Start}`,
+          sub: `Entry: ${s1Start} – ${s1Cutoff} IST`,
+          btn: `Slot 1 (${s1Start})`
         },
         slot2: {
-          ...slotTimings.slot2,
-          startTime: editForm.slot2StartTime.trim(),
-          cutoffTime: editForm.slot2CutoffTime.trim()
+          startTime: s2Start,
+          cutoffTime: s2Cutoff,
+          header: `Slot 2 • ${s2Start}`,
+          sub: `Entry: ${s2Start} – ${s2Cutoff} IST`,
+          btn: `Slot 2 (${s2Start})`
         }
       });
-      setSlotTimings(updated);
+      setSlotTimings({
+        slot1: {
+          ...updated.slot1,
+          startTime: s1Start,
+          cutoffTime: s1Cutoff,
+          header: `Slot 1 • ${s1Start}`,
+          sub: `Entry: ${s1Start} – ${s1Cutoff} IST`,
+          btn: `Slot 1 (${s1Start})`
+        },
+        slot2: {
+          ...updated.slot2,
+          startTime: s2Start,
+          cutoffTime: s2Cutoff,
+          header: `Slot 2 • ${s2Start}`,
+          sub: `Entry: ${s2Start} – ${s2Cutoff} IST`,
+          btn: `Slot 2 (${s2Start})`
+        }
+      });
       setNotice({
-        text: `Slot timings updated successfully! Slot 1: ${updated.slot1.startTime} – ${updated.slot1.cutoffTime} | Slot 2: ${updated.slot2.startTime} – ${updated.slot2.cutoffTime}`,
+        text: `Slot timings updated successfully! Slot 1: ${s1Start} – ${s1Cutoff} | Slot 2: ${s2Start} – ${s2Cutoff}`,
         type: "success"
       });
       setIsEditSlotModalOpen(false);
@@ -599,14 +635,18 @@ export default function CandidatesPage() {
     }
   };
 
-  // Dynamic slot titles and timings from persistent configuration
-  const slot1Header = slotTimings.slot1.header;
-  const slot1Sub = slotTimings.slot1.sub;
-  const slot1Btn = slotTimings.slot1.btn;
+  // Dynamic slot titles and timings directly derived from persistent slot configuration
+  const s1ActiveStart = slotTimings.slot1.startTime || "11:30 AM";
+  const s1ActiveCutoff = slotTimings.slot1.cutoffTime || "1:30 PM";
+  const slot1Header = `Slot 1 • ${s1ActiveStart}`;
+  const slot1Sub = `Entry: ${s1ActiveStart} – ${s1ActiveCutoff} IST`;
+  const slot1Btn = `Slot 1 (${s1ActiveStart})`;
 
-  const slot2Header = slotTimings.slot2.header;
-  const slot2Sub = slotTimings.slot2.sub;
-  const slot2Btn = slotTimings.slot2.btn;
+  const s2ActiveStart = slotTimings.slot2.startTime || "4:00 PM";
+  const s2ActiveCutoff = slotTimings.slot2.cutoffTime || "4:30 PM";
+  const slot2Header = `Slot 2 • ${s2ActiveStart}`;
+  const slot2Sub = `Entry: ${s2ActiveStart} – ${s2ActiveCutoff} IST`;
+  const slot2Btn = `Slot 2 (${s2ActiveStart})`;
 
   return (
     <div className="admin-page">
@@ -669,7 +709,7 @@ export default function CandidatesPage() {
           <button 
             type="button" 
             className="secondary" 
-            onClick={() => setIsEditSlotModalOpen(true)}
+            onClick={() => openEditSlotModal()}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#0284c7", borderColor: "#bae6fd", backgroundColor: "#f0f9ff" }}
             title="Edit Slot 1 and Slot 2 timings & entry windows"
           >
@@ -746,7 +786,7 @@ export default function CandidatesPage() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsEditSlotModalOpen(true);
+                  openEditSlotModal();
                 }}
                 style={{
                   display: "inline-flex",
@@ -792,7 +832,7 @@ export default function CandidatesPage() {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  setIsEditSlotModalOpen(true);
+                  openEditSlotModal();
                 }}
                 style={{
                   display: "inline-flex",
