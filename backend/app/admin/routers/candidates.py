@@ -190,6 +190,16 @@ def batch_reschedule_candidate_slot(
         reason=reason
     )
 
+@router.put("/{candidate_id}", response_model=CandidateDto)
+def update_candidate(
+    candidate_id: int,
+    dto: CandidateDto,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Update candidate profile, department, batch slot, and scheduled exam date."""
+    return CandidateService.update_candidate(db, candidate_id, dto, current_user.email)
+
 @router.get("/slot-timings")
 def get_slot_timings():
     """Retrieve the current examination slot timings and display metadata."""
@@ -199,11 +209,48 @@ def get_slot_timings():
 @router.put("/slot-timings")
 def update_slot_timings(
     payload: Dict[str, Any] = Body(...),
-    current_user: AppUser = Depends(require_super_admin)
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
 ):
-    """Update examination slot timings (startTime, cutoffTime, custom labels)."""
+    """Update examination slot timings (startTime, cutoffTime, custom labels) in both persistent configuration and PostgreSQL DB."""
     from app.core.slot_config import update_slot_timings_config
-    return update_slot_timings_config(payload)
+    cfg = update_slot_timings_config(payload)
+
+    # Synchronize PostgreSQL exam_slots table for active examinations
+    try:
+        from app.models.exam import Exam, ExamSlot
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+        today = datetime.now(timezone.utc).astimezone(IST).date()
+
+        active_exams = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED", "DRAFT"])).all()
+        for exam in active_exams:
+            for s_num, s_key in [(1, "slot1"), (2, "slot2")]:
+                s_info = cfg.get(s_key, {})
+                s_start_min = s_info.get("startMinutes", 690 if s_num == 1 else 960)
+                s_cut_min = s_info.get("cutoffMinutes", 810 if s_num == 1 else 990)
+
+                start_dt = datetime(today.year, today.month, today.day, s_start_min // 60, s_start_min % 60, tzinfo=IST)
+                end_dt = datetime(today.year, today.month, today.day, s_cut_min // 60, s_cut_min % 60, tzinfo=IST)
+
+                slot_row = db.query(ExamSlot).filter(ExamSlot.exam_id == exam.id, ExamSlot.slot_number == s_num).first()
+                if not slot_row:
+                    slot_row = ExamSlot(
+                        exam_id=exam.id,
+                        slot_number=s_num,
+                        starts_at=start_dt,
+                        ends_at=end_dt,
+                        capacity=500
+                    )
+                    db.add(slot_row)
+                else:
+                    slot_row.starts_at = start_dt
+                    slot_row.ends_at = end_dt
+        db.commit()
+    except Exception as e:
+        print(f"[WARN] Could not sync slot timings to exam_slots in DB: {e}")
+
+    return cfg
 
 
 

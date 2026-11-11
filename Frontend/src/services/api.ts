@@ -832,6 +832,14 @@ export async function createCandidate(cand: Partial<CandidateDto>): Promise<Cand
   });
 }
 
+export async function updateCandidate(id: number, cand: Partial<CandidateDto>): Promise<CandidateDto> {
+  return request<CandidateDto>(`admin/candidates/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cand)
+  });
+}
+
 export async function batchAssignCandidateBatch(
   candidateIds: number[], 
   batch: string | null

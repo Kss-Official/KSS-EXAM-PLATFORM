@@ -371,6 +371,41 @@ class CandidateService:
         return cls._to_dto(c)
 
     @classmethod
+    def update_candidate(cls, db: Session, candidate_id: int, dto: CandidateDto, performed_by: str) -> CandidateDto:
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+        if dto.full_name:
+            cand.full_name = dto.full_name.strip()
+        if dto.email:
+            cand.email = dto.email.strip().lower()
+        if dto.department_id:
+            cand.department_id = dto.department_id
+        if dto.college_id:
+            cand.college_id = dto.college_id
+        if dto.batch is not None:
+            cand.batch = dto.batch.strip() if dto.batch.strip() else None
+        if dto.status:
+            cand.status = dto.status.strip().upper()
+        if getattr(dto, "exam_date", None):
+            cand.exam_date = dto.exam_date.strip()
+        elif not cand.exam_date:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            cand.exam_date = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+
+        db.add(AuditLog(
+            action="UPDATE_CANDIDATE",
+            entity_type="Candidate",
+            entity_id=str(cand.id),
+            performed_by=performed_by,
+            details=f"Updated candidate: {cand.full_name} ({cand.registration_number})"
+        ))
+        db.commit()
+        db.refresh(cand)
+        return cls._to_dto(cand)
+
+    @classmethod
     def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str) -> Dict[str, Any]:
         """
         Imports candidates in bulk from uploaded PDF, Excel (.xlsx/.xls), Word (.docx), or CSV file.
@@ -1180,12 +1215,15 @@ class CandidateService:
 
         cleaned_batch = (batch or "").strip() if batch and batch.strip().lower() not in ("none", "unassigned", "null", "") else None
 
-        updated_count = db.query(Candidate).filter(
-            Candidate.id.in_(candidate_ids)
-        ).update(
-            {"batch": cleaned_batch},
-            synchronize_session=False
-        )
+        IST = timezone(timedelta(hours=5, minutes=30))
+        today_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+
+        candidates = db.query(Candidate).filter(Candidate.id.in_(candidate_ids)).all()
+        for cand in candidates:
+            cand.batch = cleaned_batch
+            if not cand.exam_date:
+                cand.exam_date = today_ist
+        updated_count = len(candidates)
         db.add(AuditLog(
             action="BATCH_ASSIGN_CANDIDATE_BATCH",
             entity_type="Candidate",
@@ -1242,6 +1280,9 @@ class CandidateService:
         old_slot = cand.batch or "Unassigned"
         cleaned_target = (target_slot or "").strip()
         cand.batch = cleaned_target
+        if not cand.exam_date:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            cand.exam_date = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
 
         reset_count = 0
         if reset_attempt:
@@ -1295,8 +1336,13 @@ class CandidateService:
         cleaned_target = (target_slot or "").strip()
         total_resets = 0
 
+        IST = timezone(timedelta(hours=5, minutes=30))
+        today_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+
         for cand in candidates:
             cand.batch = cleaned_target
+            if not cand.exam_date:
+                cand.exam_date = today_ist
             if reset_attempt:
                 attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
                 for att in attempts:
