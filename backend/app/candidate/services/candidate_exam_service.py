@@ -246,6 +246,9 @@ class CandidateExamService:
         if enforce_time_gates and not has_active_attempt:
             # 1. Strict Date Validation: Candidate must be scheduled for today
             cand_date = str(candidate.exam_date or "").strip()
+            if not cand_date and candidate.created_at:
+                cand_date = candidate.created_at.astimezone(IST).strftime("%Y-%m-%d")
+
             if not cand_date or cand_date != cur_date_str:
                 if cand_date and cand_date > cur_date_str:
                     resp.message = f"Access Denied: Your examination is scheduled for {cand_date}. Entry is not permitted prior to the examination date."
@@ -621,6 +624,9 @@ class CandidateExamService:
                     b_lower = (cand.batch or "").strip().lower()
 
                     cand_date = str(cand.exam_date or "").strip()
+                    if not cand_date and cand.created_at:
+                        cand_date = cand.created_at.astimezone(IST).strftime("%Y-%m-%d")
+
                     if not cand_date or cand_date != cur_date_str:
                         raise HTTPException(
                             status_code=status.HTTP_403_FORBIDDEN,

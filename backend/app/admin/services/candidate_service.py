@@ -341,6 +341,10 @@ class CandidateService:
             cname = dto.college_name.strip()
             college = db.query(College).filter(func.lower(College.name) == cname.lower()).first()
 
+        IST = timezone(timedelta(hours=5, minutes=30))
+        today_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+        cand_exam_date = (dto.exam_date or "").strip() if getattr(dto, "exam_date", None) else today_ist
+
         c = Candidate(
             registration_number=reg_num,
             full_name=dto.full_name.strip(),
@@ -348,6 +352,7 @@ class CandidateService:
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
             batch=dto.batch.strip() if dto.batch else None,
+            exam_date=cand_exam_date,
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
@@ -1201,6 +1206,9 @@ class CandidateService:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
         cleaned_batch = (batch or "").strip() if batch and batch.strip().lower() not in ("none", "unassigned", "null", "") else None
         cand.batch = cleaned_batch
+        if not cand.exam_date:
+            IST = timezone(timedelta(hours=5, minutes=30))
+            cand.exam_date = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
         db.add(AuditLog(
             action="ASSIGN_CANDIDATE_BATCH",
             entity_type="Candidate",
