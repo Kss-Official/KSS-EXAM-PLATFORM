@@ -3,7 +3,7 @@ import io
 import re
 import secrets
 from typing import List, Dict, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, or_, and_
 from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, UploadFile, status
@@ -14,6 +14,24 @@ from app.models import (
 )
 from app.schemas import CandidateDto, CandidateAccessCodeDto, PaginatedCandidatesResponse
 from app.core import EmailService
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def normalize_set_code(raw: Optional[str]) -> Optional[str]:
+    """
+    Normalizes set codes like 'A', 'Set A', 'set_a', 'SET A' to canonical 'Set A', 'Set B', 'Set C', 'Set D'.
+    Returns None if empty or unassigned.
+    Raises HTTPException 400 if invalid.
+    """
+    if not raw or not str(raw).strip() or str(raw).strip().lower() in ("none", "unassigned", "null", "", "-"):
+        return None
+    val = str(raw).strip().upper().replace("SET", "").replace("_", "").replace("-", "").strip()
+    if val in ("A", "B", "C", "D"):
+        return f"Set {val}"
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail=f"Invalid question paper set '{raw}'. Permitted options are Set A, Set B, Set C, Set D (or None to unassign)."
+    )
 
 class CandidateService:
     @staticmethod
@@ -1368,22 +1386,5 @@ class CandidateService:
             "totalAttemptsReset": total_resets,
             "message": f"Successfully moved {len(candidates)} candidates to {cleaned_target}."
         }
-
-
-def normalize_set_code(raw: Optional[str]) -> Optional[str]:
-    """
-    Normalizes set codes like 'A', 'Set A', 'set_a', 'SET A' to canonical 'Set A', 'Set B', 'Set C', 'Set D'.
-    Returns None if empty or unassigned.
-    Raises HTTPException 400 if invalid.
-    """
-    if not raw or not str(raw).strip() or str(raw).strip().lower() in ("none", "unassigned", "null", "", "-"):
-        return None
-    val = str(raw).strip().upper().replace("SET", "").replace("_", "").replace("-", "").strip()
-    if val in ("A", "B", "C", "D"):
-        return f"Set {val}"
-    raise HTTPException(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        detail=f"Invalid question paper set '{raw}'. Permitted options are Set A, Set B, Set C, Set D (or None to unassign)."
-    )
 
 
