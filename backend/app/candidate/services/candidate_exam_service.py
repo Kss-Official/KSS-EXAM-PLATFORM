@@ -163,6 +163,10 @@ class CandidateExamService:
                 resp.message = f"Registration and email mismatch: The provided registration number '{target_reg}' does not match the registered email '{input_email}'."
                 return resp
 
+        if candidate.status and candidate.status.upper() in ("DISCARDED", "STOPPED"):
+            resp.message = "Examination Terminated: Your examination has been stopped by the administrator. Re-entry is not permitted."
+            return resp
+
         if candidate.status and candidate.status.upper() != "ACTIVE":
             resp.message = "Candidate account is disabled, suspended, or inactive. Please contact your exam administrator."
             return resp
@@ -620,6 +624,13 @@ class CandidateExamService:
         exam = attempt.exam
         now = datetime.now(timezone.utc)
 
+        if attempt.status in ("DISCARDED", "STOPPED"):
+            reason = getattr(attempt, "termination_reason", None) or "Examination session terminated by administrator."
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: {reason}"
+            )
+
         if attempt.status in ("SUBMITTED", "EXPIRED"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -893,6 +904,9 @@ class CandidateExamService:
                     attempt.expires_at = now + timedelta(minutes=attempt.exam.duration_minutes)
                 db.commit()
                 db.refresh(attempt)
+            elif attempt.status in ("DISCARDED", "STOPPED"):
+                reason = getattr(attempt, "termination_reason", None) or "Examination has been stopped by administrator."
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Cannot record answers: {reason}")
             else:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot record answers: attempt is {attempt.status}")
 

@@ -34,6 +34,7 @@ import {
 } from "../../services/api";
 import PrimaryDepartmentOverview from "../../components/admin/PrimaryDepartmentOverview";
 import DepartmentTrackConfigView from "../../components/admin/DepartmentTrackConfigView";
+import FormattedContent from "../../components/common/FormattedContent";
 import { 
   type PrimaryDepartmentType, 
   type SubDepartmentItem, 
@@ -1539,9 +1540,12 @@ export default function CreateExamPage() {
             <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
               {reviewingSet.questions.map((q, idx) => (
                 <div key={idx} style={{ padding: "12px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "#f8fafc" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <strong style={{ fontSize: "13px", color: "#0f172a" }}>Q{idx + 1}. {q.questionText}</strong>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#dcfce7", padding: "2px 7px", borderRadius: "4px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>
+                      <span style={{ marginRight: "4px" }}>Q{idx + 1}.</span>
+                      <FormattedContent content={q.questionText} />
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#dcfce7", padding: "2px 7px", borderRadius: "4px", whiteSpace: "nowrap" }}>
                       Ans: {q.correctOption}
                     </span>
                   </div>
@@ -1560,7 +1564,7 @@ export default function CreateExamPage() {
                             fontWeight: isCorrect ? 600 : 400
                           }}
                         >
-                          <b>{opt.label})</b> {opt.optionText}
+                          <b>{opt.label})</b> <FormattedContent content={opt.optionText} />
                         </div>
                       );
                     })}

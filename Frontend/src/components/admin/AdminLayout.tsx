@@ -19,7 +19,8 @@ import {
   Mail,
   Shield,
   Briefcase,
-  Building2
+  Building2,
+  Radio
 } from "lucide-react";
 import { useRouter, Link } from "../../router";
 import type { AdminDashboardResponse } from "../../types";
@@ -121,12 +122,17 @@ export default function AdminLayout({
       return "/admin/results";
     }
 
-    // 7. Settings
+    // 7. Live Monitoring & Proctoring
+    if (normalized === "/admin/live-monitoring" || normalized.startsWith("/admin/live-monitoring/")) {
+      return "/admin/live-monitoring";
+    }
+
+    // 8. Settings
     if (normalized === "/admin/settings" || normalized.startsWith("/admin/settings/")) {
       return "/admin/settings";
     }
 
-    // 8. Overview / Dashboard
+    // 9. Overview / Dashboard
     if (normalized === "/admin/dashboard" || normalized === "/admin" || normalized.startsWith("/admin/dashboard/")) {
       return "/admin/dashboard";
     }
@@ -143,6 +149,7 @@ export default function AdminLayout({
     { label: "Question Bank", to: "/admin/questions", icon: HelpCircle },
     { label: "Departments", to: "/admin/departments", icon: Building2, badge: dashboardData ? String(dashboardData.totalDepartments) : undefined },
     { label: "Candidates", to: "/admin/candidates", icon: Users, badge: dashboardData ? String(dashboardData.totalCandidates) : undefined },
+    { label: "Live Monitoring", to: "/admin/live-monitoring", icon: Radio },
     { label: "Results", to: "/admin/results", icon: BarChart3 },
     { label: "Settings", to: "/admin/settings", icon: Settings },
   ];

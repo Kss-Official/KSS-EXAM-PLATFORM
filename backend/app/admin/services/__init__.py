@@ -5,6 +5,7 @@ from app.admin.services.college_service import CollegeService
 from app.admin.services.dashboard_service import DashboardService
 from app.admin.services.document_service import DocumentStorageService
 from app.admin.services.pdf_service import InMemoryPdfService
+from app.admin.services.live_monitoring_service import LiveMonitoringService
 
 __all__ = [
     "ExamService",
@@ -14,4 +15,5 @@ __all__ = [
     "DashboardService",
     "DocumentStorageService",
     "InMemoryPdfService",
+    "LiveMonitoringService",
 ]

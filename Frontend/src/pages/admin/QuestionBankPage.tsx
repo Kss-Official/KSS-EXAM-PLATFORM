@@ -34,6 +34,7 @@ import {
   type QuestionDto
 } from "../../services/api";
 import { useRouter } from "../../router";
+import FormattedContent from "../../components/common/FormattedContent";
 
 export default function QuestionBankPage() {
   const { navigate } = useRouter();
@@ -1576,9 +1577,14 @@ export default function QuestionBankPage() {
                       </div>
 
                       <div style={{ marginBottom: "10px" }}>
-                        <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
-                          Question Text *
-                        </label>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "4px" }}>
+                          <label style={{ fontSize: "11.5px", fontWeight: 600, color: "#334155" }}>
+                            Question Text *
+                          </label>
+                          <span style={{ fontSize: "11px", color: "#64748b" }}>
+                            Supports Math (<code>$x^2$</code>), Code (<code>```py</code>), & Images (<code>![alt](url)</code>)
+                          </span>
+                        </div>
                         <textarea
                           rows={2}
                           value={draft.questionText}
@@ -1592,6 +1598,12 @@ export default function QuestionBankPage() {
                           }}
                           style={{ width: "100%", padding: "8px", fontSize: "12.5px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                         />
+                        {draft.questionText && (draft.questionText.includes("$") || draft.questionText.includes("```") || draft.questionText.includes("![")) && (
+                          <div style={{ marginTop: "6px", padding: "8px 12px", background: "#f8fafc", border: "1px dashed #cbd5e1", borderRadius: "6px" }}>
+                            <div style={{ fontSize: "10.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", marginBottom: "4px" }}>Live Preview</div>
+                            <FormattedContent content={draft.questionText} />
+                          </div>
+                        )}
                       </div>
 
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px", marginBottom: "10px" }}>
@@ -1729,10 +1741,12 @@ export default function QuestionBankPage() {
                       }}
                     >
                       <div style={{ maxWidth: "88%" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                          <span style={{ fontWeight: 700, color: "#017846", fontSize: "13px" }}>Q{idx + 1}.</span>
-                          <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{q.questionText}</span>
-                          <span style={{ fontSize: "10.5px", background: "#f1f5f9", color: "#475569", padding: "1px 6px", borderRadius: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
+                          <span style={{ fontWeight: 700, color: "#017846", fontSize: "13px", flexShrink: 0, marginTop: "2px" }}>Q{idx + 1}.</span>
+                          <div style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", flex: 1 }}>
+                            <FormattedContent content={q.questionText} />
+                          </div>
+                          <span style={{ fontSize: "10.5px", background: "#f1f5f9", color: "#475569", padding: "1px 6px", borderRadius: "4px", flexShrink: 0 }}>
                             +{q.marks} / -{q.negativeMarks}
                           </span>
                         </div>
@@ -1751,7 +1765,13 @@ export default function QuestionBankPage() {
                                 fontWeight: opt.correct ? 600 : 400
                               }}
                             >
-                              <b>{opt.label})</b> {opt.optionText} {opt.correct && "Γ£ô (Correct)"}
+                              <div style={{ display: "flex", alignItems: "flex-start", gap: "6px" }}>
+                                <b style={{ flexShrink: 0 }}>{opt.label})</b>
+                                <div style={{ flex: 1 }}>
+                                  <FormattedContent content={opt.optionText} />
+                                </div>
+                                {opt.correct && <span style={{ color: "#166534", fontWeight: 700, flexShrink: 0, marginLeft: "4px" }}>✓</span>}
+                              </div>
                             </div>
                           ))}
                         </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { AlertTriangle, ChevronRight, Flag, CheckCircle2, ArrowRight } from "lucide-react";
+import { AlertTriangle, ChevronRight, Flag, CheckCircle2, ArrowRight, CloudOff } from "lucide-react";
 
 interface SubmitConfirmationDialogProps {
   total: number;
@@ -7,6 +7,8 @@ interface SubmitConfirmationDialogProps {
   flaggedCount?: number;
   flaggedQuestions?: number[];
   unansweredQuestions?: number[];
+  isOffline?: boolean;
+  pendingSyncCount?: number;
   onCancel: () => void;
   onConfirm: () => void;
   onJumpToQuestion?: (questionNum: number) => void;
@@ -18,6 +20,8 @@ export default function SubmitConfirmationDialog({
   flaggedCount,
   flaggedQuestions = [],
   unansweredQuestions = [],
+  isOffline = false,
+  pendingSyncCount = 0,
   onCancel,
   onConfirm,
   onJumpToQuestion
@@ -199,6 +203,32 @@ export default function SubmitConfirmationDialog({
           }}>
             <CheckCircle2 size={18} color="#059669" />
             <span>Great job! You have answered all {total} questions and have no pending flagged questions.</span>
+          </div>
+        )}
+
+        {/* Offline Warning Callout */}
+        {(isOffline || pendingSyncCount > 0) && (
+          <div style={{
+            marginTop: "12px",
+            padding: "10px 14px",
+            borderRadius: "8px",
+            background: "#fffbeb",
+            border: "1px solid #fde68a",
+            color: "#92400e",
+            fontSize: "12px",
+            display: "flex",
+            alignItems: "center",
+            gap: "10px"
+          }}>
+            <CloudOff size={18} color="#b45309" style={{ flexShrink: 0 }} />
+            <div>
+              <strong>Internet connection needed for server registration.</strong>
+              <div style={{ fontSize: "11.5px", color: "#b45309", marginTop: "2px" }}>
+                {pendingSyncCount > 0 
+                  ? `${pendingSyncCount} answer${pendingSyncCount > 1 ? "s are" : " is"} buffered safely on your laptop. Reconnect to Wi-Fi to submit.`
+                  : "Your computer is currently offline. Please reconnect before finalizing."}
+              </div>
+            </div>
           </div>
         )}
 

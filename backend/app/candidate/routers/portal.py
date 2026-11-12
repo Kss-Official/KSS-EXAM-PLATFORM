@@ -173,18 +173,127 @@ def submit_attempt(
         candidate_id=verified_cid
     )
 
+@router.get("/heartbeat")
+def get_candidate_heartbeat(
+    request: Request,
+    candidateId: Optional[int] = Query(None, alias="candidateId"),
+    candidate_id: Optional[int] = Query(None, alias="candidate_id"),
+    attemptId: Optional[int] = Query(None, alias="attemptId"),
+    attempt_id: Optional[int] = Query(None, alias="attempt_id"),
+    db: Session = Depends(get_db)
+):
+    """
+    Real-time candidate exam session heartbeat.
+    Checks for administrator timer updates (+10 mins) and live exam stop/termination commands.
+    """
+    cid = candidateId or candidate_id
+    if not cid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="candidateId is required")
+    verified_cid = _verify_candidate_ownership(request, cid)
+
+    from datetime import datetime, timezone
+    from app.models import ExamAttempt, Candidate
+
+    now = datetime.now(timezone.utc)
+    aid = attemptId or attempt_id
+    query = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == verified_cid)
+    if aid:
+        query = query.filter(ExamAttempt.id == int(aid))
+    attempt = query.order_by(ExamAttempt.created_at.desc()).first()
+
+    cand = db.query(Candidate).filter(Candidate.id == verified_cid).first()
+    if cand and cand.status in ("DISCARDED", "STOPPED"):
+        return {
+            "status": "TERMINATED",
+            "terminationReason": "Your examination session has been terminated by the administrator.",
+            "serverTime": now.isoformat()
+        }
+
+    if not attempt:
+        return {
+            "status": "NONE",
+            "serverTime": now.isoformat()
+        }
+
+    if attempt.status in ("DISCARDED", "STOPPED"):
+        return {
+            "status": "TERMINATED",
+            "terminationReason": getattr(attempt, "termination_reason", None) or "Your examination session has been stopped by the administrator.",
+            "serverTime": now.isoformat()
+        }
+
+    exp_utc = None
+    if attempt.expires_at:
+        exp_utc = attempt.expires_at if attempt.expires_at.tzinfo else attempt.expires_at.replace(tzinfo=timezone.utc)
+    rem_sec = max(0, int((exp_utc - now).total_seconds())) if exp_utc else 0
+
+    return {
+        "status": attempt.status,
+        "attemptId": attempt.id,
+        "expiresAt": attempt.expires_at.isoformat() if attempt.expires_at else None,
+        "deadlineMs": int(exp_utc.timestamp() * 1000) if exp_utc else None,
+        "remainingSeconds": rem_sec,
+        "extraTimeMinutes": getattr(attempt, "extra_time_minutes", 0) or 0,
+        "serverTime": now.isoformat(),
+        "terminationReason": getattr(attempt, "termination_reason", None)
+    }
+
+@router.post("/proctor/alert")
+def record_candidate_proctor_alert(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Records real-time cheating alerts (tab switch, SEB exit, multiple faces, etc.) to the database.
+    """
+    cand_id = payload.get("candidateId") or payload.get("candidate_id")
+    if not cand_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="candidateId is required")
+    verified_cid = _verify_candidate_ownership(request, cand_id)
+
+    attempt_id = payload.get("attemptId") or payload.get("attempt_id")
+    alert_type = payload.get("alertType") or payload.get("type") or "SUSPICIOUS_ACTIVITY"
+    message = payload.get("message") or "Suspicious activity detected"
+    severity = payload.get("severity") or "MEDIUM"
+
+    from app.admin.services.live_monitoring_service import LiveMonitoringService
+    alert = LiveMonitoringService.record_proctor_alert(
+        db,
+        candidate_id=verified_cid,
+        attempt_id=int(attempt_id) if attempt_id else None,
+        alert_type=str(alert_type),
+        message=str(message),
+        severity=str(severity)
+    )
+    return {"success": True, "alertId": alert.id, "alertType": alert.alert_type}
+
 @router.post("/proctor/warning")
 def record_proctor_warning(
     payload: Dict[str, Any] = Body(...),
     db: Session = Depends(get_db)
 ):
     """
-    Logs proctoring violation alerts (multi-face, absent face, background movement, tab switch) to AuditLog.
+    Logs proctoring violation alerts (multi-face, absent face, background movement, tab switch) to AuditLog and ProctorAlert.
     """
     attempt_id = payload.get("attemptId") or payload.get("attempt_id")
     cand_id = payload.get("candidateId") or payload.get("candidate_id")
     warning_type = payload.get("warningType") or payload.get("type") or "PROCTOR_ALERT"
     message = payload.get("message") or "Proctoring notice detected"
+
+    from app.admin.services.live_monitoring_service import LiveMonitoringService
+    if cand_id:
+        try:
+            LiveMonitoringService.record_proctor_alert(
+                db,
+                candidate_id=int(cand_id),
+                attempt_id=int(attempt_id) if attempt_id else None,
+                alert_type=str(warning_type),
+                message=str(message),
+                severity="MEDIUM"
+            )
+        except Exception:
+            pass
 
     from app.models import AuditLog
     log = AuditLog(

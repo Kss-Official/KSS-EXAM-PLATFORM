@@ -37,6 +37,8 @@ class ExamAttempt(Base):
     incorrect_answers = Column(Integer, nullable=False, default=0)
     unanswered_questions = Column(Integer, nullable=False, default=0)
     duration_seconds = Column(Integer, nullable=False, default=0)
+    extra_time_minutes = Column(Integer, nullable=False, default=0)
+    termination_reason = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     candidate = relationship("Candidate", back_populates="attempts")

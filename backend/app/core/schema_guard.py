@@ -52,6 +52,8 @@ def ensure_indexes_and_constraints():
         "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS incorrect_answers INTEGER DEFAULT 0;",
         "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS unanswered_questions INTEGER DEFAULT 0;",
         "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS duration_seconds INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS extra_time_minutes INTEGER DEFAULT 0;",
+        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(255);",
         # Colleges separation
         """
         CREATE TABLE IF NOT EXISTS colleges (
@@ -65,6 +67,25 @@ def ensure_indexes_and_constraints():
         );
         """,
         "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS college_id BIGINT REFERENCES colleges(id) ON DELETE SET NULL;",
+        # Live Proctor Cheating Alerts table & indexes
+        """
+        CREATE TABLE IF NOT EXISTS proctor_alerts (
+            id BIGSERIAL PRIMARY KEY,
+            candidate_id BIGINT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+            attempt_id BIGINT REFERENCES exam_attempts(id) ON DELETE SET NULL,
+            alert_type VARCHAR(50) NOT NULL,
+            severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+            message VARCHAR(500) NOT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'NEW',
+            reviewed_by VARCHAR(150),
+            reviewed_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_candidate_id ON proctor_alerts(candidate_id);",
+        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_attempt_id ON proctor_alerts(attempt_id);",
+        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_created_at ON proctor_alerts(created_at);",
+        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_status ON proctor_alerts(status);",
     ]
 
     with engine.begin() as conn:

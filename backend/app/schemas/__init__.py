@@ -21,6 +21,10 @@ from app.schemas.coding import (
     CodeSubmitRequest, CodeSubmitResponse, TestCaseResultItem,
     BatchEmailDispatchRequest
 )
+from app.schemas.live_monitoring import (
+    LiveExamineeDto, ProctorAlertDto, GiveExtraTimeRequest,
+    StopExamRequest, RecordAlertRequest, ReviewAlertRequest
+)
 
 __all__ = [
     "CamelModel",
@@ -64,4 +68,10 @@ __all__ = [
     "TestCaseResultItem",
     "BatchEmailDispatchRequest",
     "PaginatedCandidatesResponse",
+    "LiveExamineeDto",
+    "ProctorAlertDto",
+    "GiveExtraTimeRequest",
+    "StopExamRequest",
+    "RecordAlertRequest",
+    "ReviewAlertRequest",
 ]

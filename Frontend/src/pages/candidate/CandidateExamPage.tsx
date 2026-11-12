@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   CloudOff,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  Clock3,
+  ShieldAlert
 } from "lucide-react";
 import type { 
   CandidateSession, 
@@ -24,11 +26,14 @@ import {
   startCandidateAttempt,
   saveCandidateAnswer,
   submitCandidateAttempt,
+  getCandidateHeartbeat,
+  reportProctorAlert,
   type SubmissionResponse
 } from "../../services/api";
 import ExamTimer from "../../components/candidate/ExamTimer";
 import QuestionNavigator from "../../components/candidate/QuestionNavigator";
 import SubmitConfirmationDialog from "../../components/candidate/SubmitConfirmationDialog";
+import FormattedContent from "../../components/common/FormattedContent";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 
@@ -85,8 +90,12 @@ export default function CandidateExamPage({
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showNavLockedModal, setShowNavLockedModal] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [reconnectedNotice, setReconnectedNotice] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
   const [serverOffset, setServerOffset] = useState<number>(0);
+  const [extraTimeNotice, setExtraTimeNotice] = useState<string | null>(null);
+  const [examTerminated, setExamTerminated] = useState<{ stopped: boolean; reason?: string } | null>(null);
 
   // Attempt-scoped storage key prevents cross-candidate data leakage in shared computer lab terminals
   const getAttemptStorageKey = useCallback((aid?: number | null) => {
@@ -160,27 +169,174 @@ export default function CandidateExamPage({
 
       if (active) {
         setPendingQueue(remaining);
-        setAutosaveStatus(remaining.length === 0 ? "saved" : "offline");
+        if (remaining.length === 0 && itemsToSync.length > 0) {
+          setAutosaveStatus("saved");
+          setIsOnline(true);
+          setReconnectedNotice(true);
+          setTimeout(() => setReconnectedNotice(false), 5000);
+        } else if (remaining.length > 0) {
+          setAutosaveStatus("offline");
+          setIsOnline(false);
+        }
       }
     };
 
     const handleOnline = () => {
+      setIsOnline(true);
       flushPendingQueue();
     };
 
+    const handleOffline = () => {
+      setIsOnline(false);
+      setAutosaveStatus("offline");
+    };
+
     window.addEventListener("online", handleOnline);
-    const intervalId = setInterval(() => {
-      if (pendingQueue.length > 0 && navigator.onLine) {
-        flushPendingQueue();
+    window.addEventListener("offline", handleOffline);
+
+    const intervalId = setInterval(async () => {
+      if (pendingQueue.length > 0) {
+        try {
+          await fetch("/api/health", { method: "HEAD", cache: "no-store" });
+          setIsOnline(true);
+          flushPendingQueue();
+        } catch {
+          setIsOnline(false);
+          setAutosaveStatus("offline");
+        }
       }
     }, 4000);
 
     return () => {
       active = false;
       window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
       clearInterval(intervalId);
     };
   }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId, pendingQueue]);
+
+  // Real-time Candidate Exam Heartbeat: Extra Time (+10 Mins) and Admin Stop/Discard detection
+  useEffect(() => {
+    let isMounted = true;
+    const cid = session?.profile?.dbCandidateId;
+    const aid = backendAttemptId || session?.backendAttemptId;
+    if (!cid || !aid || examTerminated?.stopped) return;
+
+    const pollHeartbeat = async () => {
+      try {
+        const hb = await getCandidateHeartbeat(cid, aid);
+        if (!isMounted) return;
+
+        // If administrator stopped or discarded candidate's live exam
+        if (hb.status === "TERMINATED" || hb.status === "DISCARDED" || hb.status === "STOPPED") {
+          setExamTerminated({
+            stopped: true,
+            reason: hb.terminationReason || "Your ongoing examination has been stopped by the administrator."
+          });
+          try {
+            sessionStorage.clear();
+            localStorage.removeItem("examsecure_candidate_session");
+          } catch {}
+          return;
+        }
+
+        // Check if admin extended examination deadline (+10 mins)
+        if (hb.deadlineMs && session?.deadline && hb.deadlineMs > session.deadline + 5000) {
+          const addedMins = Math.round((hb.deadlineMs - session.deadline) / 60000);
+          setExtraTimeNotice(`+${addedMins > 0 ? addedMins : 10} minutes extra time granted by administrator`);
+          setSession(prev => {
+            const updated = { ...prev, deadline: hb.deadlineMs! };
+            saveCandidateSession(updated);
+            return updated;
+          });
+          setTimeout(() => {
+            if (isMounted) setExtraTimeNotice(null);
+          }, 8000);
+        }
+      } catch (err) {
+        // Transient network notice ignored safely
+      }
+    };
+
+    const initialTimer = setTimeout(pollHeartbeat, 2000);
+    const intervalId = setInterval(pollHeartbeat, 3500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(initialTimer);
+      clearInterval(intervalId);
+    };
+  }, [session?.profile?.dbCandidateId, backendAttemptId, session?.backendAttemptId, session?.deadline, examTerminated]);
+
+  // Real-time Cheating Detection: tab switches, SEB exit, fullscreen exits, suspicious key combinations
+  const lastAlertTimeRef = useRef<Record<string, number>>({});
+  const reportCheatingAlert = useCallback(async (alertType: string, message: string, severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "HIGH") => {
+    const cid = session?.profile?.dbCandidateId;
+    const aid = backendAttemptId || session?.backendAttemptId;
+    if (!cid) return;
+
+    const now = Date.now();
+    const lastTime = lastAlertTimeRef.current[alertType] || 0;
+    // Rate limit same alert type to once every 7 seconds
+    if (now - lastTime < 7000) return;
+    lastAlertTimeRef.current[alertType] = now;
+
+    try {
+      await reportProctorAlert({
+        candidateId: cid,
+        attemptId: aid || undefined,
+        alertType,
+        message,
+        severity
+      });
+    } catch (e) {
+      console.warn("[Proctor] Alert report notice:", e);
+    }
+  }, [session?.profile?.dbCandidateId, backendAttemptId, session?.backendAttemptId]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        reportCheatingAlert("TAB_SWITCH", "Candidate switched away from examination tab or minimized window", "HIGH");
+      }
+    };
+
+    const handleWindowBlur = () => {
+      reportCheatingAlert("TAB_SWITCH", "Candidate moved window focus away from examination screen", "MEDIUM");
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        reportCheatingAlert("FULLSCREEN_EXIT", "Candidate exited fullscreen exam environment", "HIGH");
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prohibit and flag Alt+Tab, Ctrl+C, Ctrl+V, F12, PrintScreen, Meta keys
+      if (
+        (e.altKey && e.key === "Tab") ||
+        (e.ctrlKey && (e.key === "c" || e.key === "v" || e.key === "u")) ||
+        e.key === "F12" ||
+        e.key === "PrintScreen" ||
+        e.key === "Meta"
+      ) {
+        e.preventDefault();
+        reportCheatingAlert("SUSPICIOUS_KEY", `Candidate pressed monitored shortcut key: ${e.key}`, "MEDIUM");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [reportCheatingAlert]);
 
   // Trap browser 'Back' button (popstate) and refresh/tab close (beforeunload)
   useEffect(() => {
@@ -641,6 +797,76 @@ export default function CandidateExamPage({
         </div>
       </header>
 
+      {/* Offline Alert Banner */}
+      {(!isOnline || autosaveStatus === "offline") && (
+        <div style={{
+          background: "#fffbeb",
+          borderBottom: "1px solid #fde68a",
+          color: "#92400e",
+          padding: "10px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          fontSize: "13px",
+          fontWeight: 600,
+          zIndex: 90
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <CloudOff size={18} color="#b45309" />
+            <span>
+              <strong>Network Disconnected.</strong> You can continue answering normally — answers are safely stored on this laptop and will automatically upload when your internet reconnects.
+            </span>
+          </div>
+          {pendingQueue.length > 0 && (
+            <span style={{ background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700 }}>
+              {pendingQueue.length} answer{pendingQueue.length === 1 ? "" : "s"} buffered locally
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Reconnected Sync Banner */}
+      {reconnectedNotice && (
+        <div style={{
+          background: "#ecfdf5",
+          borderBottom: "1px solid #a7f3d0",
+          color: "#065f46",
+          padding: "10px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          fontSize: "13px",
+          fontWeight: 600,
+          zIndex: 90
+        }}>
+          <CheckCircle2 size={18} color="#059669" />
+          <span>
+            <strong>Connection Restored!</strong> All answers have been successfully synchronized with the examination server.
+          </span>
+        </div>
+      )}
+
+      {/* Extra Time Granted Banner */}
+      {extraTimeNotice && (
+        <div style={{
+          background: "#eff6ff",
+          borderBottom: "1px solid #bfdbfe",
+          color: "#1e40af",
+          padding: "10px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          fontSize: "13.5px",
+          fontWeight: 700,
+          zIndex: 95
+        }}>
+          <Clock3 size={18} color="#2563eb" />
+          <span>
+            <strong>Extra Time Granted!</strong> {extraTimeNotice}. Your timer and deadline have been updated.
+          </span>
+        </div>
+      )}
+
       {/* Main 2-Column Assessment Workspace */}
       <div className="exam-content-grid">
         {/* Left: Question Card */}
@@ -685,9 +911,12 @@ export default function CandidateExamPage({
             </div>
 
             <div className="exam-qbody-content">
-              <h2 className="exam-question-heading">
-                {currentQuestion.questionText || currentQuestion.question_text || currentQuestion.q}
-              </h2>
+              <div className="exam-question-heading" style={{ fontSize: "16px", fontWeight: 600, color: "#0f172a", marginBottom: "12px" }}>
+                <FormattedContent 
+                  content={currentQuestion.questionText || currentQuestion.question_text || currentQuestion.q || ""}
+                  imageUrl={currentQuestion.imageUrl || currentQuestion.image_url}
+                />
+              </div>
               <p className="exam-question-hint">Select one answer from the options below.</p>
 
               {/* Options List */}
@@ -706,14 +935,16 @@ export default function CandidateExamPage({
                       onClick={() => handleSelectAnswer(i)}
                       className={`exam-option-card ${isSelected ? "selected" : ""}`}
                     >
-                      <div className="exam-option-left">
-                        <span className={`exam-option-letter ${isSelected ? "selected" : ""}`}>
+                      <div className="exam-option-left" style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                        <span className={`exam-option-letter ${isSelected ? "selected" : ""}`} style={{ flexShrink: 0, marginTop: "2px" }}>
                           {label}
                         </span>
-                        <span className="exam-option-text">{text}</span>
+                        <div className="exam-option-text" style={{ flex: 1, textAlign: "left" }}>
+                          <FormattedContent content={text} />
+                        </div>
                       </div>
 
-                      <span className={`exam-custom-radio ${isSelected ? "selected" : ""}`}>
+                      <span className={`exam-custom-radio ${isSelected ? "selected" : ""}`} style={{ flexShrink: 0, marginLeft: "10px" }}>
                         {isSelected && <span className="exam-radio-inner-dot" />}
                       </span>
                     </button>
@@ -774,6 +1005,8 @@ export default function CandidateExamPage({
           flaggedCount={flags.length}
           flaggedQuestions={sortedFlaggedQuestions}
           unansweredQuestions={unansweredQuestions}
+          isOffline={!isOnline}
+          pendingSyncCount={pendingQueue.length}
           onCancel={() => setShowSubmitModal(false)}
           onConfirm={() => triggerFinalization("manual_submit")}
           onJumpToQuestion={(questionNum) => {
@@ -875,6 +1108,86 @@ export default function CandidateExamPage({
             <p style={{ margin: 0, fontSize: "13.5px", color: "#64748b", lineHeight: 1.5 }}>
               Your examination answers have been secured. Calculating score and finalizing your submission receipt...
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Examination Stopped / Discarded by Administrator Modal */}
+      {examTerminated?.stopped && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(15, 23, 42, 0.88)",
+          backdropFilter: "blur(8px)",
+          zIndex: 100000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "20px"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            maxWidth: "480px",
+            width: "100%",
+            padding: "36px 32px",
+            textAlign: "center",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
+            border: "2px solid #ef4444"
+          }}>
+            <div style={{
+              width: "60px",
+              height: "60px",
+              borderRadius: "50%",
+              background: "#fee2e2",
+              color: "#dc2626",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px"
+            }}>
+              <AlertTriangle size={32} />
+            </div>
+            <h2 style={{ margin: "0 0 10px", fontSize: "20px", color: "#991b1b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 800 }}>
+              Examination Stopped by Administrator
+            </h2>
+            <p style={{ margin: "0 0 16px", fontSize: "14px", color: "#475569", lineHeight: 1.6 }}>
+              Your active examination session has been terminated by the administrator. You cannot continue answering questions in this session.
+            </p>
+            {examTerminated.reason && (
+              <div style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                marginBottom: "24px",
+                fontSize: "13px",
+                color: "#991b1b",
+                textAlign: "left"
+              }}>
+                <strong>Reason:</strong> {examTerminated.reason}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "/candidate/login";
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 24px",
+                fontSize: "14px",
+                fontWeight: 700,
+                background: "#dc2626",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                boxShadow: "0 4px 6px -1px rgba(220, 38, 38, 0.3)"
+              }}
+            >
+              Return to Login Page
+            </button>
           </div>
         </div>
       )}

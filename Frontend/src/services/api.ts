@@ -1077,6 +1077,140 @@ export async function updateSlotTimings(data: Partial<SlotTimingsConfig>): Promi
   });
 }
 
+/* =========================================================================
+   Live Exam Monitoring, Proctoring Cheating Alerts & Live Controls
+   ========================================================================= */
+
+export interface LiveExamineeDto {
+  candidateId: number;
+  registrationNumber: string;
+  fullName: string;
+  email: string;
+  department?: string;
+  college?: string;
+  batch?: string;
+  assignedSet?: string;
+  attemptId?: number;
+  status: string;
+  startedAt?: string;
+  expiresAt?: string;
+  extraTimeMinutes: number;
+  questionsAnswered: number;
+  totalQuestions: number;
+  remainingSeconds: number;
+  alertsCount: number;
+  lastAlert?: {
+    id: number;
+    alertType: string;
+    severity: string;
+    message: string;
+    status: string;
+    createdAt?: string;
+  };
+  terminationReason?: string;
+}
+
+export interface ProctorAlertDto {
+  id: number;
+  candidateId: number;
+  candidateName: string;
+  registrationNumber: string;
+  department?: string;
+  attemptId?: number;
+  alertType: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  message: string;
+  status: "NEW" | "REVIEWED" | "DISMISSED" | "ACTION_TAKEN";
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
+export async function getLiveExaminees(params?: { date?: string; batch?: string; search?: string }): Promise<LiveExamineeDto[]> {
+  const query = new URLSearchParams();
+  if (params?.date) query.set("date", params.date);
+  if (params?.batch) query.set("batch", params.batch);
+  if (params?.search) query.set("search", params.search);
+  const qStr = query.toString();
+  return request<LiveExamineeDto[]>(`admin/live-monitoring/examinees${qStr ? `?${qStr}` : ""}`);
+}
+
+export async function giveExtraTime(candidateId: number, attemptId?: number, extraMinutes: number = 10): Promise<{
+  success: boolean;
+  message: string;
+  attemptId: number;
+  expiresAt: string;
+  extraTimeMinutes: number;
+}> {
+  return request("admin/live-monitoring/give-extra-time", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateId, attemptId, extraMinutes })
+  });
+}
+
+export async function stopCandidateExam(candidateId: number, attemptId?: number, reason: string = "Examination stopped by administrator."): Promise<{
+  success: boolean;
+  message: string;
+  status: string;
+}> {
+  return request("admin/live-monitoring/stop-exam", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateId, attemptId, reason })
+  });
+}
+
+export async function getProctorAlerts(params?: { candidateId?: number; status?: string; limit?: number }): Promise<ProctorAlertDto[]> {
+  const query = new URLSearchParams();
+  if (params?.candidateId) query.set("candidateId", String(params.candidateId));
+  if (params?.status) query.set("status", params.status);
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qStr = query.toString();
+  return request<ProctorAlertDto[]>(`admin/live-monitoring/alerts${qStr ? `?${qStr}` : ""}`);
+}
+
+export async function reviewProctorAlert(alertId: number, status: string = "REVIEWED"): Promise<{ success: boolean }> {
+  return request(`admin/live-monitoring/alerts/${alertId}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  });
+}
+
+export async function getCandidateAlertHistory(candidateId: number): Promise<ProctorAlertDto[]> {
+  return request<ProctorAlertDto[]>(`admin/live-monitoring/alerts/history/${candidateId}`);
+}
+
+export async function getCandidateHeartbeat(candidateId: number, attemptId?: number): Promise<{
+  status: string;
+  attemptId?: number;
+  expiresAt?: string;
+  deadlineMs?: number;
+  remainingSeconds?: number;
+  extraTimeMinutes?: number;
+  serverTime?: string;
+  terminationReason?: string;
+}> {
+  const query = new URLSearchParams({ candidateId: String(candidateId) });
+  if (attemptId) query.set("attemptId", String(attemptId));
+  return request(`candidate/heartbeat?${query.toString()}`);
+}
+
+export async function reportProctorAlert(payload: {
+  candidateId: number;
+  attemptId?: number;
+  alertType: string;
+  message: string;
+  severity?: string;
+}): Promise<any> {
+  return request("candidate/proctor/alert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
 
 /* Legacy helpers for compatibility with existing status banner */
 export function setAdminCredentials(_u: string, _p: string): void {}

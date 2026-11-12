@@ -10,6 +10,7 @@ from app.models.attempt import (
 )
 from app.models.document import StoredDocument
 from app.models.audit import AuditLog
+from app.models.proctor import ProctorAlert
 from app.models.coding import (
     CodingExam, CodingQuestion, CodingTestCase, CodingAttempt, CodingSubmission
 )
@@ -33,6 +34,7 @@ __all__ = [
     "AttemptAnswer",
     "StoredDocument",
     "AuditLog",
+    "ProctorAlert",
     "CodingExam",
     "CodingQuestion",
     "CodingTestCase",

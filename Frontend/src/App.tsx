@@ -17,6 +17,7 @@ const CreateExamPage = lazy(() => import("./pages/admin/CreateExamPage"));
 const QuestionBankPage = lazy(() => import("./pages/admin/QuestionBankPage"));
 const CandidatesPage = lazy(() => import("./pages/admin/CandidatesPage"));
 const ResultsPage = lazy(() => import("./pages/admin/ResultsPage"));
+const LiveMonitoringPage = lazy(() => import("./pages/admin/LiveMonitoringPage"));
 const DepartmentsPage = lazy(() => import("./pages/admin/DepartmentsPage"));
 const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
@@ -128,6 +129,9 @@ function AppContent() {
     }
     if (path.startsWith("/admin/candidates")) {
       return <CandidatesPage />;
+    }
+    if (path.startsWith("/admin/live-monitoring")) {
+      return <LiveMonitoringPage />;
     }
     if (path.startsWith("/admin/results")) {
       return <ResultsPage />;
