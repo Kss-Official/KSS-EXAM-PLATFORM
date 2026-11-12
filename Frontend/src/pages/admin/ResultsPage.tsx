@@ -287,33 +287,35 @@ export default function ResultsPage() {
     const titleLower = (r.examTitle || "").toLowerCase().trim();
     const batchLower = (r.candidateBatch || "").toLowerCase().trim();
 
-    // Explicit Slot 1 check
-    if (
-      r.slotNumber === 1 ||
-      r.examId === 98 ||
-      batchLower.includes("slot 1") ||
-      batchLower.includes("11:00") ||
-      batchLower.includes("10:00") ||
-      titleLower.includes("slot 1") ||
-      (r.examId === 102 && !batchLower.includes("slot 2"))
-    ) {
+    // 1. Direct slot number from database
+    if (r.slotNumber === 1) return "Slot 1";
+    if (r.slotNumber === 2) return "Slot 2";
+    if (r.slotNumber === 3) return "Slot 3";
+
+    // 2. Explicit Slot naming
+    if (batchLower.includes("slot 1") || titleLower.includes("slot 1") || r.examId === 98) {
       return "Slot 1";
     }
-
-    // Explicit Slot 2 check
-    if (
-      r.slotNumber === 2 ||
-      r.examId === 99 ||
-      batchLower.includes("slot 2") ||
-      batchLower.includes("4:00") ||
-      batchLower.includes("4pm") ||
-      batchLower.includes("2:00") ||
-      batchLower.includes("2pm") ||
-      titleLower.includes("slot @") ||
-      titleLower.includes("slot 2")
-    ) {
+    if (batchLower.includes("slot 2") || titleLower.includes("slot 2") || titleLower.includes("slot @") || r.examId === 99) {
       return "Slot 2";
     }
+    if (batchLower.includes("slot 3") || titleLower.includes("slot 3")) {
+      return "Slot 3";
+    }
+
+    // 3. Dynamic timing match from slotTimings configuration
+    const s1Start = slotTimings?.slot1?.startTime?.toLowerCase();
+    const s2Start = slotTimings?.slot2?.startTime?.toLowerCase();
+    const s3Start = slotTimings?.slot3?.startTime?.toLowerCase();
+
+    if (s1Start && (batchLower.includes(s1Start) || titleLower.includes(s1Start))) return "Slot 1";
+    if (s2Start && (batchLower.includes(s2Start) || titleLower.includes(s2Start))) return "Slot 2";
+    if (s3Start && (batchLower.includes(s3Start) || titleLower.includes(s3Start))) return "Slot 3";
+
+    // 4. Fallback checks for common time strings
+    if (batchLower.includes("10:00") || batchLower.includes("11:00") || batchLower.includes("11:30")) return "Slot 1";
+    if (batchLower.includes("1:00") || batchLower.includes("1pm") || batchLower.includes("2:00") || batchLower.includes("2pm")) return "Slot 2";
+    if (batchLower.includes("4:00") || batchLower.includes("4pm") || titleLower.includes("4:00") || titleLower.includes("4pm")) return "Slot 3";
 
     // Independent Mock / Demo exams without any slot designation
     if (
@@ -322,19 +324,6 @@ export default function ResultsPage() {
       titleLower.includes("mock")
     ) {
       return "OTHER";
-    }
-
-    // Explicit Slot 3 (4:00 PM) check
-    if (
-      r.slotNumber === 3 ||
-      titleLower.includes("slot 3") ||
-      titleLower.includes("4:00") ||
-      titleLower.includes("4pm") ||
-      batchLower.includes("slot 3") ||
-      batchLower.includes("4:00") ||
-      batchLower.includes("4pm")
-    ) {
-      return "Slot 3";
     }
 
     return "OTHER";
@@ -365,6 +354,10 @@ export default function ResultsPage() {
   const s2CutoffR = slotTimings?.slot2?.cutoffTime;
   const slot2TabLabel = s2StartR ? `Slot 2 (${s2StartR})` : (is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)");
 
+  const s3StartR = slotTimings?.slot3?.startTime;
+  const s3CutoffR = slotTimings?.slot3?.cutoffTime;
+  const slot3TabLabel = s3StartR ? `Slot 3 (${s3StartR})` : "Slot 3 (4:00 PM)";
+
   const slot1StatusTitle = (s1StartR && s1CutoffR) 
     ? `Slot 1 Exam (Entry: ${s1StartR} – ${s1CutoffR} IST)`
     : (is31Oct 
@@ -380,6 +373,10 @@ export default function ResultsPage() {
     : is30Oct 
     ? "Slot 2 Exam: Completed (02:00 PM – 03:00 PM)" 
     : "Slot 2 Examination");
+
+  const slot3StatusTitle = (s3StartR && s3CutoffR)
+    ? `Slot 3 Exam (Entry: ${s3StartR} – ${s3CutoffR} IST)`
+    : "Slot 3 Examination";
 
   // Compute dynamic pool based on selected slot or selected exam
   const activeSlotPool = useMemo(() => {
@@ -495,9 +492,9 @@ export default function ResultsPage() {
   // Slot title for exports
   const getSlotExportTitle = () => {
     if (selectedExamObj) return `${selectedExamObj.title} (Exam #${selectedExamObj.id})`;
-    if (slotFilter === "Slot 1") return is31Oct ? "Slot 1 (11:30 AM - 1:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
-    if (slotFilter === "Slot 2") return is31Oct ? "Slot 2 (04:00 PM - 05:00 PM)" : is30Oct ? "Slot 2 (02:00 PM - 03:00 PM)" : "Slot 2 (Afternoon)";
-    if (slotFilter === "Slot 3") return "Slot 3 (04:00 PM - 05:00 PM)";
+    if (slotFilter === "Slot 1") return (s1StartR && s1CutoffR) ? `Slot 1 (${s1StartR} - ${s1CutoffR})` : is31Oct ? "Slot 1 (11:30 AM - 1:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
+    if (slotFilter === "Slot 2") return (s2StartR && s2CutoffR) ? `Slot 2 (${s2StartR} - ${s2CutoffR})` : is31Oct ? "Slot 2 (04:00 PM - 05:00 PM)" : is30Oct ? "Slot 2 (02:00 PM - 03:00 PM)" : "Slot 2 (Afternoon)";
+    if (slotFilter === "Slot 3") return (s3StartR && s3CutoffR) ? `Slot 3 (${s3StartR} - ${s3CutoffR})` : "Slot 3 (04:00 PM - 05:00 PM)";
     if (slotFilter === "OTHER") return "Other & Flexible Exams";
     return "All Slots Combined";
   };
@@ -593,6 +590,8 @@ export default function ResultsPage() {
           .slot-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
           .slot-1 { background: #e0f2fe; color: #0369a1; }
           .slot-2 { background: #f3e8ff; color: #6b21a8; }
+          .slot-3 { background: #fef3c7; color: #b45309; }
+          .slot-other { background: #ccfbf1; color: #0f766e; }
           .date-pill { background: #f1f5f9; color: #334155; font-size: 10.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
           .footer { margin-top: 32px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
           @media print {
@@ -640,7 +639,7 @@ export default function ResultsPage() {
                   </td>
                   <td>${c.departmentName}</td>
                   <td>
-                    <span class="slot-pill ${slot === "Slot 1" ? "slot-1" : "slot-2"}">${slot}</span>
+                    <span class="slot-pill ${slot === "Slot 1" ? "slot-1" : slot === "Slot 2" ? "slot-2" : slot === "Slot 3" ? "slot-3" : "slot-other"}">${slot}</span>
                     <span style="font-size: 11px; font-weight: 600; margin-left: 4px;">Set ${c.setCode}</span>
                   </td>
                   <td>${c.answeredCount} / ${c.unansweredCount}</td>
@@ -1103,40 +1102,38 @@ export default function ResultsPage() {
                 </span>
               </button>
 
-              {/* Slot 3 (4:00 PM) Tab - shown if any candidates exist */}
-              {slotCounts.slot3 > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSlotFilter("Slot 3")}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "7px 16px",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    border: "none",
-                    background: slotFilter === "Slot 3" ? "#d97706" : "transparent",
-                    color: slotFilter === "Slot 3" ? "#ffffff" : "#475569",
-                    boxShadow: slotFilter === "Slot 3" ? "0 2px 6px rgba(217, 119, 6, 0.3)" : "none",
-                    transition: "all 0.15s ease"
-                  }}
-                >
-                  <span>Slot 3 (04:00 PM)</span>
-                  <span style={{
-                    background: slotFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
-                    color: slotFilter === "Slot 3" ? "#ffffff" : "#b45309",
-                    padding: "1px 8px",
-                    borderRadius: "10px",
-                    fontSize: "11.5px",
-                    fontWeight: 800
-                  }}>
-                    {slotCounts.slot3}
-                  </span>
-                </button>
-              )}
+              {/* Slot 3 Tab - unconditionally visible, dynamic label */}
+              <button
+                type="button"
+                onClick={() => setSlotFilter("Slot 3")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "7px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: slotFilter === "Slot 3" ? "#d97706" : "transparent",
+                  color: slotFilter === "Slot 3" ? "#ffffff" : "#475569",
+                  boxShadow: slotFilter === "Slot 3" ? "0 2px 6px rgba(217, 119, 6, 0.3)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>{slot3TabLabel}</span>
+                <span style={{
+                  background: slotFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
+                  color: slotFilter === "Slot 3" ? "#ffffff" : "#b45309",
+                  padding: "1px 8px",
+                  borderRadius: "10px",
+                  fontSize: "11.5px",
+                  fontWeight: 800
+                }}>
+                  {slotCounts.slot3}
+                </span>
+              </button>
 
               {/* Other / Flexible Exams Tab - shown if any independent exam candidates exist */}
               {slotCounts.other > 0 && (
@@ -1274,8 +1271,8 @@ export default function ResultsPage() {
                 color: "#b45309",
                 fontWeight: 600
               }}>
-                <Clock size={14} color="#d97706" />
-                <span>Slot 3 Exam: <strong>Scheduled (04:00 PM – 05:00 PM)</strong> &bull; {slotCounts.slot3} Candidates</span>
+                <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#d97706" }} />
+                <span><strong>{slot3StatusTitle}</strong> &bull; {slotCounts.slot3} Attendees</span>
               </div>
             )}
             {!selectedExamObj && slotFilter === "OTHER" && (
@@ -1841,7 +1838,7 @@ export default function ResultsPage() {
                               bBg = "#fffbeb";
                               bCol = "#b45309";
                               bBrd = "#fde68a";
-                              bTxt = "Slot 3 (4:00 PM)";
+                              bTxt = "Slot 3";
                             }
 
                             return (
