@@ -132,7 +132,7 @@ class LiveMonitoringService:
                     expiresAt=a.expires_at,
                     extraTimeMinutes=getattr(a, "extra_time_minutes", 0) or 0,
                     questionsAnswered=a.questions_answered or 0,
-                    totalQuestions=a.total_questions or (a.question_set.total_questions if a.question_set else 30),
+                    totalQuestions=a.total_questions or (len(a.question_set.questions) if (a.question_set and a.question_set.questions) else 30),
                     remainingSeconds=rem_sec,
                     alertsCount=alerts_count,
                     lastAlert=last_alert_dict,

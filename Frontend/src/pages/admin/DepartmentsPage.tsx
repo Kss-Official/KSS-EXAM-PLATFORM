@@ -316,40 +316,32 @@ export default function DepartmentsPage() {
         key={item.id} 
         style={{ 
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "12px",
           border: "1px solid #e2e8f0",
+          borderLeft: item.active 
+            ? (activeTab === "academic" 
+                ? (item.category === "NON_TECHNICAL" ? "4px solid #7e22ce" : "4px solid #017846")
+                : "4px solid #2563eb")
+            : "4px solid #cbd5e1",
           padding: "20px",
           display: "flex", 
           flexDirection: "column", 
           justifyContent: "space-between",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
           transition: "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
-          position: "relative",
-          overflow: "hidden"
+          position: "relative"
         }}
         onMouseEnter={e => {
           e.currentTarget.style.transform = "translateY(-2px)";
-          e.currentTarget.style.boxShadow = "0 12px 24px -8px rgba(0,0,0,0.08)";
+          e.currentTarget.style.boxShadow = "0 6px 16px rgba(0, 0, 0, 0.05)";
           e.currentTarget.style.borderColor = "#cbd5e1";
         }}
         onMouseLeave={e => {
           e.currentTarget.style.transform = "translateY(0)";
-          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.02)";
+          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0, 0, 0, 0.03)";
           e.currentTarget.style.borderColor = "#e2e8f0";
         }}
       >
-        {/* Top Header Strip Accent */}
-        <div style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: "3px",
-          background: item.active 
-            ? (activeTab === "academic" ? (item.category === "NON_TECHNICAL" ? "linear-gradient(90deg, #9333ea, #a855f7)" : "linear-gradient(90deg, #059669, #10b981)") : "linear-gradient(90deg, #2563eb, #3b82f6)") 
-            : "#cbd5e1"
-        }} />
-
         <div>
           {/* Badge & Status Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
@@ -589,11 +581,12 @@ export default function DepartmentsPage() {
 
       {/* Page Header */}
       <div style={{
-        background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+        background: "#ffffff",
         border: "1px solid #e2e8f0",
-        borderRadius: "16px",
-        padding: "24px 28px",
-        boxShadow: "0 2px 4px rgba(0,0,0,0.02)",
+        borderLeft: activeTab === "academic" ? "4px solid #017846" : "4px solid #2563eb",
+        borderRadius: "12px",
+        padding: "20px 24px",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -700,10 +693,10 @@ export default function DepartmentsPage() {
         {/* Card 1: Total */}
         <div style={{
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "12px",
           border: "1px solid #e2e8f0",
           padding: "18px 20px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center"
@@ -722,7 +715,7 @@ export default function DepartmentsPage() {
           <div style={{
             width: "44px",
             height: "44px",
-            borderRadius: "12px",
+            borderRadius: "10px",
             background: "#f0fdf4",
             color: "#059669",
             display: "flex",
@@ -736,10 +729,10 @@ export default function DepartmentsPage() {
         {/* Card 2: Active Rate */}
         <div style={{
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "12px",
           border: "1px solid #e2e8f0",
           padding: "18px 20px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center"
@@ -758,7 +751,7 @@ export default function DepartmentsPage() {
           <div style={{
             width: "44px",
             height: "44px",
-            borderRadius: "12px",
+            borderRadius: "10px",
             background: "#ecfdf5",
             color: "#10b981",
             display: "flex",
@@ -772,10 +765,10 @@ export default function DepartmentsPage() {
         {/* Card 3: Candidates Linked */}
         <div style={{
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "12px",
           border: "1px solid #e2e8f0",
           padding: "18px 20px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center"
@@ -794,7 +787,7 @@ export default function DepartmentsPage() {
           <div style={{
             width: "44px",
             height: "44px",
-            borderRadius: "12px",
+            borderRadius: "10px",
             background: "#eff6ff",
             color: "#2563eb",
             display: "flex",
@@ -808,10 +801,10 @@ export default function DepartmentsPage() {
         {/* Card 4: Assessment Mappings */}
         <div style={{
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "12px",
           border: "1px solid #e2e8f0",
           padding: "18px 20px",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center"
@@ -830,7 +823,7 @@ export default function DepartmentsPage() {
           <div style={{
             width: "44px",
             height: "44px",
-            borderRadius: "12px",
+            borderRadius: "10px",
             background: "#faf5ff",
             color: "#7e22ce",
             display: "flex",
@@ -974,108 +967,6 @@ export default function DepartmentsPage() {
         </div>
       </div>
 
-      {/* Track Stream Tabs (Technical vs Non-Technical) */}
-      {activeTab === "academic" && (
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "10px",
-          background: "#ffffff",
-          padding: "10px 16px",
-          borderRadius: "12px",
-          border: "1px solid #e2e8f0",
-          flexWrap: "wrap"
-        }}>
-          <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Department Stream:
-          </span>
-          
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("ALL")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "20px",
-              fontSize: "12.5px",
-              fontWeight: 700,
-              cursor: "pointer",
-              border: categoryFilter === "ALL" ? "1px solid #017846" : "1px solid #e2e8f0",
-              background: categoryFilter === "ALL" ? "#ecfdf5" : "#ffffff",
-              color: categoryFilter === "ALL" ? "#017846" : "#64748b",
-              transition: "all 0.15s ease",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-          >
-            <span>All Departments</span>
-            <span style={{
-              background: categoryFilter === "ALL" ? "#017846" : "#f1f5f9",
-              color: categoryFilter === "ALL" ? "#ffffff" : "#64748b",
-              fontSize: "10px",
-              padding: "1px 6px",
-              borderRadius: "999px"
-            }}>{items.length}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("TECHNICAL")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "20px",
-              fontSize: "12.5px",
-              fontWeight: 700,
-              cursor: "pointer",
-              border: categoryFilter === "TECHNICAL" ? "1px solid #017846" : "1px solid #e2e8f0",
-              background: categoryFilter === "TECHNICAL" ? "#ecfdf5" : "#ffffff",
-              color: categoryFilter === "TECHNICAL" ? "#017846" : "#64748b",
-              transition: "all 0.15s ease",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-          >
-            <span>🛠️ Technical Departments</span>
-            <span style={{
-              background: categoryFilter === "TECHNICAL" ? "#017846" : "#f1f5f9",
-              color: categoryFilter === "TECHNICAL" ? "#ffffff" : "#64748b",
-              fontSize: "10px",
-              padding: "1px 6px",
-              borderRadius: "999px"
-            }}>{techCount}</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setCategoryFilter("NON_TECHNICAL")}
-            style={{
-              padding: "6px 14px",
-              borderRadius: "20px",
-              fontSize: "12.5px",
-              fontWeight: 700,
-              cursor: "pointer",
-              border: categoryFilter === "NON_TECHNICAL" ? "1px solid #7e22ce" : "1px solid #e2e8f0",
-              background: categoryFilter === "NON_TECHNICAL" ? "#faf5ff" : "#ffffff",
-              color: categoryFilter === "NON_TECHNICAL" ? "#7e22ce" : "#64748b",
-              transition: "all 0.15s ease",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px"
-            }}
-          >
-            <span>💼 Non-Technical Departments</span>
-            <span style={{
-              background: categoryFilter === "NON_TECHNICAL" ? "#7e22ce" : "#f1f5f9",
-              color: categoryFilter === "NON_TECHNICAL" ? "#ffffff" : "#64748b",
-              fontSize: "10px",
-              padding: "1px 6px",
-              borderRadius: "999px"
-            }}>{nonTechCount}</span>
-          </button>
-        </div>
-      )}
-
       {/* Search & Filtering Toolbar */}
       <div style={{
         display: "flex",
@@ -1083,9 +974,10 @@ export default function DepartmentsPage() {
         alignItems: "center",
         flexWrap: "wrap",
         background: "#ffffff",
-        padding: "14px 18px",
+        padding: "12px 18px",
         borderRadius: "12px",
-        border: "1px solid #e2e8f0"
+        border: "1px solid #e2e8f0",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)"
       }}>
         {/* Search Input */}
         <div style={{ flex: 1, minWidth: "260px", position: "relative" }}>
@@ -1099,8 +991,8 @@ export default function DepartmentsPage() {
               width: "100%", 
               paddingLeft: "38px", 
               paddingRight: searchQuery ? "36px" : "14px",
-              height: "40px", 
-              borderRadius: "10px", 
+              height: "38px", 
+              borderRadius: "8px", 
               border: "1px solid #cbd5e1",
               fontSize: "13px",
               color: "#0f172a",
@@ -1127,6 +1019,78 @@ export default function DepartmentsPage() {
             </button>
           )}
         </div>
+
+        {/* Academic Stream Filter Pills */}
+        {activeTab === "academic" && (
+          <div style={{ display: "inline-flex", background: "#f1f5f9", padding: "3px", borderRadius: "8px", gap: "2px" }}>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("ALL")}
+              style={{
+                padding: "6px 12px",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                background: categoryFilter === "ALL" ? "#ffffff" : "transparent",
+                color: categoryFilter === "ALL" ? "#017846" : "#64748b",
+                boxShadow: categoryFilter === "ALL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "12px",
+                fontWeight: 600,
+                transition: "all 0.12s ease"
+              }}
+            >
+              <span>All Tracks</span>
+              <span style={{ fontSize: "10.5px", fontWeight: 700, opacity: 0.75 }}>({items.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("TECHNICAL")}
+              style={{
+                padding: "6px 12px",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                background: categoryFilter === "TECHNICAL" ? "#ffffff" : "transparent",
+                color: categoryFilter === "TECHNICAL" ? "#017846" : "#64748b",
+                boxShadow: categoryFilter === "TECHNICAL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "12px",
+                fontWeight: 600,
+                transition: "all 0.12s ease"
+              }}
+            >
+              <span>🛠️ Technical</span>
+              <span style={{ fontSize: "10.5px", fontWeight: 700, opacity: 0.75 }}>({techCount})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCategoryFilter("NON_TECHNICAL")}
+              style={{
+                padding: "6px 12px",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+                background: categoryFilter === "NON_TECHNICAL" ? "#ffffff" : "transparent",
+                color: categoryFilter === "NON_TECHNICAL" ? "#7e22ce" : "#64748b",
+                boxShadow: categoryFilter === "NON_TECHNICAL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "12px",
+                fontWeight: 600,
+                transition: "all 0.12s ease"
+              }}
+            >
+              <span>💼 Non-Technical</span>
+              <span style={{ fontSize: "10.5px", fontWeight: 700, opacity: 0.75 }}>({nonTechCount})</span>
+            </button>
+          </div>
+        )}
 
         {/* Status Dropdown */}
         <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
@@ -1230,33 +1194,28 @@ export default function DepartmentsPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "12px 18px",
-                  background: "linear-gradient(90deg, #ecfdf5, #f0fdf4)",
-                  borderRadius: "12px",
-                  border: "1px solid #a7f3d0",
-                  marginBottom: "16px"
+                  paddingBottom: "10px",
+                  marginBottom: "14px",
+                  borderBottom: "1px solid #e2e8f0"
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "20px" }}>🛠️</span>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#065f46" }}>
-                        Technical Departments & Engineering Tracks
-                      </h3>
-                      <p style={{ margin: 0, fontSize: "12px", color: "#047857" }}>
-                        Core Engineering disciplines, software architecture, developer roles, and QA tracks
-                      </p>
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                      🛠️ Technical Departments
+                    </h3>
+                    <span style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      background: "#ecfdf5",
+                      color: "#017846",
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      border: "1px solid #a7f3d0"
+                    }}>
+                      {filteredItems.filter(i => i.category !== "NON_TECHNICAL").length} Tracks
+                    </span>
                   </div>
-                  <span style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    background: "#ffffff",
-                    color: "#047857",
-                    padding: "3px 10px",
-                    borderRadius: "999px",
-                    border: "1px solid #a7f3d0"
-                  }}>
-                    {filteredItems.filter(i => i.category !== "NON_TECHNICAL").length} Tracks
+                  <span style={{ fontSize: "12px", color: "#64748b" }}>
+                    Core Engineering, Software Architecture, DevOps & QA
                   </span>
                 </div>
 
@@ -1279,33 +1238,28 @@ export default function DepartmentsPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "space-between",
-                  padding: "12px 18px",
-                  background: "linear-gradient(90deg, #faf5ff, #fdf4ff)",
-                  borderRadius: "12px",
-                  border: "1px solid #e9d5ff",
-                  marginBottom: "16px"
+                  paddingBottom: "10px",
+                  marginBottom: "14px",
+                  borderBottom: "1px solid #e2e8f0"
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "20px" }}>💼</span>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#6b21a8" }}>
-                        Non-Technical Departments & Business Operations
-                      </h3>
-                      <p style={{ margin: 0, fontSize: "12px", color: "#7e22ce" }}>
-                        Human resources, sales, marketing, business management, and operations tracks
-                      </p>
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                      💼 Non-Technical Departments
+                    </h3>
+                    <span style={{
+                      fontSize: "11px",
+                      fontWeight: 700,
+                      background: "#faf5ff",
+                      color: "#7e22ce",
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                      border: "1px solid #e9d5ff"
+                    }}>
+                      {filteredItems.filter(i => i.category === "NON_TECHNICAL").length} Tracks
+                    </span>
                   </div>
-                  <span style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    background: "#ffffff",
-                    color: "#7e22ce",
-                    padding: "3px 10px",
-                    borderRadius: "999px",
-                    border: "1px solid #e9d5ff"
-                  }}>
-                    {filteredItems.filter(i => i.category === "NON_TECHNICAL").length} Tracks
+                  <span style={{ fontSize: "12px", color: "#64748b" }}>
+                    Human Resources, Sales & Business Management
                   </span>
                 </div>
 
@@ -1326,10 +1280,10 @@ export default function DepartmentsPage() {
         /* TABLE LIST VIEW */
         <div style={{
           background: "#ffffff",
-          borderRadius: "14px",
+          borderRadius: "12px",
           border: "1px solid #e2e8f0",
           overflow: "hidden",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+          boxShadow: "0 1px 3px rgba(0,0,0,0.03)"
         }}>
           <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "13px" }}>
             <thead>
