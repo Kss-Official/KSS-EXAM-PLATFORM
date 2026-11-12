@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { 
   BookOpen, 
   ChevronLeft, 
@@ -86,6 +86,7 @@ export default function CandidateExamPage({
   const [showNavLockedModal, setShowNavLockedModal] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
   const [submitting, setSubmitting] = useState(false);
+  const [serverOffset, setServerOffset] = useState<number>(0);
 
   // Attempt-scoped storage key prevents cross-candidate data leakage in shared computer lab terminals
   const getAttemptStorageKey = useCallback((aid?: number | null) => {
@@ -275,6 +276,13 @@ export default function CandidateExamPage({
             const deadlineStr = attemptData.deadlineAt || attemptData.expiresAt;
             const serverDeadline = deadlineStr ? new Date(deadlineStr).getTime() : session.deadline;
 
+            const serverTimeStr = attemptData.serverTime;
+            if (serverTimeStr) {
+              const serverMs = new Date(serverTimeStr).getTime();
+              const offset = serverMs - Date.now();
+              setServerOffset(offset);
+            }
+
             setSession(prev => {
               const updated = {
                 ...prev,
@@ -356,6 +364,21 @@ export default function CandidateExamPage({
   const total = questions.length;
   const answeredCount = Object.keys(answers).length;
   const currentQuestion = questions[idx] || null;
+
+  const unansweredQuestions = useMemo(() => {
+    const list: number[] = [];
+    const questionCount = Math.max(total, questions.length);
+    for (let qNum = 1; qNum <= questionCount; qNum++) {
+      if (answers[qNum] === undefined || answers[qNum] === null) {
+        list.push(qNum);
+      }
+    }
+    return list;
+  }, [total, questions.length, answers]);
+
+  const sortedFlaggedQuestions = useMemo(() => {
+    return [...flags].sort((a, b) => a - b);
+  }, [flags]);
 
   // Helper to determine active section info
   const getSectionInfo = (qNum: number) => {
@@ -518,13 +541,22 @@ export default function CandidateExamPage({
     const aid = backendAttemptId || session?.backendAttemptId;
     const cid = session?.profile?.dbCandidateId;
     if (aid) {
-      try {
-        backendResult = await submitCandidateAttempt(aid, answers, cid);
+      // Retry submission up to 3 times in case of transient network turbulence
+      let attemptsLeft = 3;
+      while (attemptsLeft > 0) {
         try {
-          localStorage.removeItem(getAttemptStorageKey(aid));
-        } catch {}
-      } catch (err) {
-        console.warn("[CandidateExamPage] Live backend submit attempt error:", err);
+          backendResult = await submitCandidateAttempt(aid, answers, cid);
+          try {
+            localStorage.removeItem(getAttemptStorageKey(aid));
+          } catch {}
+          break;
+        } catch (err) {
+          attemptsLeft--;
+          console.warn(`[CandidateExamPage] Live backend submit attempt error (${attemptsLeft} retries remaining):`, err);
+          if (attemptsLeft > 0) {
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
       }
     }
     onFinalize(reason, backendResult);
@@ -592,6 +624,7 @@ export default function CandidateExamPage({
         <div className="exam-nav-right">
           <ExamTimer
             deadline={session.deadline}
+            serverOffset={serverOffset}
             isSubmitted={session.isSubmitted}
             onExpire={() => triggerFinalization("timer_expired")}
           />
@@ -739,8 +772,14 @@ export default function CandidateExamPage({
           total={total}
           answeredCount={answeredCount}
           flaggedCount={flags.length}
+          flaggedQuestions={sortedFlaggedQuestions}
+          unansweredQuestions={unansweredQuestions}
           onCancel={() => setShowSubmitModal(false)}
           onConfirm={() => triggerFinalization("manual_submit")}
+          onJumpToQuestion={(questionNum) => {
+            setShowSubmitModal(false);
+            handleNavigateQuestion(questionNum - 1);
+          }}
         />
       )}
 
@@ -805,6 +844,37 @@ export default function CandidateExamPage({
             >
               Continue Assessment
             </button>
+          </div>
+        </div>
+      )}
+      {/* Fullscreen Submitting Overlay */}
+      {submitting && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(15, 23, 42, 0.78)",
+          backdropFilter: "blur(5px)",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            padding: "36px 32px",
+            maxWidth: "440px",
+            width: "90%",
+            textAlign: "center",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)"
+          }}>
+            <Loader2 size={42} className="animate-spin" color="#017846" style={{ margin: "0 auto 16px" }} />
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Submitting Assessment...
+            </h3>
+            <p style={{ margin: 0, fontSize: "13.5px", color: "#64748b", lineHeight: 1.5 }}>
+              Your examination answers have been secured. Calculating score and finalizing your submission receipt...
+            </p>
           </div>
         </div>
       )}

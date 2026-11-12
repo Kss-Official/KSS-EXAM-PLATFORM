@@ -16,6 +16,13 @@ class DashboardService:
         Aggregates real-time examination telemetry using optimized SQL aggregate queries
         to eliminate latency bottlenecks over remote PostgreSQL connections.
         """
+        # 0. Auto-finalize any attempts exceeding duration deadline before aggregating stats
+        try:
+            from app.candidate.services.candidate_exam_service import CandidateExamService
+            CandidateExamService.auto_finalize_expired_attempts(db)
+        except Exception:
+            pass
+
         # 1. Aggregate Exam metrics in a single query
         total_exams, active_exams = db.query(
             func.count(Exam.id),
@@ -74,6 +81,13 @@ class DashboardService:
         """
         Loads candidate exam results filtered by optional exam_id and specific examination date (in IST).
         """
+        # Ensure any expired attempts are auto-finalized so Admin Portal reflects fresh submissions
+        try:
+            from app.candidate.services.candidate_exam_service import CandidateExamService
+            CandidateExamService.auto_finalize_expired_attempts(db)
+        except Exception:
+            pass
+
         IST = timezone(timedelta(hours=5, minutes=30))
         query = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.candidate).joinedload(Candidate.department),

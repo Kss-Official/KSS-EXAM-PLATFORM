@@ -277,6 +277,8 @@ export interface CandidateStartAttemptResponse {
   totalDurationSeconds: number;
   questions: CandidateQuestionDto[];
   answers?: Record<string | number, number>;
+  serverTime?: string;
+  durationMinutes?: number;
 }
 
 export interface SubmissionResponse {
@@ -842,11 +844,11 @@ export async function getCandidateDateCounts(): Promise<{ [d: string]: number }>
   return request<{ [d: string]: number }>("admin/candidates/date-counts");
 }
 
-export async function getCandidateSlotCounts(date?: string): Promise<{ total: number; slot1: number; slot2: number; unassigned?: number }> {
+export async function getCandidateSlotCounts(date?: string): Promise<{ total: number; slot1: number; slot2: number; slot3: number; unassigned?: number }> {
   const query = new URLSearchParams();
   if (date && date !== "ALL") query.set("date", date);
   const qs = query.toString();
-  return request<{ total: number; slot1: number; slot2: number; unassigned?: number }>(`admin/candidates/slot-counts${qs ? `?${qs}` : ""}`);
+  return request<{ total: number; slot1: number; slot2: number; slot3: number; unassigned?: number }>(`admin/candidates/slot-counts${qs ? `?${qs}` : ""}`);
 }
 
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
@@ -1056,6 +1058,7 @@ export interface SlotInfo {
 export interface SlotTimingsConfig {
   slot1: SlotInfo;
   slot2: SlotInfo;
+  slot3?: SlotInfo;
 }
 
 export async function getSlotTimings(): Promise<SlotTimingsConfig> {

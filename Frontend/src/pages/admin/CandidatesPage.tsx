@@ -275,10 +275,11 @@ export default function CandidatesPage() {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Global Slot Counts for high-level statistics
-  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
+  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number; slot3: number }>({
     total: 0,
     slot1: 0,
-    slot2: 0
+    slot2: 0,
+    slot3: 0
   });
   const [slotCountsLoading, setSlotCountsLoading] = useState<boolean>(true);
 
@@ -318,6 +319,13 @@ export default function CandidatesPage() {
       btn: "Slot 2 (4:00 PM)",
       startTime: "4:00 PM",
       cutoffTime: "4:30 PM"
+    },
+    slot3: {
+      header: "Slot 3 • 6:00 PM",
+      sub: "Entry: 6:00 – 7:30 PM IST",
+      btn: "Slot 3 (6:00 PM)",
+      startTime: "6:00 PM",
+      cutoffTime: "7:30 PM"
     }
   });
 
@@ -326,7 +334,9 @@ export default function CandidatesPage() {
     slot1StartTime: "11:30 AM",
     slot1CutoffTime: "1:30 PM",
     slot2StartTime: "4:00 PM",
-    slot2CutoffTime: "4:30 PM"
+    slot2CutoffTime: "4:30 PM",
+    slot3StartTime: "6:00 PM",
+    slot3CutoffTime: "7:30 PM"
   });
   const [savingSlotTimings, setSavingSlotTimings] = useState(false);
 
@@ -339,7 +349,9 @@ export default function CandidatesPage() {
           slot1StartTime: cfg.slot1.startTime || "11:30 AM",
           slot1CutoffTime: cfg.slot1.cutoffTime || "1:30 PM",
           slot2StartTime: cfg.slot2.startTime || "4:00 PM",
-          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM"
+          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM",
+          slot3StartTime: cfg.slot3?.startTime || "6:00 PM",
+          slot3CutoffTime: cfg.slot3?.cutoffTime || "7:30 PM"
         });
       }
     }).catch(() => {});
@@ -356,21 +368,24 @@ export default function CandidatesPage() {
           setSlotCounts({
             total: counts.total,
             slot1: counts.slot1,
-            slot2: counts.slot2
+            slot2: counts.slot2,
+            slot3: counts.slot3 || 0
           });
           return;
         }
       } catch {
         // Fallback to parallel count queries if slot-counts is not available
-        const [allRes, s1Res, s2Res] = await Promise.all([
+        const [allRes, s1Res, s2Res, s3Res] = await Promise.all([
           getCandidates({ limit: 1, date: dParam }),
           getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
-          getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
+          getCandidates({ limit: 1, batch: "Slot 2", date: dParam }),
+          getCandidates({ limit: 1, batch: "Slot 3", date: dParam })
         ]);
         setSlotCounts({
           total: allRes.total,
           slot1: s1Res.total,
-          slot2: s2Res.total
+          slot2: s2Res.total,
+          slot3: s3Res.total
         });
       }
     } catch {
@@ -724,6 +739,8 @@ export default function CandidatesPage() {
       setIsCsvModalOpen(false);
       setCsvFile(null);
       fetchPage1();
+      refreshSlotCounts(selectedDate);
+      loadAvailableDates();
     } catch (e: unknown) {
       const errorObj = e as Error;
       setNotice({ text: "Failed to upload roster document: " + errorObj.message, type: "error" });
@@ -737,7 +754,9 @@ export default function CandidatesPage() {
       slot1StartTime: slotTimings.slot1.startTime || "11:30 AM",
       slot1CutoffTime: slotTimings.slot1.cutoffTime || "1:30 PM",
       slot2StartTime: slotTimings.slot2.startTime || "4:00 PM",
-      slot2CutoffTime: slotTimings.slot2.cutoffTime || "4:30 PM"
+      slot2CutoffTime: slotTimings.slot2.cutoffTime || "4:30 PM",
+      slot3StartTime: slotTimings.slot3?.startTime || "6:00 PM",
+      slot3CutoffTime: slotTimings.slot3?.cutoffTime || "7:30 PM"
     });
     setIsEditSlotModalOpen(true);
   };
@@ -750,6 +769,8 @@ export default function CandidatesPage() {
     const s1Cutoff = editForm.slot1CutoffTime.trim();
     const s2Start = editForm.slot2StartTime.trim();
     const s2Cutoff = editForm.slot2CutoffTime.trim();
+    const s3Start = editForm.slot3StartTime.trim();
+    const s3Cutoff = editForm.slot3CutoffTime.trim();
 
     try {
       const updated = await updateSlotTimings({
@@ -766,6 +787,13 @@ export default function CandidatesPage() {
           header: `Slot 2 • ${s2Start}`,
           sub: `Entry: ${s2Start} – ${s2Cutoff} IST`,
           btn: `Slot 2 (${s2Start})`
+        },
+        slot3: {
+          startTime: s3Start,
+          cutoffTime: s3Cutoff,
+          header: `Slot 3 • ${s3Start}`,
+          sub: `Entry: ${s3Start} – ${s3Cutoff} IST`,
+          btn: `Slot 3 (${s3Start})`
         }
       });
       setSlotTimings({
@@ -784,10 +812,18 @@ export default function CandidatesPage() {
           header: `Slot 2 • ${s2Start}`,
           sub: `Entry: ${s2Start} – ${s2Cutoff} IST`,
           btn: `Slot 2 (${s2Start})`
+        },
+        slot3: {
+          ...(updated.slot3 || {}),
+          startTime: s3Start,
+          cutoffTime: s3Cutoff,
+          header: `Slot 3 • ${s3Start}`,
+          sub: `Entry: ${s3Start} – ${s3Cutoff} IST`,
+          btn: `Slot 3 (${s3Start})`
         }
       });
       setNotice({
-        text: `Slot timings updated successfully! Slot 1: ${s1Start} – ${s1Cutoff} | Slot 2: ${s2Start} – ${s2Cutoff}`,
+        text: `Slot timings updated successfully! Slot 1: ${s1Start} | Slot 2: ${s2Start} | Slot 3: ${s3Start}`,
         type: "success"
       });
       setIsEditSlotModalOpen(false);
@@ -811,6 +847,12 @@ export default function CandidatesPage() {
   const slot2Header = `Slot 2 • ${s2ActiveStart}`;
   const slot2Sub = `Entry: ${s2ActiveStart} – ${s2ActiveCutoff} IST`;
   const slot2Btn = `Slot 2 (${s2ActiveStart})`;
+
+  const s3ActiveStart = slotTimings.slot3?.startTime || "6:00 PM";
+  const s3ActiveCutoff = slotTimings.slot3?.cutoffTime || "7:30 PM";
+  const slot3Header = `Slot 3 • ${s3ActiveStart}`;
+  const slot3Sub = `Entry: ${s3ActiveStart} – ${s3ActiveCutoff} IST`;
+  const slot3Btn = `Slot 3 (${s3ActiveStart})`;
 
   return (
     <div className="admin-page-container">
@@ -864,6 +906,8 @@ export default function CandidatesPage() {
               setSelectedDate("ALL");
               setCustomDatePicker("");
               fetchPage1();
+      refreshSlotCounts(selectedDate);
+      loadAvailableDates();
             }}
             title="Reset Filters & Refresh Records"
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
@@ -1034,6 +1078,54 @@ export default function CandidatesPage() {
             <span className="stat-card-sub">{slot2Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#f3e8ff", color: "#7c3aed" }}>
+            <Clock size={22} />
+          </div>
+        </div>
+
+        <div 
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "Slot 3" ? "2px solid #d97706" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "Slot 3" ? "#fffbeb" : "#ffffff",
+            position: "relative"
+          }}
+          onClick={() => setBatchFilter(prev => prev === "Slot 3" ? "ALL" : "Slot 3")}
+          title="Click to filter Slot 3"
+        >
+          <div className="stat-card-info">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#d97706", fontWeight: 700 }}>{slot3Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditSlotModal();
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#d97706",
+                  backgroundColor: "#fef3c7",
+                  border: "1px solid #fde68a",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 3 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
+            <div className="stat-card-value" style={{ color: "#d97706" }}>
+              {slotCountsLoading ? "--" : slotCounts.slot3}
+            </div>
+            <span className="stat-card-sub">{slot3Sub}</span>
+          </div>
+          <div className="stat-card-icon" style={{ background: "#fef3c7", color: "#d97706" }}>
             <Clock size={22} />
           </div>
         </div>
@@ -1678,6 +1770,38 @@ export default function CandidatesPage() {
               {slotCountsLoading ? "--" : slotCounts.slot2}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 3")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 3" ? "2px solid #d97706" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 3" ? "#d97706" : "#f8fafc",
+              color: batchFilter === "Slot 3" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            {slot3Btn}
+            <span style={{
+              background: batchFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
+              color: batchFilter === "Slot 3" ? "#fff" : "#b45309",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCountsLoading ? "--" : slotCounts.slot3}
+            </span>
+          </button>
         </div>
 
         <div style={{ fontSize: "12.5px", color: "#64748b", fontWeight: 500 }}>
@@ -2034,9 +2158,9 @@ export default function CandidatesPage() {
                               fontWeight: 700,
                               padding: "3px 8px",
                               borderRadius: "6px",
-                              backgroundColor: cand.batch === "Slot 1" ? "#e0f2fe" : cand.batch === "Slot 2" ? "#f3e8ff" : "#f1f5f9",
-                              color: cand.batch === "Slot 1" ? "#0369a1" : cand.batch === "Slot 2" ? "#6b21a8" : "#64748b",
-                              border: cand.batch === "Slot 1" ? "1px solid #bae6fd" : cand.batch === "Slot 2" ? "1px solid #e9d5ff" : "1px solid #cbd5e1"
+                              backgroundColor: cand.batch === "Slot 1" ? "#e0f2fe" : cand.batch === "Slot 2" ? "#f3e8ff" : cand.batch === "Slot 3" ? "#fef3c7" : "#f1f5f9",
+                              color: cand.batch === "Slot 1" ? "#0369a1" : cand.batch === "Slot 2" ? "#6b21a8" : cand.batch === "Slot 3" ? "#b45309" : "#64748b",
+                              border: cand.batch === "Slot 1" ? "1px solid #bae6fd" : cand.batch === "Slot 2" ? "1px solid #e9d5ff" : cand.batch === "Slot 3" ? "1px solid #fde68a" : "1px solid #cbd5e1"
                             }}
                           >
                             <Clock size={11} />
@@ -2044,50 +2168,142 @@ export default function CandidatesPage() {
                           </span>
 
                           {cand.batch === "Slot 1" && (
-                            <button
-                              type="button"
-                              onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
-                              title={`Move candidate to Slot 2 (${s2ActiveStart}) with automatic attempt reset`}
-                              style={{
-                                padding: "3px 8px",
-                                borderRadius: "6px",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                backgroundColor: "#7c3aed",
-                                color: "#ffffff",
-                                border: "none",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
-                              }}
-                            >
-                              To Slot 2 <ArrowRight size={11} />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
+                                title={`Move candidate to Slot 2 (${s2ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#7c3aed",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
+                                }}
+                              >
+                                To Slot 2 <ArrowRight size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 3")}
+                                title={`Move candidate to Slot 3 (${s3ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#d97706",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(217, 119, 6, 0.2)"
+                                }}
+                              >
+                                To Slot 3 <ArrowRight size={11} />
+                              </button>
+                            </>
                           )}
 
                           {cand.batch === "Slot 2" && (
-                            <button
-                              type="button"
-                              onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
-                              title={`Move candidate to Slot 1 (${s1ActiveStart}) with automatic attempt reset`}
-                              style={{
-                                padding: "3px 8px",
-                                borderRadius: "6px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                backgroundColor: "#f0f9ff",
-                                color: "#0369a1",
-                                border: "1px solid #bae6fd",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px"
-                              }}
-                            >
-                              To Slot 1 <ArrowRight size={11} />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
+                                title={`Move candidate to Slot 1 (${s1ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  backgroundColor: "#f0f9ff",
+                                  color: "#0369a1",
+                                  border: "1px solid #bae6fd",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                              >
+                                To Slot 1 <ArrowRight size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 3")}
+                                title={`Move candidate to Slot 3 (${s3ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#d97706",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(217, 119, 6, 0.2)"
+                                }}
+                              >
+                                To Slot 3 <ArrowRight size={11} />
+                              </button>
+                            </>
+                          )}
+
+                          {cand.batch === "Slot 3" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
+                                title={`Move candidate to Slot 1 (${s1ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  backgroundColor: "#f0f9ff",
+                                  color: "#0369a1",
+                                  border: "1px solid #bae6fd",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                              >
+                                To Slot 1 <ArrowRight size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
+                                title={`Move candidate to Slot 2 (${s2ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#7c3aed",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
+                                }}
+                              >
+                                To Slot 2 <ArrowRight size={11} />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -2192,6 +2408,7 @@ export default function CandidatesPage() {
                 >
                   <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
                   <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Cutoff)</option>
+                  <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Cutoff)</option>
                   <option value="">Unassigned</option>
                 </select>
               </div>
@@ -2294,8 +2511,9 @@ export default function CandidatesPage() {
                   onChange={e => setRescheduleModal(prev => ({ ...prev, targetSlot: e.target.value }))}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 600 }}
                 >
-                  <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Window)</option>
                   <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Window)</option>
+                  <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Window)</option>
+                  <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Window)</option>
                 </select>
               </div>
 
@@ -2474,6 +2692,45 @@ export default function CandidatesPage() {
                 </div>
                 <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#7c3aed" }}>
                   Preview: <strong>Slot 2 • {editForm.slot2StartTime}</strong> (Entry: {editForm.slot2StartTime} – {editForm.slot2CutoffTime} IST)
+                </div>
+              </div>
+
+              {/* Slot 3 Settings */}
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "10px", padding: "14px", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#b45309" }}>SLOT 3 (Late Evening / Night)</span>
+                  <span style={{ fontSize: "11px", color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot3StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot3StartTime: e.target.value }))}
+                      placeholder="e.g. 6:00 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot3CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot3CutoffTime: e.target.value }))}
+                      placeholder="e.g. 7:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#d97706" }}>
+                  Preview: <strong>Slot 3 • {editForm.slot3StartTime}</strong> (Entry: {editForm.slot3StartTime} – {editForm.slot3CutoffTime} IST)
                 </div>
               </div>
 

@@ -75,19 +75,31 @@ class CandidateService:
         Retrieves all registered candidates with eager-loaded departments, colleges, and access codes in a single query.
         Optionally filters by examination date (YYYY-MM-DD).
         """
+        try:
+            from app.candidate.services.candidate_exam_service import CandidateExamService
+            CandidateExamService.auto_finalize_expired_attempts(db)
+        except Exception:
+            pass
+
         query = db.query(Candidate).options(
             joinedload(Candidate.department),
             joinedload(Candidate.college),
             joinedload(Candidate.access_codes)
         )
+        is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
         if date and date.strip() and date.strip().upper() != "ALL":
             d_clean = date.strip()
+            created_expr = (
+                func.strftime('%Y-%m-%d', Candidate.created_at) == d_clean
+                if is_sqlite else
+                func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+            )
             query = query.filter(
                 or_(
                     Candidate.exam_date == d_clean,
                     and_(
                         Candidate.exam_date == None,
-                        func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+                        created_expr
                     )
                 )
             )
@@ -158,10 +170,10 @@ class CandidateService:
     @classmethod
     def get_candidate_slot_counts(cls, db: Session, date: Optional[str] = None) -> Dict[str, int]:
         """
-        Returns { total, slot1, slot2, unassigned } for a given date (or ALL dates if date is None or 'ALL')
+        Returns { total, slot1, slot2, slot3, unassigned } for a given date (or ALL dates if date is None or 'ALL')
         in a single fast SQL aggregate query without firing multiple HTTP requests.
         """
-        counts: Dict[str, int] = {"total": 0, "slot1": 0, "slot2": 0, "unassigned": 0}
+        counts: Dict[str, int] = {"total": 0, "slot1": 0, "slot2": 0, "slot3": 0, "unassigned": 0}
         try:
             d_clean = date.strip() if date and date.strip() and date.strip().upper() != "ALL" else None
             if d_clean:
@@ -192,12 +204,14 @@ class CandidateService:
                     counts["slot1"] += cnt
                 elif "slot 2" in slot_raw or slot_raw == "2" or "slot2" in slot_raw:
                     counts["slot2"] += cnt
+                elif "slot 3" in slot_raw or slot_raw == "3" or "slot3" in slot_raw:
+                    counts["slot3"] += cnt
                 else:
                     counts["unassigned"] += cnt
             return counts
         except Exception:
             # Fallback for SQLite / local test environments
-            counts = {"total": 0, "slot1": 0, "slot2": 0, "unassigned": 0}
+            counts = {"total": 0, "slot1": 0, "slot2": 0, "slot3": 0, "unassigned": 0}
             try:
                 q = db.query(Candidate.batch, Candidate.exam_date, Candidate.created_at)
                 for batch_val, exam_date, created_at in q.all():
@@ -213,6 +227,8 @@ class CandidateService:
                         counts["slot1"] += 1
                     elif "slot 2" in b or "slot2" in b:
                         counts["slot2"] += 1
+                    elif "slot 3" in b or "slot3" in b:
+                        counts["slot3"] += 1
                     else:
                         counts["unassigned"] += 1
             except Exception:
@@ -249,6 +265,12 @@ class CandidateService:
         and querying attempt status strictly for the returned candidate slice.
         Supports Academic Department, College institution, and Batch/Slot filters.
         """
+        try:
+            from app.candidate.services.candidate_exam_service import CandidateExamService
+            CandidateExamService.auto_finalize_expired_attempts(db)
+        except Exception:
+            pass
+
         page = max(1, page)
         limit = max(1, min(200, limit))
 
@@ -290,14 +312,20 @@ class CandidateService:
                 query = query.filter(or_(Candidate.batch == b_clean, Candidate.batch.ilike(f"%{b_clean}%")))
 
         # 3c. Server-side Date filter (e.g. '2026-10-31', '2026-10-30', 'ALL')
+        is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
         if date and date.strip() and date.strip().upper() != "ALL":
             d_clean = date.strip()
+            created_expr = (
+                func.strftime('%Y-%m-%d', Candidate.created_at) == d_clean
+                if is_sqlite else
+                func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+            )
             query = query.filter(
                 or_(
                     Candidate.exam_date == d_clean,
                     and_(
                         Candidate.exam_date == None,
-                        func.to_char(func.timezone('Asia/Kolkata', Candidate.created_at), 'YYYY-MM-DD') == d_clean
+                        created_expr
                     )
                 )
             )
@@ -520,6 +548,7 @@ class CandidateService:
 
         filename = (file.filename or "").lower()
         rows: List[List[str]] = []
+        email_regex = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
 
         if filename.endswith((".xlsx", ".xls")):
             try:
@@ -532,7 +561,7 @@ class CandidateService:
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Excel file: {e}")
 
-        elif filename.endswith(".docx"):
+        elif filename.endswith((".docx", ".doc")):
             try:
                 import docx
                 doc = docx.Document(io.BytesIO(content))
@@ -546,10 +575,19 @@ class CandidateService:
                         text_line = p.text.strip()
                         if text_line:
                             parts = [pt.strip() for pt in re.split(r'\t+|\s{2,}', text_line) if pt.strip()]
-                            if len(parts) >= 2:
-                                rows.append(parts)
+                            rows.append(parts if len(parts) >= 2 else [text_line])
             except Exception as e:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Word document: {e}")
+                try:
+                    raw_text = content.decode("utf-8", errors="ignore")
+                    if "@" not in raw_text:
+                        raw_text = content.decode("latin-1", errors="ignore")
+                    lines = re.split(r'[\r\n]+', raw_text)
+                    for line in lines:
+                        if "@" in line:
+                            parts = [pt.strip() for pt in re.split(r'\t+|\s{2,}', line.strip()) if pt.strip()]
+                            rows.append(parts if len(parts) >= 2 else [line.strip()])
+                except Exception:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Word document: {e}")
 
         elif filename.endswith(".pdf"):
             try:
@@ -564,34 +602,44 @@ class CandidateService:
                 if pymupdf is not None:
                     doc = pymupdf.open(stream=io.BytesIO(content), filetype="pdf")
                     for page in doc:
+                        table_rows = []
                         tables = page.find_tables()
                         if tables and tables.tables:
                             for t in tables:
                                 for row in t.extract():
                                     if any(row):
-                                        rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
+                                        table_rows.append([str(c or "").replace('\n', ' ').strip() for c in row])
+
+                        has_valid_email = any(any(email_regex.search(str(c or "")) for c in r) for r in table_rows)
+                        if has_valid_email:
+                            rows.extend(table_rows)
                         else:
-                            # Fallback: cluster words by vertical y0 coordinate with 3.0pt tolerance
                             words = page.get_text("words")
                             if words:
-                                words.sort(key=lambda w: (w[1], w[0]))
-                                curr_line = []
-                                curr_y = None
+                                words.sort(key=lambda w: (round(w[1], 1), w[0]))
+                                from collections import defaultdict
+                                lines_dict = defaultdict(list)
                                 for w in words:
-                                    y = w[1]
-                                    if curr_y is None or abs(y - curr_y) > 3.0:
-                                        if curr_line:
-                                            rows.append([" ".join([x[4] for x in curr_line])])
-                                        curr_line = [w]
-                                        curr_y = y
-                                    else:
-                                        curr_line.append(w)
-                                if curr_line:
-                                    rows.append([" ".join([x[4] for x in curr_line])])
+                                    lines_dict[round(w[1], 1)].append(w)
+
+                                for _, w_list in sorted(lines_dict.items()):
+                                    cols = []
+                                    curr = [w_list[0][4]]
+                                    for i in range(1, len(w_list)):
+                                        gap = w_list[i][0] - w_list[i - 1][2]
+                                        if gap > 8.0:
+                                            cols.append(" ".join(curr))
+                                            curr = [w_list[i][4]]
+                                        else:
+                                            curr.append(w_list[i][4])
+                                    cols.append(" ".join(curr))
+                                    if any(cols):
+                                        rows.append(cols)
                             else:
                                 for line in page.get_text("text").splitlines():
                                     if line.strip():
-                                        rows.append([line.strip()])
+                                        parts = [p.strip() for p in re.split(r'\t+|\s{2,}', line.strip()) if p.strip()]
+                                        rows.append(parts if len(parts) >= 2 else [line.strip()])
                     doc.close()
                 else:
                     import pypdf
@@ -601,7 +649,8 @@ class CandidateService:
                         if text:
                             for line in text.splitlines():
                                 if line.strip():
-                                    rows.append([line.strip()])
+                                    parts = [p.strip() for p in re.split(r'\t+|\s{2,}', line.strip()) if p.strip()]
+                                    rows.append(parts if len(parts) >= 2 else [line.strip()])
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse PDF document: {e}")
         else:
@@ -663,34 +712,32 @@ class CandidateService:
                 continue
 
             # Case A: Single concatenated line from word clustering or OCR text
-            if len(r) == 1 or (len(r) < 3 and "@" in r[0]):
-                line = r[0]
+            if len(r) == 1 or (len(r) < 3 and '@' in r[0]):
+                line = ' '.join(r) if len(r) > 1 else r[0]
                 m = email_regex.search(line)
                 if not m:
                     continue
                 email = m.group(0).lower()
 
-                # Extract college if keyword present
-                college_or_dept = None
-                upper_line = line.upper()
-                for kw in college_keywords:
-                    if kw in upper_line:
-                        col_match = re.search(r'\b[A-Z\s&]+(?:COLLEGE|INSTITUTE|UNIVERSITY|TECHNOLOGY)[A-Z\s&]*', upper_line)
-                        if col_match:
-                            raw_col = col_match.group(0).strip()
-                            college_or_dept = re.sub(r'\s+(NO|YES|FEMALE|MALE|\d+.*)$', '', raw_col, flags=re.I).strip()
-                        break
+                left_part = line[:m.start()].strip()
+                right_part = line[m.end():].strip()
+                college_or_dept = right_part if right_part else None
 
-                # Extract Registration / Serial No.
-                reg_match = re.search(r'\b(\d{1,5})\b', line)
-                reg_num = reg_match.group(1) if reg_match else str(len(new_candidates) + 1)
-
-                # Extract Name (capitalized words before keywords)
-                name_match = re.match(r'^(?:\d+\s+)?([A-Z\s\.\'\-]+?)(?:\s+(?:SOFTWARE|DEVELOPER|TESTER|FEMALE|MALE|B\.E|B\.TECH|CSE|ISE)\b)', line, re.I)
-                if name_match:
-                    full_name = name_match.group(1).strip()
+                left_tokens = left_part.split()
+                if len(left_tokens) >= 2:
+                    first_tok = left_tokens[0]
+                    if any(ch.isdigit() for ch in first_tok) or first_tok.upper().startswith(('REG', 'SL', 'ID', 'NO')):
+                        reg_num = first_tok.upper()
+                        full_name = ' '.join(left_tokens[1:])
+                    else:
+                        reg_num = str(len(new_candidates) + 1)
+                        full_name = left_part
+                elif len(left_tokens) == 1:
+                    full_name = left_tokens[0]
+                    reg_num = str(len(new_candidates) + 1)
                 else:
-                    full_name = email.split("@")[0].replace(".", " ").title()
+                    full_name = email.split('@')[0].replace('.', ' ').title()
+                    reg_num = str(len(new_candidates) + 1)
 
             # Case B: Multi-column row (from Excel, CSV, or PDF table)
             else:
@@ -783,11 +830,14 @@ class CandidateService:
                         dept_id = new_dept.id
                         dept_map[new_dept.code.upper()] = dept_id
 
+            today_str = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
             c = Candidate(
                 registration_number=reg_num,
                 full_name=full_name,
                 email=email,
                 department_id=dept_id,
+                batch="Slot 1",
+                exam_date=today_str,
                 status="ACTIVE",
                 created_at=datetime.now(timezone.utc)
             )

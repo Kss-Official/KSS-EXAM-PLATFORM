@@ -23,6 +23,15 @@ DEFAULT_SLOT_CONFIG = {
         "cutoffTime": "4:30 PM",
         "startMinutes": 960,
         "cutoffMinutes": 990
+    },
+    "slot3": {
+        "header": "Slot 3 • 6:00 PM",
+        "sub": "Entry: 6:00 – 7:30 PM IST",
+        "btn": "Slot 3 (6:00 PM)",
+        "startTime": "6:00 PM",
+        "cutoffTime": "7:30 PM",
+        "startMinutes": 1080,
+        "cutoffMinutes": 1170
     }
 }
 
@@ -52,6 +61,8 @@ def get_slot_timings_config() -> Dict[str, Any]:
             with open(SLOT_CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 if "slot1" in data and "slot2" in data:
+                    if "slot3" not in data:
+                        data["slot3"] = dict(DEFAULT_SLOT_CONFIG["slot3"])
                     _IN_MEMORY_CONFIG = data
                     return _IN_MEMORY_CONFIG
         except Exception:
@@ -64,7 +75,7 @@ def update_slot_timings_config(payload: Dict[str, Any]) -> Dict[str, Any]:
     global _IN_MEMORY_CONFIG
     current = dict(get_slot_timings_config())
 
-    for slot_key in ["slot1", "slot2"]:
+    for slot_key in ["slot1", "slot2", "slot3"]:
         if slot_key in payload and isinstance(payload[slot_key], dict):
             s_data = payload[slot_key]
             slot_curr = dict(current.get(slot_key, DEFAULT_SLOT_CONFIG[slot_key]))
@@ -78,7 +89,7 @@ def update_slot_timings_config(payload: Dict[str, Any]) -> Dict[str, Any]:
                 slot_curr["cutoffMinutes"] = parse_time_to_minutes(slot_curr["cutoffTime"])
 
             # Always synchronize display labels with current startTime & cutoffTime
-            slot_num = "1" if slot_key == "slot1" else "2"
+            slot_num = "1" if slot_key == "slot1" else ("2" if slot_key == "slot2" else "3")
             slot_curr["header"] = f"Slot {slot_num} • {slot_curr['startTime']}"
             slot_curr["sub"] = f"Entry: {slot_curr['startTime']} – {slot_curr['cutoffTime']} IST"
             slot_curr["btn"] = f"Slot {slot_num} ({slot_curr['startTime']})"

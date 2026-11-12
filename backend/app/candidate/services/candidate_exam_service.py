@@ -264,6 +264,7 @@ class CandidateExamService:
             slot_cfg = get_slot_timings_config()
             s1_info = slot_cfg.get("slot1", {})
             s2_info = slot_cfg.get("slot2", {})
+            s3_info = slot_cfg.get("slot3", {})
             s1_start = s1_info.get("startMinutes", 690)
             s1_cutoff = s1_info.get("cutoffMinutes", 810)
             s1_start_str = s1_info.get("startTime", "11:30 AM")
@@ -274,8 +275,14 @@ class CandidateExamService:
             s2_start_str = s2_info.get("startTime", "4:00 PM")
             s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
 
+            s3_start = s3_info.get("startMinutes", 1080)
+            s3_cutoff = s3_info.get("cutoffMinutes", 1170)
+            s3_start_str = s3_info.get("startTime", "6:00 PM")
+            s3_cutoff_str = s3_info.get("cutoffTime", "7:30 PM")
+
             is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
             is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
+            is_slot3 = any(w in b_lower for w in ["slot 3", "slot3", "6:00", "6pm", "18:00", s3_start_str.lower()])
 
             if is_slot1:
                 if cur_mins < s1_start:
@@ -295,10 +302,19 @@ class CandidateExamService:
                     resp.message = f"Entry Closed: The entry window for Slot 2 closed at {s2_cutoff_str} IST. Candidates are not permitted to enter after the cutoff."
                     resp.eligible = False
                     return resp
+            elif is_slot3:
+                if cur_mins < s3_start:
+                    resp.message = f"Slot 3 entry opens at {s3_start_str} IST (Cutoff {s3_cutoff_str}). Please wait until {s3_start_str} to enter your assessment."
+                    resp.eligible = False
+                    return resp
+                elif cur_mins > s3_cutoff:
+                    resp.message = f"Entry Closed: The entry window for Slot 3 closed at {s3_cutoff_str} IST. Candidates are not permitted to enter after the cutoff."
+                    resp.eligible = False
+                    return resp
             else:
-                # Candidate has today's date but is not assigned to Slot 1 or Slot 2
+                # Candidate has today's date but is not assigned to Slot 1, Slot 2, or Slot 3
                 if not any(w in b_lower for w in ["demo", "preview", "test"]):
-                    resp.message = "Access Denied: You are not assigned to an active examination slot (Slot 1 or Slot 2) for today. Please contact your examination administrator."
+                    resp.message = "Access Denied: You are not assigned to an active examination slot (Slot 1, Slot 2, or Slot 3) for today. Please contact your examination administrator."
                     resp.eligible = False
                     return resp
 
@@ -637,6 +653,7 @@ class CandidateExamService:
                     slot_cfg = get_slot_timings_config()
                     s1_info = slot_cfg.get("slot1", {})
                     s2_info = slot_cfg.get("slot2", {})
+                    s3_info = slot_cfg.get("slot3", {})
                     s1_start = s1_info.get("startMinutes", 690)
                     s1_cutoff = s1_info.get("cutoffMinutes", 810)
                     s1_start_str = s1_info.get("startTime", "11:30 AM")
@@ -647,8 +664,14 @@ class CandidateExamService:
                     s2_start_str = s2_info.get("startTime", "4:00 PM")
                     s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
 
+                    s3_start = s3_info.get("startMinutes", 1080)
+                    s3_cutoff = s3_info.get("cutoffMinutes", 1170)
+                    s3_start_str = s3_info.get("startTime", "6:00 PM")
+                    s3_cutoff_str = s3_info.get("cutoffTime", "7:30 PM")
+
                     is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
                     is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
+                    is_slot3 = any(w in b_lower for w in ["slot 3", "slot3", "6:00", "6pm", "18:00", s3_start_str.lower()])
 
                     if is_slot1:
                         if cur_mins < s1_start:
@@ -660,9 +683,14 @@ class CandidateExamService:
                             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 assessment window opens at {s2_start_str} IST.")
                         elif cur_mins > s2_cutoff:
                             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 entry window closed at {s2_cutoff_str} IST.")
+                    elif is_slot3:
+                        if cur_mins < s3_start:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 3 assessment window opens at {s3_start_str} IST.")
+                        elif cur_mins > s3_cutoff:
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 3 entry window closed at {s3_cutoff_str} IST.")
                     else:
                         if not any(w in b_lower for w in ["demo", "preview", "test"]):
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not assigned to an active examination slot for today.")
+                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not assigned to an active examination slot (Slot 1, Slot 2, or Slot 3) for today.")
 
             # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
             db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
@@ -831,7 +859,9 @@ class CandidateExamService:
             expires_at=attempt.expires_at,
             total_duration_seconds=remaining_sec,
             questions=candidate_questions,
-            answers=answers_dict
+            answers=answers_dict,
+            server_time=now,
+            duration_minutes=exam.duration_minutes
         )
 
     @classmethod
@@ -1117,7 +1147,14 @@ class CandidateExamService:
             ).order_by(AttemptRandomizedQuestion.display_order.asc()).all()
             q_map_by_order = {arq.display_order: q_map_by_id.get(arq.question_id) for arq in arqs if arq.question_id in q_map_by_id}
 
+            now = datetime.now(timezone.utc)
+
+            # If answers_payload is provided (e.g. from frontend submission flush),
+            # persist any missing/updated answers into AttemptAnswer table so NO answers are lost
             if answers_payload and len(answers_payload) > 0:
+                existing_answers = {
+                    a.question_id: a for a in db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).all()
+                }
                 for k, opt_val in answers_payload.items():
                     if opt_val is None:
                         continue
@@ -1133,8 +1170,6 @@ class CandidateExamService:
                     if not target_q:
                         continue
 
-                    answered_questions_set.add(target_q.id)
-
                     chosen_opt = None
                     try:
                         opt_id_val = int(opt_val)
@@ -1144,38 +1179,50 @@ class CandidateExamService:
                     except (ValueError, TypeError):
                         pass
 
-                    if chosen_opt and chosen_opt.is_correct:
-                        correct_count += 1
-                        calculated_score += target_q.marks if target_q.marks is not None else Decimal("1.00")
-                    else:
-                        incorrect_count += 1
-                        calculated_score -= target_q.negative_marks if target_q.negative_marks is not None else Decimal("0.00")
-            else:
-                answers = db.query(AttemptAnswer).options(
-                    joinedload(AttemptAnswer.question),
-                    joinedload(AttemptAnswer.selected_option)
-                ).filter(AttemptAnswer.attempt_id == attempt.id).all()
+                    if chosen_opt:
+                        if target_q.id in existing_answers:
+                            existing_answers[target_q.id].selected_option_id = chosen_opt.id
+                            existing_answers[target_q.id].answered_at = now
+                        else:
+                            new_ans = AttemptAnswer(
+                                attempt_id=attempt.id,
+                                question_id=target_q.id,
+                                selected_option_id=chosen_opt.id,
+                                answered_at=now
+                            )
+                            db.add(new_ans)
+                            existing_answers[target_q.id] = new_ans
+                db.flush()
 
-                latest_answers: Dict[int, AttemptAnswer] = {}
-                for a in answers:
-                    if a.question_id not in latest_answers:
+            # Always grade directly from all persisted AttemptAnswer records
+            answers = db.query(AttemptAnswer).options(
+                joinedload(AttemptAnswer.question),
+                joinedload(AttemptAnswer.selected_option)
+            ).filter(AttemptAnswer.attempt_id == attempt.id).all()
+
+            latest_answers: Dict[int, AttemptAnswer] = {}
+            for a in answers:
+                if a.question_id not in latest_answers:
+                    latest_answers[a.question_id] = a
+                else:
+                    prev = latest_answers[a.question_id]
+                    if a.answered_at and prev.answered_at and a.answered_at > prev.answered_at:
                         latest_answers[a.question_id] = a
-                    else:
-                        prev = latest_answers[a.question_id]
-                        if a.answered_at and prev.answered_at and a.answered_at > prev.answered_at:
-                            latest_answers[a.question_id] = a
 
-                for q_id, a in latest_answers.items():
-                    if a.selected_option_id and a.question:
+            for q_id, a in latest_answers.items():
+                if a.selected_option_id:
+                    target_q = a.question or q_map_by_id.get(q_id)
+                    opt = a.selected_option
+                    if not opt and target_q:
+                        opt = next((o for o in target_q.options if o.id == a.selected_option_id), None)
+                    if target_q:
                         answered_questions_set.add(q_id)
-                        opt = a.selected_option
-                        q = a.question
                         if opt and opt.is_correct:
                             correct_count += 1
-                            calculated_score += q.marks if q.marks is not None else Decimal("1.00")
+                            calculated_score += target_q.marks if target_q.marks is not None else Decimal("1.00")
                         else:
                             incorrect_count += 1
-                            calculated_score -= q.negative_marks if q.negative_marks is not None else Decimal("0.00")
+                            calculated_score -= target_q.negative_marks if target_q.negative_marks is not None else Decimal("0.00")
 
             if calculated_score < Decimal("0.00"):
                 calculated_score = Decimal("0.00")
@@ -1200,16 +1247,23 @@ class CandidateExamService:
                 qual_status = "QUALIFIED" if calculated_score >= threshold else "NOT_QUALIFIED"
 
             receipt = f"SEB-REC-{secrets.token_hex(4).upper()}-{int(time.time() * 1000)}"
-            now = datetime.now(timezone.utc)
             started_utc = _ensure_utc(attempt.started_at)
-            duration_sec = max(0, int((now - started_utc).total_seconds())) if started_utc else 0
+            max_duration_sec = (exam.duration_minutes * 60) if (exam and exam.duration_minutes) else 3600
+            actual_duration_sec = max(0, int((now - started_utc).total_seconds())) if started_utc else 0
+            duration_sec = min(actual_duration_sec, max_duration_sec)
+
+            sub_time = now
+            if attempt.expires_at:
+                exp_utc = _ensure_utc(attempt.expires_at)
+                if exp_utc and exp_utc < now:
+                    sub_time = exp_utc
 
             cand_code = attempt.candidate.registration_number if attempt.candidate else (attempt.candidate_code or "")
             set_code = attempt.question_set.set_code if attempt.question_set else (attempt.question_set_code or "A")
 
             # Store the student's complete overall examination summary in the database
             attempt.status = "SUBMITTED"
-            attempt.submitted_at = now
+            attempt.submitted_at = sub_time
             attempt.candidate_code = cand_code
             attempt.question_set_code = set_code
             attempt.total_questions = total_q
@@ -1224,11 +1278,8 @@ class CandidateExamService:
             attempt.qualification_status = qual_status
             attempt.receipt_id = receipt
 
-            # IMPORTANT REQUIREMENT:
-            # Do not store individual selected answers or selected-question details in the database
-            # if they are not required for the intended workflow. Store only the necessary examination
-            # summary data and ensure that each student's records remain isolated.
-            db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
+            # Retain all AttemptAnswer records in the database so all answered questions,
+            # option choices, and timestamps remain permanently available for audit.
 
             db.add(AuditLog(
                 action="SUBMIT_EXAM",
@@ -1273,3 +1324,39 @@ class CandidateExamService:
             resp.qualification_status = qual_status
 
         return resp
+
+    @classmethod
+    def auto_finalize_expired_attempts(cls, db: Session) -> int:
+        """
+        Sweeps and automatically finalizes any examination attempts that have completed
+        their 60-minute duration (expires_at <= now).
+        The server-side timer is the authoritative source of truth.
+        All answered questions are graded from the database, status updated to SUBMITTED,
+        and results accurately committed for the Admin Portal.
+        """
+        now = datetime.now(timezone.utc)
+        try:
+            expired_attempts = db.query(ExamAttempt).options(
+                joinedload(ExamAttempt.exam),
+                joinedload(ExamAttempt.candidate),
+                joinedload(ExamAttempt.question_set)
+            ).filter(
+                ExamAttempt.status == "IN_PROGRESS",
+                ExamAttempt.expires_at.isnot(None),
+                ExamAttempt.expires_at <= now
+            ).all()
+
+            if not expired_attempts:
+                return 0
+
+            finalized_count = 0
+            for attempt in expired_attempts:
+                try:
+                    cls.finalize_submission(db, attempt)
+                    finalized_count += 1
+                except Exception as e:
+                    logger.error(f"[AUTO-FINALIZE] Failed to finalize expired attempt #{attempt.id}: {e}")
+            return finalized_count
+        except Exception as e:
+            logger.error(f"[AUTO-FINALIZE] Sweep query error: {e}")
+            return 0

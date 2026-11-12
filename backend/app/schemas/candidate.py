@@ -115,6 +115,8 @@ class CandidateStartAttemptResponse(CamelModel):
     total_duration_seconds: int
     questions: List[CandidateQuestionDto] = []
     answers: Optional[Dict[str, int]] = {}
+    server_time: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
 
 class AnswerSaveRequest(CamelModel):
     question_id: int
