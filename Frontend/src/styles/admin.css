@@ -784,8 +784,8 @@
    ======================================================== */
 
 .admin-page-container {
-  max-width: 1350px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -1690,6 +1690,12 @@ table tbody tr:hover {
 
 .admin-notifications-badge {
   animation: adminNotifyGlow 2s infinite ease-in-out;
+}
+
+@media (max-width: 1024px) {
+  .dashboard-content-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 

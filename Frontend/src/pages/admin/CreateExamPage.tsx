@@ -753,23 +753,47 @@ export default function CreateExamPage() {
   };
 
   return (
-    <div style={{ maxWidth: "1080px", margin: "0 auto", paddingBottom: "60px" }}>
+    <div className="admin-page-container" style={{ paddingBottom: "60px" }}>
       {/* Top Header Navigation */}
-      <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div className="admin-page-header">
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <button 
             type="button" 
             className="secondary" 
             onClick={() => navigate("/admin/exams")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            style={{ 
+              display: "inline-flex", 
+              alignItems: "center", 
+              gap: "6px",
+              padding: "8px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600
+            }}
             title="Return to Examinations"
           >
-            <ArrowLeft size={14} /> Back to Examinations
+            <ArrowLeft size={15} /> Back to Examinations
           </button>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.3px" }}>
+              Create Examination Blueprint
+            </h1>
+            <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#64748b" }}>
+              Configure exam timeline, evaluation rules, academic tracks, and multi-set question banks
+            </p>
+          </div>
         </div>
 
-        <span style={{ fontSize: "11px", color: "#64748b" }}>
-          ExamSecure Assessment Engine · Integrated Department & Question Management
+        <span style={{ 
+          fontSize: "11.5px", 
+          fontWeight: 600, 
+          color: "#017846", 
+          background: "#EAF6EF", 
+          padding: "6px 12px", 
+          borderRadius: "8px",
+          border: "1px solid #d1fae5"
+        }}>
+          ExamSecure Assessment Engine
         </span>
       </div>
 

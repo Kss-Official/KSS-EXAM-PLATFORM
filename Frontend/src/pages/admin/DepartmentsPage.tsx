@@ -553,7 +553,7 @@ export default function DepartmentsPage() {
   };
 
   return (
-    <div style={{ maxWidth: "1280px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "24px", paddingBottom: "40px" }}>
+    <div className="admin-page-container" style={{ gap: "20px" }}>
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -687,7 +687,7 @@ export default function DepartmentsPage() {
       {/* KPI Stats Row (4 Metric Cards) */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
         gap: "16px"
       }}>
         {/* Card 1: Total */}
@@ -1224,7 +1224,7 @@ export default function DepartmentsPage() {
                     No technical departments found matching your search.
                   </div>
                 ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "18px" }}>
                     {filteredItems.filter(i => i.category !== "NON_TECHNICAL").map(renderCard)}
                   </div>
                 )}
@@ -1268,7 +1268,7 @@ export default function DepartmentsPage() {
                     No non-technical departments found matching your search.
                   </div>
                 ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "18px" }}>
                     {filteredItems.filter(i => i.category === "NON_TECHNICAL").map(renderCard)}
                   </div>
                 )}

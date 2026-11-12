@@ -1027,124 +1027,329 @@ export default function LiveMonitoringPage() {
 
       {/* MODAL 1: Stop / Discard Exam Confirmation Modal */}
       {stopModalTarget && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(15, 23, 42, 0.75)",
-          backdropFilter: "blur(4px)",
-          zIndex: 100000,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "20px"
-        }}>
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isStopping) setStopModalTarget(null);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            zIndex: 100000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }}
+        >
           <div style={{
             background: "#ffffff",
             borderRadius: "16px",
-            maxWidth: "520px",
+            maxWidth: "560px",
             width: "100%",
-            padding: "32px",
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
-            border: "1px solid #fee2e2"
+            boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.08)",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column"
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-              <span style={{ padding: "10px", borderRadius: "10px", background: "#fee2e2", color: "#dc2626" }}>
-                <UserX size={24} />
-              </span>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "18px", color: "#991b1b", fontWeight: 800 }}>
-                  Stop & Discard Candidate Exam
-                </h3>
-                <span style={{ fontSize: "13px", color: "#64748b" }}>
-                  This action will terminate the candidate's active exam session immediately.
-                </span>
+            {/* Modal Header */}
+            <div style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid #f1f5f9",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "16px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{
+                  width: "42px",
+                  height: "42px",
+                  borderRadius: "10px",
+                  background: "#fef2f2",
+                  border: "1px solid #fee2e2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#dc2626",
+                  flexShrink: 0
+                }}>
+                  <UserX size={22} />
+                </div>
+                <div>
+                  <h3 style={{
+                    margin: 0,
+                    fontSize: "17px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    letterSpacing: "-0.01em"
+                  }}>
+                    Stop & Discard Candidate Exam
+                  </h3>
+                  <p style={{
+                    margin: "3px 0 0 0",
+                    fontSize: "13px",
+                    color: "#64748b",
+                    lineHeight: 1.4
+                  }}>
+                    Immediately terminates the active session and logs a proctor security event.
+                  </p>
+                </div>
               </div>
-            </div>
-
-            <div style={{ background: "#f8fafc", padding: "12px 16px", borderRadius: "8px", border: "1px solid #e2e8f0", marginBottom: "16px", fontSize: "13px" }}>
-              <div><strong>Candidate:</strong> {stopModalTarget.fullName}</div>
-              <div><strong>Roll / Reg No:</strong> {stopModalTarget.registrationNumber}</div>
-              <div><strong>Department:</strong> {stopModalTarget.department}</div>
-            </div>
-
-            <div style={{ marginBottom: "20px" }}>
-              <label style={{ display: "block", fontSize: "13px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
-                Termination Reason (displayed to candidate):
-              </label>
-              <textarea
-                value={stopReason}
-                onChange={(e) => setStopReason(e.target.value)}
-                rows={3}
-                style={{
-                  width: "100%",
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  border: "1px solid #cbd5e1",
-                  fontSize: "13px",
-                  outline: "none"
-                }}
-              />
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginTop: "8px" }}>
-                {[
-                  "Repeated tab switches detected",
-                  "Exited Safe Exam Browser lockdown",
-                  "Suspicious multiple faces in camera feed",
-                  "Admin technical reset requested"
-                ].map(preset => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setStopReason(preset)}
-                    style={{
-                      fontSize: "11px",
-                      background: "#f1f5f9",
-                      border: "1px solid #cbd5e1",
-                      borderRadius: "4px",
-                      padding: "3px 8px",
-                      cursor: "pointer",
-                      color: "#475569"
-                    }}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
               <button
                 type="button"
                 onClick={() => setStopModalTarget(null)}
                 disabled={isStopping}
                 style={{
-                  padding: "10px 18px",
+                  background: "transparent",
+                  border: "none",
+                  color: "#94a3b8",
+                  cursor: isStopping ? "not-allowed" : "pointer",
+                  padding: "6px",
                   borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s ease"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: "22px 24px" }}>
+              {/* Candidate Info Summary Grid */}
+              <div style={{
+                background: "#f8fafc",
+                borderRadius: "12px",
+                border: "1px solid #e2e8f0",
+                padding: "14px 16px",
+                display: "grid",
+                gridTemplateColumns: "1fr auto auto",
+                gap: "16px",
+                alignItems: "center",
+                marginBottom: "20px"
+              }}>
+                <div>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.04em", marginBottom: "3px" }}>
+                    Candidate Name
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: "#0f172a" }}>
+                    {stopModalTarget.fullName}
+                  </div>
+                </div>
+
+                <div style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "16px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.04em", marginBottom: "3px" }}>
+                    Roll / Reg No
+                  </div>
+                  <code style={{
+                    fontSize: "12px",
+                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                    background: "#e2e8f0",
+                    color: "#1e293b",
+                    padding: "2px 8px",
+                    borderRadius: "6px",
+                    fontWeight: 600
+                  }}>
+                    {stopModalTarget.registrationNumber}
+                  </code>
+                </div>
+
+                <div style={{ borderLeft: "1px solid #e2e8f0", paddingLeft: "16px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.04em", marginBottom: "3px" }}>
+                    Department
+                  </div>
+                  <span style={{
+                    display: "inline-block",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#017846",
+                    background: "#ecfdf5",
+                    border: "1px solid #d1fae5",
+                    padding: "2px 10px",
+                    borderRadius: "9999px"
+                  }}>
+                    {stopModalTarget.department}
+                  </span>
+                </div>
+              </div>
+
+              {/* Termination Reason Input */}
+              <div style={{ marginBottom: "18px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "6px" }}>
+                  <label style={{ fontSize: "13px", fontWeight: 700, color: "#1e293b" }}>
+                    Termination Reason <span style={{ color: "#dc2626" }}>*</span>
+                  </label>
+                  <span style={{ fontSize: "11.5px", color: "#64748b" }}>
+                    Shown directly on candidate screen
+                  </span>
+                </div>
+                <textarea
+                  value={stopReason}
+                  onChange={(e) => setStopReason(e.target.value)}
+                  rows={3}
+                  placeholder="Enter specific reason for terminating candidate examination..."
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: "1.5px solid #cbd5e1",
+                    fontSize: "13px",
+                    fontFamily: "inherit",
+                    color: "#0f172a",
+                    lineHeight: 1.5,
+                    outline: "none",
+                    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+                    resize: "vertical"
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#dc2626";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(220, 38, 38, 0.1)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = "#cbd5e1";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                />
+
+                {/* Quick-select Infraction Presets */}
+                <div style={{ marginTop: "10px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "6px" }}>
+                    Quick Infraction Presets
+                  </div>
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                    {[
+                      "Repeated tab switches detected",
+                      "Exited Safe Exam Browser lockdown",
+                      "Suspicious multiple faces in camera feed",
+                      "Admin technical reset requested"
+                    ].map(preset => {
+                      const isSelected = stopReason === preset;
+                      return (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setStopReason(preset)}
+                          style={{
+                            fontSize: "11.5px",
+                            fontWeight: isSelected ? 600 : 500,
+                            background: isSelected ? "#fef2f2" : "#f8fafc",
+                            border: isSelected ? "1px solid #fca5a5" : "1px solid #e2e8f0",
+                            color: isSelected ? "#991b1b" : "#475569",
+                            borderRadius: "8px",
+                            padding: "5px 10px",
+                            cursor: "pointer",
+                            transition: "all 0.15s ease"
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.background = "#f1f5f9";
+                              e.currentTarget.style.borderColor = "#cbd5e1";
+                              e.currentTarget.style.color = "#0f172a";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.background = "#f8fafc";
+                              e.currentTarget.style.borderColor = "#e2e8f0";
+                              e.currentTarget.style.color = "#475569";
+                            }
+                          }}
+                        >
+                          {isSelected ? "✓ " : ""}{preset}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning Notice Banner */}
+              <div style={{
+                background: "#fffbeb",
+                border: "1px solid #fef3c7",
+                borderRadius: "10px",
+                padding: "10px 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px"
+              }}>
+                <AlertTriangle size={16} color="#d97706" style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: "12px", color: "#92400e", lineHeight: 1.4 }}>
+                  <strong>Irreversible action:</strong> The active exam will be marked void. Re-entry requires an explicit admin unlock.
+                </span>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{
+              padding: "16px 24px",
+              background: "#f8fafc",
+              borderTop: "1px solid #f1f5f9",
+              display: "flex",
+              justifyContent: "flex-end",
+              alignItems: "center",
+              gap: "12px"
+            }}>
+              <button
+                type="button"
+                onClick={() => setStopModalTarget(null)}
+                disabled={isStopping}
+                style={{
+                  padding: "9px 18px",
+                  borderRadius: "9px",
                   border: "1px solid #cbd5e1",
                   background: "#ffffff",
                   color: "#475569",
                   fontSize: "13px",
                   fontWeight: 600,
-                  cursor: "pointer"
+                  cursor: isStopping ? "not-allowed" : "pointer",
+                  transition: "all 0.15s ease"
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; e.currentTarget.style.color = "#475569"; }}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleConfirmStopExam}
-                disabled={isStopping}
+                disabled={isStopping || !stopReason.trim()}
                 style={{
-                  padding: "10px 20px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: "#dc2626",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "9px 20px",
+                  borderRadius: "9px",
+                  border: "1px solid #b91c1c",
+                  background: isStopping || !stopReason.trim() ? "#fca5a5" : "linear-gradient(180deg, #dc2626 0%, #b91c1c 100%)",
                   color: "#ffffff",
                   fontSize: "13px",
-                  fontWeight: 700,
-                  cursor: isStopping ? "not-allowed" : "pointer"
+                  fontWeight: 600,
+                  boxShadow: isStopping || !stopReason.trim() ? "none" : "0 2px 4px rgba(220, 38, 38, 0.25)",
+                  cursor: isStopping || !stopReason.trim() ? "not-allowed" : "pointer",
+                  transition: "all 0.15s ease"
                 }}
               >
-                {isStopping ? "Stopping Exam..." : "Yes, Stop & Terminate"}
+                {isStopping ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    <span>Terminating Session...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserX size={15} />
+                    <span>Yes, Stop & Terminate</span>
+                  </>
+                )}
               </button>
             </div>
           </div>
@@ -1153,95 +1358,181 @@ export default function LiveMonitoringPage() {
 
       {/* MODAL 2: Candidate Alert History Timeline */}
       {historyModalTarget && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(15, 23, 42, 0.75)",
-          backdropFilter: "blur(4px)",
-          zIndex: 100000,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "20px"
-        }}>
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setHistoryModalTarget(null);
+          }}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.65)",
+            backdropFilter: "blur(6px)",
+            WebkitBackdropFilter: "blur(6px)",
+            zIndex: 100000,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px"
+          }}
+        >
           <div style={{
             background: "#ffffff",
             borderRadius: "16px",
-            maxWidth: "600px",
+            maxWidth: "620px",
             width: "100%",
             maxHeight: "85vh",
             display: "flex",
             flexDirection: "column",
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)",
-            border: "1px solid #e2e8f0"
+            boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.08)",
+            overflow: "hidden"
           }}>
+            {/* Modal Header */}
             <div style={{
               padding: "20px 24px",
-              borderBottom: "1px solid #e2e8f0",
+              borderBottom: "1px solid #f1f5f9",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center"
             }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: "17px", color: "#0f172a", fontWeight: 800 }}>
-                  Cheating Alert Timeline
-                </h3>
-                <span style={{ fontSize: "13px", color: "#64748b" }}>
-                  {historyModalTarget.candidateName} ({historyModalTarget.regNo})
-                </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "10px",
+                  background: "#fef3c7",
+                  border: "1px solid #fde68a",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#d97706"
+                }}>
+                  <ShieldAlert size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16px", color: "#0f172a", fontWeight: 700 }}>
+                    Cheating Alert Timeline
+                  </h3>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "3px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#334155" }}>
+                      {historyModalTarget.candidateName}
+                    </span>
+                    <span style={{ fontSize: "12px", color: "#94a3b8" }}>•</span>
+                    <code style={{
+                      fontSize: "11.5px",
+                      background: "#f1f5f9",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                      color: "#475569"
+                    }}>
+                      {historyModalTarget.regNo}
+                    </code>
+                  </div>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setHistoryModalTarget(null)}
-                style={{ background: "none", border: "none", color: "#64748b", cursor: "pointer", fontSize: "18px" }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  padding: "6px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s ease"
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+                title="Close"
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
 
+            {/* Modal Body: Timeline list */}
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
               {loadingHistory ? (
-                <div style={{ textAlign: "center", padding: "32px", color: "#64748b" }}>
-                  <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 10px" }} />
-                  Loading alert history...
+                <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
+                  <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", color: "#017846" }} />
+                  <div style={{ fontSize: "13.5px", fontWeight: 500 }}>Fetching proctor alert history...</div>
                 </div>
               ) : candidateHistory.length === 0 ? (
-                <div style={{ textAlign: "center", padding: "32px", color: "#64748b" }}>
-                  <ShieldCheck size={32} color="#017846" style={{ margin: "0 auto 10px" }} />
-                  No alerts recorded for this candidate.
+                <div style={{ textAlign: "center", padding: "40px 20px" }}>
+                  <div style={{
+                    width: "48px",
+                    height: "48px",
+                    borderRadius: "50%",
+                    background: "#ecfdf5",
+                    border: "1px solid #d1fae5",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 12px",
+                    color: "#017846"
+                  }}>
+                    <ShieldCheck size={26} />
+                  </div>
+                  <h4 style={{ margin: "0 0 4px", fontSize: "15px", fontWeight: 700, color: "#0f172a" }}>
+                    Clean Proctor Record
+                  </h4>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
+                    No security or proctoring alerts have been logged for this candidate.
+                  </p>
                 </div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {candidateHistory.map((h, idx) => (
-                    <div
-                      key={h.id || idx}
-                      style={{
-                        padding: "12px 16px",
-                        borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
-                        background: h.severity === "CRITICAL" ? "#fff1f2" : "#f8fafc"
-                      }}
-                    >
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <span style={{ fontWeight: 700, fontSize: "13px", color: "#0f172a" }}>
-                          {h.alertType.replace("_", " ")}
-                        </span>
-                        <span style={{ fontSize: "11px", color: "#64748b" }}>
-                          {formatIST(h.createdAt)}
-                        </span>
+                  {candidateHistory.map((h, idx) => {
+                    const isCritical = h.severity === "CRITICAL";
+                    const isWarning = h.severity === "HIGH" || h.severity === "MEDIUM";
+                    return (
+                      <div
+                        key={h.id || idx}
+                        style={{
+                          padding: "14px 16px",
+                          borderRadius: "10px",
+                          border: isCritical ? "1px solid #fecaca" : isWarning ? "1px solid #fed7aa" : "1px solid #e2e8f0",
+                          background: isCritical ? "#fff1f2" : isWarning ? "#fffbeb" : "#f8fafc",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "6px"
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "5px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            padding: "2px 8px",
+                            borderRadius: "9999px",
+                            background: isCritical ? "#fee2e2" : isWarning ? "#fef3c7" : "#e2e8f0",
+                            color: isCritical ? "#b91c1c" : isWarning ? "#b45309" : "#475569"
+                          }}>
+                            {isCritical && "●"} {h.alertType.replace(/_/g, " ")}
+                          </span>
+                          <span style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 500 }}>
+                            {formatIST(h.createdAt)}
+                          </span>
+                        </div>
+                        <p style={{ margin: 0, fontSize: "13px", color: "#334155", lineHeight: 1.4 }}>
+                          {h.message}
+                        </p>
                       </div>
-                      <p style={{ margin: 0, fontSize: "12.5px", color: "#475569" }}>
-                        {h.message}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
 
+            {/* Modal Footer */}
             <div style={{
               padding: "16px 24px",
-              borderTop: "1px solid #e2e8f0",
+              background: "#f8fafc",
+              borderTop: "1px solid #f1f5f9",
               display: "flex",
               justifyContent: "flex-end"
             }}>
@@ -1249,17 +1540,20 @@ export default function LiveMonitoringPage() {
                 type="button"
                 onClick={() => setHistoryModalTarget(null)}
                 style={{
-                  padding: "8px 18px",
+                  padding: "8px 20px",
                   borderRadius: "8px",
                   border: "1px solid #cbd5e1",
                   background: "#ffffff",
-                  color: "#475569",
+                  color: "#334155",
                   fontSize: "13px",
                   fontWeight: 600,
-                  cursor: "pointer"
+                  cursor: "pointer",
+                  transition: "all 0.15s ease"
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
               >
-                Close
+                Close Timeline
               </button>
             </div>
           </div>
