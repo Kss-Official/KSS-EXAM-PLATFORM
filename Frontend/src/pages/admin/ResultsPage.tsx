@@ -24,6 +24,7 @@ import {
 import { 
   getAllResults, 
   getAvailableResultDates,
+  getResultDateCounts,
   publishResults, 
   getAllExams, 
   resetCandidateAttempt,
@@ -175,6 +176,8 @@ export default function ResultsPage() {
   const [maxScore, setMaxScore] = useState<string>("");
   const [scoreSort, setScoreSort] = useState<ScoreSortType>("DEFAULT");
   const [exportMode, setExportMode] = useState<"FILTERED" | "QUALIFIED">("FILTERED");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const [notice, setNotice] = useState<string | null>(null);
   const [attemptToReset, setAttemptToReset] = useState<ExamResultDto | null>(null);
@@ -192,12 +195,18 @@ export default function ResultsPage() {
 
   const fetchAvailableDates = async () => {
     try {
-      const dates = await getAvailableResultDates();
+      const [dates, counts] = await Promise.all([
+        getAvailableResultDates().catch(() => [] as string[]),
+        getResultDateCounts().catch(() => ({} as Record<string, number>))
+      ]);
       if (dates && dates.length > 0) {
         setAvailableDates(dates);
       }
-      getAllResults(undefined, yesterdayIst).then(d => setYesterdayAttemptCount(d.length)).catch(() => {});
-      getAllResults(undefined, tomorrowIst).then(d => setTomorrowAttemptCount(d.length)).catch(() => {});
+      setYesterdayAttemptCount(counts[yesterdayIst] || 0);
+      setTomorrowAttemptCount(counts[tomorrowIst] || 0);
+      if (counts[todayIst] !== undefined) {
+        setTodayAttemptCount(counts[todayIst]);
+      }
     } catch (e) {
       console.warn("Could not load available dates:", e);
     }
@@ -464,13 +473,26 @@ export default function ResultsPage() {
     });
   }, [results, slotFilter, searchQuery, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort]);
 
-  // Candidates for export
+  // Candidates for export (unpaginated)
   const exportCandidates = useMemo(() => {
     if (exportMode === "QUALIFIED") {
       return filtered.filter(r => r.qualificationStatus === "QUALIFIED");
     }
     return filtered;
   }, [filtered, exportMode]);
+
+  // Client-side pagination for high-speed table rendering without lag
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedCandidates = useMemo(() => {
+    if (pageSize >= 9999) return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [slotFilter, searchQuery, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort, selectedDate]);
 
   const hasActiveFilters = slotFilter !== "Slot 1" || searchQuery.trim() !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
 
@@ -484,6 +506,7 @@ export default function ResultsPage() {
     setScoreSort("DEFAULT");
     setSelectedExamId(undefined);
     setSelectedDate(todayIst);
+    setCurrentPage(1);
     navigate("/admin/results");
   };
 
@@ -1809,7 +1832,7 @@ export default function ResultsPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(r => {
+                paginatedCandidates.map(r => {
                   const candidateSlot = getCandidateSlot(r);
                   const attemptDate = r.examDate || getCandidateExamDate(r);
                   return (
@@ -1953,6 +1976,96 @@ export default function ResultsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination Bar */}
+        {filtered.length > 0 && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 18px",
+            borderTop: "1px solid #e2e8f0",
+            background: "#ffffff",
+            borderRadius: "0 0 12px 12px",
+            flexWrap: "wrap",
+            gap: "10px",
+            fontSize: "12.5px",
+            color: "#64748b"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span>
+                Showing <strong>{filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> – <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> candidates
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: "#f8fafc",
+                    fontSize: "12px",
+                    color: "#0f172a",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={99999}>All</option>
+                </select>
+              </div>
+            </div>
+
+            {totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: currentPage <= 1 ? "#f1f5f9" : "#ffffff",
+                    color: currentPage <= 1 ? "#94a3b8" : "#0f172a",
+                    cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: "12px"
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ padding: "0 6px", fontWeight: 600, color: "#0f172a" }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: currentPage >= totalPages ? "#f1f5f9" : "#ffffff",
+                    color: currentPage >= totalPages ? "#94a3b8" : "#0f172a",
+                    cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: "12px"
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Reset Attempt Confirmation Modal */}

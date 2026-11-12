@@ -16,18 +16,21 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
   useEffect(() => {
     let isCancelled = false;
 
+    const token = localStorage.getItem("examsecure_auth_token");
+    if (!token) {
+      setLoading(false);
+      navigate("/admin/login");
+      return;
+    }
+
+    // If already verified in this session, do not unmount or show loading on route changes
+    if (currentUser && currentUser.role === "SUPER_ADMIN") {
+      return;
+    }
+
     const verifySession = async () => {
       setLoading(true);
       setForbidden(false);
-
-      const token = localStorage.getItem("examsecure_auth_token");
-      if (!token) {
-        if (!isCancelled) {
-          setLoading(false);
-          navigate("/admin/login");
-        }
-        return;
-      }
 
       try {
         const user = await getAuthMe();
@@ -57,7 +60,7 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
     return () => {
       isCancelled = true;
     };
-  }, [path, navigate]);
+  }, [path, navigate, currentUser]);
 
   if (loading) {
     return (

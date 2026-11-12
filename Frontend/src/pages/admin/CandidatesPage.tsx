@@ -413,18 +413,22 @@ export default function CandidatesPage() {
       setAvailableDates(dates);
       const counts: { [d: string]: number } = {};
       const datesToFetch = Array.from(new Set([...dates, todayIst, yesterdayIst, tomorrowIst]));
-      for (const d of datesToFetch) {
-        try {
-          const r = await getCandidates({ limit: 1, date: d });
-          counts[d] = r.total;
-        } catch {
-          counts[d] = 0;
-        }
-      }
-      try {
-        const allR = await getCandidates({ limit: 1 });
-        counts["ALL"] = allR.total;
-      } catch {}
+      await Promise.all([
+        ...datesToFetch.map(async (d) => {
+          try {
+            const r = await getCandidates({ limit: 1, date: d });
+            counts[d] = r.total;
+          } catch {
+            counts[d] = 0;
+          }
+        }),
+        (async () => {
+          try {
+            const allR = await getCandidates({ limit: 1 });
+            counts["ALL"] = allR.total;
+          } catch {}
+        })()
+      ]);
       setDateCounts(counts);
     } catch {
       // ignore

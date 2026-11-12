@@ -30,6 +30,16 @@ def get_available_dates(
     """
     return DashboardService.get_available_dates(db)
 
+@router.get("/date-counts", response_model=Dict[str, int])
+def get_result_date_counts(
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieves candidate attempt counts grouped by examination date in a single fast query.
+    """
+    return DashboardService.get_result_date_counts(db)
+
 @router.get("/exam/{exam_id}", response_model=List[ExamResultDto])
 def get_results_by_exam(
     exam_id: int,

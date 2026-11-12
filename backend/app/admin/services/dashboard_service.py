@@ -57,19 +57,65 @@ class DashboardService:
     def get_available_dates(cls, db: Session) -> List[str]:
         """
         Retrieves all distinct examination dates (in IST UTC+5:30) with recorded attempts.
+        Supports both PostgreSQL and local SQLite dialects seamlessly.
         """
         IST = timezone(timedelta(hours=5, minutes=30))
-        dates_raw = db.execute(text("""
-            SELECT DISTINCT to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt
-            FROM exam_attempts
-            WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
-            ORDER BY dt DESC
-        """)).fetchall()
+        is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
+        if is_sqlite:
+            dates_raw = db.execute(text("""
+                SELECT DISTINCT strftime('%Y-%m-%d', datetime(COALESCE(submitted_at, started_at, created_at), '+5 hours', '+30 minutes')) as dt
+                FROM exam_attempts
+                WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                ORDER BY dt DESC
+            """)).fetchall()
+        else:
+            dates_raw = db.execute(text("""
+                SELECT DISTINCT to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt
+                FROM exam_attempts
+                WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                ORDER BY dt DESC
+            """)).fetchall()
         result = [r[0] for r in dates_raw if r[0]]
         now_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
         if now_ist not in result:
             result.insert(0, now_ist)
         return result
+
+    @classmethod
+    def get_result_date_counts(cls, db: Session) -> dict:
+        """
+        Computes total examination attempts per date in a single fast SQL aggregate query.
+        """
+        counts = {}
+        is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
+        try:
+            if is_sqlite:
+                query = text("""
+                    SELECT 
+                        strftime('%Y-%m-%d', datetime(COALESCE(submitted_at, started_at, created_at), '+5 hours', '+30 minutes')) as dt,
+                        COUNT(*) as cnt
+                    FROM exam_attempts
+                    WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                    GROUP BY dt
+                    ORDER BY dt DESC
+                """)
+            else:
+                query = text("""
+                    SELECT 
+                        to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt,
+                        COUNT(*) as cnt
+                    FROM exam_attempts
+                    WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                    GROUP BY dt
+                    ORDER BY dt DESC
+                """)
+            rows = db.execute(query).fetchall()
+            for r in rows:
+                if r[0]:
+                    counts[str(r[0])] = int(r[1])
+        except Exception:
+            pass
+        return counts
 
     @classmethod
     def get_exam_results(

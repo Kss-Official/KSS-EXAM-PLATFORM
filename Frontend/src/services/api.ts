@@ -946,6 +946,10 @@ export async function getAvailableResultDates(): Promise<string[]> {
   return request<string[]>("admin/results/dates");
 }
 
+export async function getResultDateCounts(): Promise<Record<string, number>> {
+  return request<Record<string, number>>("admin/results/date-counts");
+}
+
 export async function publishResults(examId: number, published: boolean): Promise<any> {
   return request<any>(`admin/results/exam/${examId}/publish`, {
     method: "POST",
