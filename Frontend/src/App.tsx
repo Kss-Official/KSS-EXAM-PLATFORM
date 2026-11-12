@@ -47,6 +47,14 @@ function PageLoading() {
   );
 }
 
+function AdminPageTopLoader() {
+  return (
+    <div className="admin-top-progress-bar">
+      <div className="admin-top-progress-indicator" />
+    </div>
+  );
+}
+
 function AppContent() {
   const { path } = useRouter();
 
@@ -84,6 +92,19 @@ function AppContent() {
     // Only fetch dashboard if on an admin route other than login and user has an active token
     const token = localStorage.getItem("examsecure_auth_token");
     if (token && path.startsWith("/admin") && !path.startsWith("/admin/login")) {
+      // Eagerly prefetch all admin page chunks in the background so tab switching is instantaneous
+      const prefetchTimer = setTimeout(() => {
+        import("./pages/admin/OverviewPage");
+        import("./pages/admin/ExamsPage");
+        import("./pages/admin/CreateExamPage");
+        import("./pages/admin/QuestionBankPage");
+        import("./pages/admin/DepartmentsPage");
+        import("./pages/admin/CandidatesPage");
+        import("./pages/admin/LiveMonitoringPage");
+        import("./pages/admin/ResultsPage");
+        import("./pages/admin/SettingsPage");
+      }, 50);
+
       const now = Date.now();
       // If never loaded, perform initial fetch with loading indicator
       if (!dashboardData) {
@@ -92,6 +113,8 @@ function AppContent() {
         // If older than 30s, refresh silently in the background without UI flicker
         fetchDashboard(true);
       }
+
+      return () => clearTimeout(prefetchTimer);
     }
   }, [fetchDashboard, path, dashboardData]);
 
@@ -115,39 +138,40 @@ function AppContent() {
 
   // Route 3: Admin Dashboard Console & Sub-pages (Protected by RBAC Route Guard)
   const renderAdminPage = () => {
+    let pageNode: React.ReactNode;
     if (path.startsWith("/admin/exams/new")) {
-      return <CreateExamPage />;
+      pageNode = <CreateExamPage />;
+    } else if (path.startsWith("/admin/exams")) {
+      pageNode = <ExamsPage />;
+    } else if (path.startsWith("/admin/departments")) {
+      pageNode = <DepartmentsPage />;
+    } else if (path.startsWith("/admin/questions")) {
+      pageNode = <QuestionBankPage />;
+    } else if (path.startsWith("/admin/candidates")) {
+      pageNode = <CandidatesPage />;
+    } else if (path.startsWith("/admin/live-monitoring")) {
+      pageNode = <LiveMonitoringPage />;
+    } else if (path.startsWith("/admin/results")) {
+      pageNode = <ResultsPage />;
+    } else if (path.startsWith("/admin/settings")) {
+      pageNode = <SettingsPage />;
+    } else {
+      pageNode = (
+        <OverviewPage 
+          data={dashboardData}
+          loading={loading}
+          error={error}
+          statusCode={statusCode}
+          onRetry={fetchDashboard}
+        />
+      );
     }
-    if (path.startsWith("/admin/exams")) {
-      return <ExamsPage />;
-    }
-    if (path.startsWith("/admin/departments")) {
-      return <DepartmentsPage />;
-    }
-    if (path.startsWith("/admin/questions")) {
-      return <QuestionBankPage />;
-    }
-    if (path.startsWith("/admin/candidates")) {
-      return <CandidatesPage />;
-    }
-    if (path.startsWith("/admin/live-monitoring")) {
-      return <LiveMonitoringPage />;
-    }
-    if (path.startsWith("/admin/results")) {
-      return <ResultsPage />;
-    }
-    if (path.startsWith("/admin/settings")) {
-      return <SettingsPage />;
-    }
-    // Default Overview
+
+    const routeKey = path.split("?")[0] || "/admin/dashboard";
     return (
-      <OverviewPage 
-        data={dashboardData}
-        loading={loading}
-        error={error}
-        statusCode={statusCode}
-        onRetry={fetchDashboard}
-      />
+      <div key={routeKey} className="admin-page-transition-wrap">
+        {pageNode}
+      </div>
     );
   };
 
@@ -161,7 +185,7 @@ function AppContent() {
           statusCode={statusCode}
           currentUser={authUser}
         >
-          <Suspense fallback={<PageLoading />}>
+          <Suspense fallback={<AdminPageTopLoader />}>
             {renderAdminPage()}
           </Suspense>
         </AdminLayout>

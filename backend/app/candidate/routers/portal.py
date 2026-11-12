@@ -55,24 +55,16 @@ def _candidate_safe_exam(exam):
 @router.get("/departments", response_model=List[DepartmentDto])
 def get_eligible_departments(db: Session = Depends(get_db)):
     """
-    Returns only the two primary candidate tracks: Technical Department and Non-Technical Department.
+    Returns active academic departments dynamically from the database,
+    categorized as TECHNICAL or NON_TECHNICAL.
     """
-    return [
-        DepartmentDto(
-            id=1,
-            name="Technical Department",
-            code="TECH",
-            description="Technical Department (Engineering, Development, Testing, UI/UX)",
-            active=True
-        ),
-        DepartmentDto(
-            id=2,
-            name="Non-Technical Department",
-            code="NON_TECH",
-            description="Non-Technical Department (Human Resources, Sales & Marketing, Management)",
-            active=True
-        )
-    ]
+    from app.models import Department
+    from app.admin.routers.departments import is_academic_department, to_dto
+
+    depts = db.query(Department).filter(Department.active == True).order_by(Department.name.asc()).all()
+    academic_depts = [d for d in depts if is_academic_department(d)]
+    
+    return [to_dto(d) for d in academic_depts]
 
 @router.post("/verify", response_model=CandidateVerifyResponse)
 @router.post("/login", response_model=CandidateVerifyResponse)

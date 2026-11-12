@@ -43,57 +43,130 @@ def ensure_indexes_and_constraints():
         except Exception as e:
             logger.debug(f"Cleanup notice (non-fatal): {e}")
 
-    column_statements = [
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS candidate_code VARCHAR(64);",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS question_set_code VARCHAR(20);",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS total_questions INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS questions_answered INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS correct_answers INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS incorrect_answers INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS unanswered_questions INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS duration_seconds INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS extra_time_minutes INTEGER DEFAULT 0;",
-        "ALTER TABLE exam_attempts ADD COLUMN IF NOT EXISTS termination_reason VARCHAR(255);",
-        # Colleges separation
-        """
-        CREATE TABLE IF NOT EXISTS colleges (
-            id BIGSERIAL PRIMARY KEY,
-            name VARCHAR(255) NOT NULL UNIQUE,
-            code VARCHAR(50) UNIQUE,
-            description TEXT,
-            active BOOLEAN NOT NULL DEFAULT TRUE,
-            created_at TIMESTAMPTZ DEFAULT NOW(),
-            updated_at TIMESTAMPTZ DEFAULT NOW()
-        );
-        """,
-        "ALTER TABLE candidates ADD COLUMN IF NOT EXISTS college_id BIGINT REFERENCES colleges(id) ON DELETE SET NULL;",
-        # Live Proctor Cheating Alerts table & indexes
-        """
-        CREATE TABLE IF NOT EXISTS proctor_alerts (
-            id BIGSERIAL PRIMARY KEY,
-            candidate_id BIGINT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
-            attempt_id BIGINT REFERENCES exam_attempts(id) ON DELETE SET NULL,
-            alert_type VARCHAR(50) NOT NULL,
-            severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
-            message VARCHAR(500) NOT NULL,
-            status VARCHAR(20) NOT NULL DEFAULT 'NEW',
-            reviewed_by VARCHAR(150),
-            reviewed_at TIMESTAMPTZ,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-        );
-        """,
-        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_candidate_id ON proctor_alerts(candidate_id);",
-        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_attempt_id ON proctor_alerts(attempt_id);",
-        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_created_at ON proctor_alerts(created_at);",
-        "CREATE INDEX IF NOT EXISTS ix_proctor_alerts_status ON proctor_alerts(status);",
-    ]
+    is_sqlite = engine.dialect.name == "sqlite"
 
     with engine.begin() as conn:
-        for col_stmt in column_statements:
+        from sqlalchemy import inspect
+        insp = inspect(conn)
+        
+        # Ensure columns on exam_attempts
+        if "exam_attempts" in insp.get_table_names():
+            existing_cols = {c["name"] for c in insp.get_columns("exam_attempts")}
+            col_defs = [
+                ("candidate_code", "VARCHAR(64)"),
+                ("question_set_code", "VARCHAR(20)"),
+                ("total_questions", "INTEGER DEFAULT 0"),
+                ("questions_answered", "INTEGER DEFAULT 0"),
+                ("correct_answers", "INTEGER DEFAULT 0"),
+                ("incorrect_answers", "INTEGER DEFAULT 0"),
+                ("unanswered_questions", "INTEGER DEFAULT 0"),
+                ("duration_seconds", "INTEGER DEFAULT 0"),
+                ("extra_time_minutes", "INTEGER DEFAULT 0"),
+                ("termination_reason", "VARCHAR(255)")
+            ]
+            for col_name, col_type in col_defs:
+                if col_name not in existing_cols:
+                    try:
+                        conn.execute(text(f"ALTER TABLE exam_attempts ADD COLUMN {col_name} {col_type};"))
+                    except Exception as e:
+                        logger.debug(f"Could not add {col_name} to exam_attempts: {e}")
+
+        # Ensure columns on departments table
+        if "departments" in insp.get_table_names():
+            dept_cols = {c["name"] for c in insp.get_columns("departments")}
+            if "category" not in dept_cols:
+                try:
+                    conn.execute(text("ALTER TABLE departments ADD COLUMN category VARCHAR(50) DEFAULT 'TECHNICAL';"))
+                except Exception as e:
+                    logger.debug(f"Could not add category to departments: {e}")
             try:
-                conn.execute(text(col_stmt))
+                # Classify non-technical departments
+                conn.execute(text("""
+                    UPDATE departments 
+                    SET category = 'NON_TECHNICAL' 
+                    WHERE UPPER(code) IN ('HR', 'MKT', 'SALES_MKT', 'SALES', 'MARKETING', 'FIN', 'FINANCE', 'OPS', 'MGMT', 'NON_TECH')
+                       OR LOWER(name) LIKE '%human resource%'
+                       OR LOWER(name) LIKE '%sales%'
+                       OR LOWER(name) LIKE '%marketing%'
+                       OR LOWER(name) LIKE '%management%'
+                       OR LOWER(name) LIKE '%non-technical%';
+                """))
             except Exception as e:
-                logger.debug(f"Column/table statement notice (non-fatal): {e}")
+                logger.debug(f"Notice updating department categories: {e}")
+
+        # Ensure colleges table
+        if "colleges" not in insp.get_table_names():
+            if is_sqlite:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS colleges (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name VARCHAR(255) NOT NULL UNIQUE,
+                        code VARCHAR(50) UNIQUE,
+                        description TEXT,
+                        active BOOLEAN NOT NULL DEFAULT 1,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+            else:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS colleges (
+                        id BIGSERIAL PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL UNIQUE,
+                        code VARCHAR(50) UNIQUE,
+                        description TEXT,
+                        active BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at TIMESTAMPTZ DEFAULT NOW(),
+                        updated_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """))
+
+        # Ensure candidates.college_id
+        if "candidates" in insp.get_table_names():
+            cand_cols = {c["name"] for c in insp.get_columns("candidates")}
+            if "college_id" not in cand_cols:
+                try:
+                    conn.execute(text("ALTER TABLE candidates ADD COLUMN college_id BIGINT REFERENCES colleges(id) ON DELETE SET NULL;"))
+                except Exception as e:
+                    logger.debug(f"Could not add college_id to candidates: {e}")
+
+        # Ensure proctor_alerts table
+        if "proctor_alerts" not in insp.get_table_names():
+            if is_sqlite:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS proctor_alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        candidate_id INTEGER NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+                        attempt_id INTEGER REFERENCES exam_attempts(id) ON DELETE SET NULL,
+                        alert_type VARCHAR(50) NOT NULL,
+                        severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+                        message VARCHAR(500) NOT NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'NEW',
+                        reviewed_by VARCHAR(150),
+                        reviewed_at DATETIME,
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                """))
+            else:
+                conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS proctor_alerts (
+                        id BIGSERIAL PRIMARY KEY,
+                        candidate_id BIGINT NOT NULL REFERENCES candidates(id) ON DELETE CASCADE,
+                        attempt_id BIGINT REFERENCES exam_attempts(id) ON DELETE SET NULL,
+                        alert_type VARCHAR(50) NOT NULL,
+                        severity VARCHAR(20) NOT NULL DEFAULT 'MEDIUM',
+                        message VARCHAR(500) NOT NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'NEW',
+                        reviewed_by VARCHAR(150),
+                        reviewed_at TIMESTAMPTZ,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    );
+                """))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_proctor_alerts_candidate_id ON proctor_alerts(candidate_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_proctor_alerts_attempt_id ON proctor_alerts(attempt_id);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_proctor_alerts_created_at ON proctor_alerts(created_at);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS ix_proctor_alerts_status ON proctor_alerts(status);"))
+
 
     ddl_statements = [
         # Risk 2: Unique constraint and index for attempt answers to guarantee idempotent upserts

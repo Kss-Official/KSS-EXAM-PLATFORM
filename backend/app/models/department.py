@@ -18,6 +18,7 @@ class Department(Base):
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     code = Column(String(50), unique=True, nullable=False)
+    category = Column(String(50), nullable=False, default="TECHNICAL")
     description = Column(Text, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

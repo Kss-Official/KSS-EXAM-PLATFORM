@@ -6,6 +6,7 @@ class DepartmentDto(CamelModel):
     id: Optional[int] = None
     name: str
     code: str
+    category: Optional[str] = "TECHNICAL"
     description: Optional[str] = None
     active: bool = True
     created_at: Optional[datetime] = None

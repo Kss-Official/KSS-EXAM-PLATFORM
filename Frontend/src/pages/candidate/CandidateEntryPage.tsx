@@ -53,17 +53,8 @@ export default function CandidateEntryPage({
       setExistingSession(session);
       setName(session.profile.name || "");
       const savedDept = session.profile.department || "";
-      if (savedDept === "Technical Department" || savedDept === "Non-Technical Department") {
+      if (savedDept) {
         setDepartment(savedDept);
-      } else if (
-        savedDept.toLowerCase().includes("hr") ||
-        savedDept.toLowerCase().includes("human") ||
-        savedDept.toLowerCase().includes("sales") ||
-        savedDept.toLowerCase().includes("market")
-      ) {
-        setDepartment("Non-Technical Department");
-      } else if (savedDept) {
-        setDepartment("Technical Department");
       }
       setDepartmentId(session.profile.departmentId);
       setEmail(session.profile.email || "");

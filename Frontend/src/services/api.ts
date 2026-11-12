@@ -31,6 +31,7 @@ export interface DepartmentDto {
   id: number;
   name: string;
   code: string;
+  category?: "TECHNICAL" | "NON_TECHNICAL";
   description?: string;
   active: boolean;
   createdAt?: string;
@@ -376,18 +377,59 @@ export class ApiError extends Error {
   }
 }
 
+interface AdminCacheItem<T> {
+  data: T;
+  timestamp: number;
+}
+const adminGetCache = new Map<string, AdminCacheItem<any>>();
+const inFlightAdminRequests = new Map<string, Promise<any>>();
+
+export function invalidateAdminCache(prefix?: string): void {
+  if (!prefix) {
+    adminGetCache.clear();
+    return;
+  }
+  for (const k of adminGetCache.keys()) {
+    if (k.startsWith(prefix)) {
+      adminGetCache.delete(k);
+    }
+  }
+}
+
 /**
  * Common fetch wrapper with HttpOnly cookie credentials support
  */
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(/^\/+/, "")}`;
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+  const isCandidateRoute = cleanEndpoint.startsWith("candidate/");
+  const method = (options.method || "GET").toUpperCase();
+  const isGetMethod = method === "GET";
+  const isLiveMonitoring = cleanEndpoint.startsWith("admin/live-monitoring");
+
+  // Invalidate admin cache on any mutation (POST, PUT, DELETE)
+  if (!isCandidateRoute && !isGetMethod) {
+    adminGetCache.clear();
+  }
+
+  // Fast Memory SWR Cache for Admin GET calls (maxAge 15s for standard pages, 2s for live monitoring)
+  if (!isCandidateRoute && isGetMethod && options.cache !== "no-store") {
+    const cached = adminGetCache.get(cleanEndpoint);
+    const ttl = isLiveMonitoring ? 2000 : 15000;
+    if (cached && (Date.now() - cached.timestamp < ttl)) {
+      return Promise.resolve(cached.data as T);
+    }
+
+    if (inFlightAdminRequests.has(cleanEndpoint)) {
+      return inFlightAdminRequests.get(cleanEndpoint) as Promise<T>;
+    }
+  }
+
+  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${cleanEndpoint}`;
   
   const headers = new Headers(options.headers || {});
   headers.set("Accept", "application/json");
   headers.set("X-Requested-With", "XMLHttpRequest");
 
-  const cleanEndpoint = endpoint.replace(/^\/+/, "");
-  const isCandidateRoute = cleanEndpoint.startsWith("candidate/");
   const token = isCandidateRoute
     ? (localStorage.getItem("examsecure_candidate_token") || localStorage.getItem("examsecure_auth_token"))
     : (localStorage.getItem("examsecure_admin_token") || localStorage.getItem("examsecure_auth_token"));
@@ -396,79 +438,95 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      credentials: "include", // Send and receive session cookies (JSESSIONID)
-      headers,
-    });
-  } catch (err: unknown) {
-    const error = err as Error;
-    throw new ApiError(
-      "Temporary network hiccup on your device. Please ensure your Wi-Fi is connected, wait 3 seconds, and click 'Continue to Role & Application' again.",
-      0,
-      { isCorsOrNetworkError: true }
-    );
-  }
-
-  if (!response.ok) {
-    let errorDetail = "";
+  const executeFetch = async (): Promise<T> => {
+    let response: Response;
     try {
-      const data = await response.json();
-      const detailStr = typeof data.detail === "string" 
-        ? data.detail 
-        : (Array.isArray(data.detail) ? data.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join("; ") : null);
-      errorDetail = detailStr || data.message || data.error || JSON.stringify(data);
-    } catch {
+      response = await fetch(url, {
+        ...options,
+        credentials: "include",
+        headers,
+      });
+    } catch (err: unknown) {
+      inFlightAdminRequests.delete(cleanEndpoint);
+      throw new ApiError(
+        "Temporary network hiccup on your device. Please ensure your Wi-Fi is connected, wait 3 seconds, and try again.",
+        0,
+        { isCorsOrNetworkError: true }
+      );
+    }
+
+    if (!response.ok) {
+      inFlightAdminRequests.delete(cleanEndpoint);
+      let errorDetail = "";
       try {
-        errorDetail = await response.text();
+        const data = await response.json();
+        const detailStr = typeof data.detail === "string" 
+          ? data.detail 
+          : (Array.isArray(data.detail) ? data.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join("; ") : null);
+        errorDetail = detailStr || data.message || data.error || JSON.stringify(data);
       } catch {
-        errorDetail = response.statusText;
+        try {
+          errorDetail = await response.text();
+        } catch {
+          errorDetail = response.statusText;
+        }
       }
-    }
 
-    if (response.status === 401) {
-      if (!isCandidateRoute) {
-        localStorage.removeItem("examsecure_admin_token");
-        localStorage.removeItem("examsecure_auth_token");
-      } else {
-        localStorage.removeItem("examsecure_candidate_token");
+      if (response.status === 401) {
+        if (!isCandidateRoute) {
+          localStorage.removeItem("examsecure_admin_token");
+          localStorage.removeItem("examsecure_auth_token");
+        } else {
+          localStorage.removeItem("examsecure_candidate_token");
+        }
+        throw new ApiError(
+          errorDetail || "401 Unauthorized: Authentication is required for this endpoint.",
+          401,
+          { isAuthError: true, backendMessage: errorDetail }
+        );
       }
-      throw new ApiError(
-        errorDetail || "401 Unauthorized: Authentication is required for this endpoint.",
-        401,
-        { isAuthError: true, backendMessage: errorDetail }
-      );
-    }
 
-    if (response.status === 403) {
-      throw new ApiError(
-        errorDetail || "403 Forbidden: Access denied. SUPER_ADMIN role is required.",
-        403,
-        { isAuthError: true, backendMessage: errorDetail }
-      );
-    }
+      if (response.status === 403) {
+        throw new ApiError(
+          errorDetail || "403 Forbidden: Access denied. SUPER_ADMIN role is required.",
+          403,
+          { isAuthError: true, backendMessage: errorDetail }
+        );
+      }
 
-    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      if (response.status === 502 || response.status === 503 || response.status === 504) {
+        throw new ApiError(
+          "Temporary network delay. Please wait a few seconds and try again.",
+          response.status,
+          { isCorsOrNetworkError: true, backendMessage: errorDetail }
+        );
+      }
+
+      const cleanDetail = (errorDetail && !errorDetail.includes("<html") && !errorDetail.includes("<!DOCTYPE") && errorDetail.length < 150)
+        ? errorDetail
+        : "Unable to process request right now. Please try again.";
       throw new ApiError(
-        "Temporary network delay. Please wait a few seconds and try again.",
+        cleanDetail,
         response.status,
-        { isCorsOrNetworkError: true, backendMessage: errorDetail }
+        { backendMessage: errorDetail }
       );
     }
 
-    const cleanDetail = (errorDetail && !errorDetail.includes("<html") && !errorDetail.includes("<!DOCTYPE") && errorDetail.length < 150)
-      ? errorDetail
-      : "Unable to process request right now. Please try again.";
-    throw new ApiError(
-      cleanDetail,
-      response.status,
-      { backendMessage: errorDetail }
-    );
+    const result = await response.json() as T;
+    if (!isCandidateRoute && isGetMethod) {
+      adminGetCache.set(cleanEndpoint, { data: result, timestamp: Date.now() });
+      inFlightAdminRequests.delete(cleanEndpoint);
+    }
+    return result;
+  };
+
+  if (!isCandidateRoute && isGetMethod && options.cache !== "no-store") {
+    const promise = executeFetch();
+    inFlightAdminRequests.set(cleanEndpoint, promise);
+    return promise;
   }
 
-  return response.json() as Promise<T>;
+  return executeFetch();
 }
 
 /* =========================================================================
@@ -526,6 +584,10 @@ export async function getActiveDepartments(params?: { type?: "academic" | "colle
 
 export async function getAllColleges(): Promise<DepartmentDto[]> {
   return request<DepartmentDto[]>("admin/departments/colleges");
+}
+
+export async function getCandidateDepartments(): Promise<DepartmentDto[]> {
+  return request<DepartmentDto[]>("candidate/departments");
 }
 
 export async function createDepartment(dept: Partial<DepartmentDto>): Promise<DepartmentDto> {

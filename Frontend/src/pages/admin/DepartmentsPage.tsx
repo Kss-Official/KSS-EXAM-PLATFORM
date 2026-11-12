@@ -44,6 +44,7 @@ interface BaseItem {
   id: number;
   name: string;
   code: string;
+  category?: "TECHNICAL" | "NON_TECHNICAL";
   description?: string;
   active: boolean;
   createdAt?: string;
@@ -58,6 +59,7 @@ export default function DepartmentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const [categoryFilter, setCategoryFilter] = useState<"ALL" | "TECHNICAL" | "NON_TECHNICAL">("ALL");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
 
   // Modal / Form state
@@ -65,6 +67,7 @@ export default function DepartmentsPage() {
   const [editingItem, setEditingItem] = useState<BaseItem | null>(null);
   const [formName, setFormName] = useState("");
   const [formCode, setFormCode] = useState("");
+  const [formCategory, setFormCategory] = useState<"TECHNICAL" | "NON_TECHNICAL">("TECHNICAL");
   const [formDesc, setFormDesc] = useState("");
   const [formActive, setFormActive] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -84,16 +87,29 @@ export default function DepartmentsPage() {
     try {
       if (activeTab === "academic") {
         const data = await getAllDepartments({ type: "academic" });
-        setItems(data.map(d => ({
-          id: d.id || 0,
-          name: d.name,
-          code: d.code,
-          description: d.description,
-          active: d.active,
-          createdAt: d.createdAt,
-          associatedExamsCount: d.associatedExamsCount || 0,
-          candidatesCount: d.candidatesCount || 0
-        })));
+        setItems(data.map(d => {
+          let cat = d.category;
+          if (!cat) {
+            const cU = (d.code || "").toUpperCase();
+            const nL = (d.name || "").toLowerCase();
+            if (["HR", "SALES", "MKT", "MGMT", "NON_TECH"].some(k => cU.includes(k)) || nL.includes("human") || nL.includes("sales") || nL.includes("market") || nL.includes("non-tech")) {
+              cat = "NON_TECHNICAL";
+            } else {
+              cat = "TECHNICAL";
+            }
+          }
+          return {
+            id: d.id || 0,
+            name: d.name,
+            code: d.code,
+            category: cat as "TECHNICAL" | "NON_TECHNICAL",
+            description: d.description,
+            active: d.active,
+            createdAt: d.createdAt,
+            associatedExamsCount: d.associatedExamsCount || 0,
+            candidatesCount: d.candidatesCount || 0
+          };
+        }));
       } else {
         const data = await getColleges();
         setItems(data.map(c => ({
@@ -123,6 +139,7 @@ export default function DepartmentsPage() {
     setEditingItem(null);
     setFormName("");
     setFormCode("");
+    setFormCategory("TECHNICAL");
     setFormDesc("");
     setFormActive(true);
     setFormError(null);
@@ -133,6 +150,7 @@ export default function DepartmentsPage() {
     setEditingItem(item);
     setFormName(item.name);
     setFormCode(item.code);
+    setFormCategory(item.category || "TECHNICAL");
     setFormDesc(item.description || "");
     setFormActive(item.active);
     setFormError(null);
@@ -158,6 +176,7 @@ export default function DepartmentsPage() {
           await updateDepartment(editingItem.id, {
             name: formName.trim(),
             code: formCode.trim().toUpperCase(),
+            category: formCategory,
             description: formDesc.trim(),
             active: formActive
           });
@@ -166,6 +185,7 @@ export default function DepartmentsPage() {
           await createDepartment({
             name: formName.trim(),
             code: formCode.trim().toUpperCase(),
+            category: formCategory,
             description: formDesc.trim(),
             active: formActive
           });
@@ -256,14 +276,21 @@ export default function DepartmentsPage() {
         statusFilter === "ALL" ? true :
         statusFilter === "ACTIVE" ? d.active : !d.active;
 
-      return matchesSearch && matchesStatus;
+      const matchesCategory = 
+        activeTab !== "academic" || categoryFilter === "ALL" ? true :
+        categoryFilter === "TECHNICAL" ? (d.category !== "NON_TECHNICAL") :
+        (d.category === "NON_TECHNICAL");
+
+      return matchesSearch && matchesStatus && matchesCategory;
     });
-  }, [items, searchQuery, statusFilter]);
+  }, [items, searchQuery, statusFilter, categoryFilter, activeTab]);
 
   // Aggregate Metrics
   const totalCount = items.length;
   const activeCount = items.filter(d => d.active).length;
   const inactiveCount = totalCount - activeCount;
+  const techCount = items.filter(d => d.category !== "NON_TECHNICAL").length;
+  const nonTechCount = items.filter(d => d.category === "NON_TECHNICAL").length;
   const totalCandidatesMapped = items.reduce((sum, item) => sum + (item.candidatesCount || 0), 0);
   const totalExamsMapped = items.reduce((sum, item) => sum + (item.associatedExamsCount || 0), 0);
 
@@ -280,6 +307,257 @@ export default function DepartmentsPage() {
       return { bg: "#faf5ff", text: "#7e22ce", border: "#e9d5ff", dot: "#a855f7" };
     }
     return { bg: "#f1f5f9", text: "#334155", border: "#cbd5e1", dot: "#64748b" };
+  };
+
+  const renderCard = (item: BaseItem) => {
+    const accent = getBadgeAccent(item.code);
+    return (
+      <div 
+        key={item.id} 
+        style={{ 
+          background: "#ffffff",
+          borderRadius: "14px",
+          border: "1px solid #e2e8f0",
+          padding: "20px",
+          display: "flex", 
+          flexDirection: "column", 
+          justifyContent: "space-between",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
+          transition: "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
+          position: "relative",
+          overflow: "hidden"
+        }}
+        onMouseEnter={e => {
+          e.currentTarget.style.transform = "translateY(-2px)";
+          e.currentTarget.style.boxShadow = "0 12px 24px -8px rgba(0,0,0,0.08)";
+          e.currentTarget.style.borderColor = "#cbd5e1";
+        }}
+        onMouseLeave={e => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.02)";
+          e.currentTarget.style.borderColor = "#e2e8f0";
+        }}
+      >
+        {/* Top Header Strip Accent */}
+        <div style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          height: "3px",
+          background: item.active 
+            ? (activeTab === "academic" ? (item.category === "NON_TECHNICAL" ? "linear-gradient(90deg, #9333ea, #a855f7)" : "linear-gradient(90deg, #059669, #10b981)") : "linear-gradient(90deg, #2563eb, #3b82f6)") 
+            : "#cbd5e1"
+        }} />
+
+        <div>
+          {/* Badge & Status Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ 
+                padding: "3px 10px", 
+                background: accent.bg, 
+                color: accent.text, 
+                border: `1px solid ${accent.border}`,
+                fontWeight: 800, 
+                fontSize: "12px", 
+                borderRadius: "6px",
+                fontFamily: "monospace",
+                letterSpacing: "0.5px"
+              }}>
+                {item.code}
+              </span>
+              <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>
+                ID #{item.id}
+              </span>
+              {activeTab === "academic" && (
+                <span style={{
+                  fontSize: "10.5px",
+                  fontWeight: 700,
+                  padding: "2px 8px",
+                  borderRadius: "999px",
+                  background: item.category === "NON_TECHNICAL" ? "#faf5ff" : "#ecfdf5",
+                  color: item.category === "NON_TECHNICAL" ? "#7e22ce" : "#047857",
+                  border: item.category === "NON_TECHNICAL" ? "1px solid #e9d5ff" : "1px solid #a7f3d0"
+                }}>
+                  {item.category === "NON_TECHNICAL" ? "💼 Non-Technical" : "🛠️ Technical"}
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleToggleActive(item)}
+              title={item.active ? "Click to deactivate track" : "Click to activate track"}
+              style={{
+                background: item.active ? "#ecfdf5" : "#f1f5f9",
+                border: item.active ? "1px solid #a7f3d0" : "1px solid #e2e8f0",
+                borderRadius: "20px",
+                padding: "3px 9px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                transition: "all 0.15s ease"
+              }}
+            >
+              <span style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                backgroundColor: item.active ? "#10b981" : "#94a3b8"
+              }} />
+              <span style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                color: item.active ? "#065f46" : "#64748b"
+              }}>
+                {item.active ? "Active" : "Inactive"}
+              </span>
+            </button>
+          </div>
+
+          {/* Title */}
+          <h3 style={{ 
+            margin: "0 0 8px 0", 
+            fontSize: "16px", 
+            fontWeight: 700, 
+            color: "#0f172a",
+            lineHeight: 1.3
+          }}>
+            {item.name}
+          </h3>
+
+          {/* Description */}
+          <p style={{ 
+            fontSize: "12.5px", 
+            color: "#64748b", 
+            margin: "0 0 16px 0", 
+            minHeight: "36px", 
+            lineHeight: 1.5,
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden"
+          }}>
+            {item.description || <i style={{ color: "#94a3b8" }}>No curriculum description provided.</i>}
+          </p>
+
+          {/* Associated Metrics Pills */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
+            {activeTab === "academic" ? (
+              <>
+                <div style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  padding: "3px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11.5px",
+                  color: "#475569"
+                }}>
+                  <Users size={12} color="#059669" />
+                  <span><b>{item.candidatesCount ?? 0}</b> Examinees</span>
+                </div>
+                <div style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "5px",
+                  background: "#f8fafc",
+                  border: "1px solid #e2e8f0",
+                  padding: "3px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11.5px",
+                  color: "#475569"
+                }}>
+                  <BookOpen size={12} color="#2563eb" />
+                  <span><b>{item.associatedExamsCount ?? 0}</b> Exams</span>
+                </div>
+              </>
+            ) : (
+              <div style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                background: "#eff6ff",
+                border: "1px solid #bfdbfe",
+                padding: "3px 9px",
+                borderRadius: "6px",
+                fontSize: "11.5px",
+                color: "#1d4ed8"
+              }}>
+                <Users size={12} color="#2563eb" />
+                <span><b>{item.candidatesCount ?? 0}</b> Registered Candidates</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Card Action Footer */}
+        <div style={{ 
+          display: "flex", 
+          justifyContent: "space-between", 
+          alignItems: "center", 
+          paddingTop: "14px", 
+          borderTop: "1px solid #f1f5f9" 
+        }}>
+          <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+            {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "System Managed"}
+          </span>
+
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button 
+              type="button" 
+              onClick={() => handleOpenEditModal(item)}
+              style={{ 
+                padding: "5px 12px", 
+                fontSize: "12px", 
+                fontWeight: 600,
+                color: "#334155",
+                background: "#ffffff",
+                border: "1px solid #cbd5e1",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "inline-flex", 
+                alignItems: "center", 
+                gap: "5px",
+                transition: "all 0.12s ease"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#ffffff"; }}
+            >
+              <Edit3 size={13} color="#475569" />
+              <span>Edit</span>
+            </button>
+            <button 
+              type="button" 
+              onClick={() => handleDelete(item)}
+              style={{ 
+                padding: "5px 10px", 
+                fontSize: "12px", 
+                fontWeight: 600,
+                color: "#dc2626", 
+                background: "#ffffff",
+                border: "1px solid #fecaca",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "inline-flex", 
+                alignItems: "center", 
+                gap: "4px",
+                transition: "all 0.12s ease"
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#ffffff"; }}
+            >
+              <Trash2 size={13} color="#dc2626" />
+              <span>Delete</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -696,6 +974,108 @@ export default function DepartmentsPage() {
         </div>
       </div>
 
+      {/* Track Stream Tabs (Technical vs Non-Technical) */}
+      {activeTab === "academic" && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          background: "#ffffff",
+          padding: "10px 16px",
+          borderRadius: "12px",
+          border: "1px solid #e2e8f0",
+          flexWrap: "wrap"
+        }}>
+          <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Department Stream:
+          </span>
+          
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("ALL")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "20px",
+              fontSize: "12.5px",
+              fontWeight: 700,
+              cursor: "pointer",
+              border: categoryFilter === "ALL" ? "1px solid #017846" : "1px solid #e2e8f0",
+              background: categoryFilter === "ALL" ? "#ecfdf5" : "#ffffff",
+              color: categoryFilter === "ALL" ? "#017846" : "#64748b",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>All Departments</span>
+            <span style={{
+              background: categoryFilter === "ALL" ? "#017846" : "#f1f5f9",
+              color: categoryFilter === "ALL" ? "#ffffff" : "#64748b",
+              fontSize: "10px",
+              padding: "1px 6px",
+              borderRadius: "999px"
+            }}>{items.length}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("TECHNICAL")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "20px",
+              fontSize: "12.5px",
+              fontWeight: 700,
+              cursor: "pointer",
+              border: categoryFilter === "TECHNICAL" ? "1px solid #017846" : "1px solid #e2e8f0",
+              background: categoryFilter === "TECHNICAL" ? "#ecfdf5" : "#ffffff",
+              color: categoryFilter === "TECHNICAL" ? "#017846" : "#64748b",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>🛠️ Technical Departments</span>
+            <span style={{
+              background: categoryFilter === "TECHNICAL" ? "#017846" : "#f1f5f9",
+              color: categoryFilter === "TECHNICAL" ? "#ffffff" : "#64748b",
+              fontSize: "10px",
+              padding: "1px 6px",
+              borderRadius: "999px"
+            }}>{techCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCategoryFilter("NON_TECHNICAL")}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "20px",
+              fontSize: "12.5px",
+              fontWeight: 700,
+              cursor: "pointer",
+              border: categoryFilter === "NON_TECHNICAL" ? "1px solid #7e22ce" : "1px solid #e2e8f0",
+              background: categoryFilter === "NON_TECHNICAL" ? "#faf5ff" : "#ffffff",
+              color: categoryFilter === "NON_TECHNICAL" ? "#7e22ce" : "#64748b",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>💼 Non-Technical Departments</span>
+            <span style={{
+              background: categoryFilter === "NON_TECHNICAL" ? "#7e22ce" : "#f1f5f9",
+              color: categoryFilter === "NON_TECHNICAL" ? "#ffffff" : "#64748b",
+              fontSize: "10px",
+              padding: "1px 6px",
+              borderRadius: "999px"
+            }}>{nonTechCount}</span>
+          </button>
+        </div>
+      )}
+
       {/* Search & Filtering Toolbar */}
       <div style={{
         display: "flex",
@@ -836,245 +1216,112 @@ export default function DepartmentsPage() {
         </div>
       ) : viewMode === "grid" ? (
         /* GRID CARDS VIEW */
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
-          {filteredItems.map(item => {
-            const accent = getBadgeAccent(item.code);
-            return (
-              <div 
-                key={item.id} 
-                style={{ 
-                  background: "#ffffff",
-                  borderRadius: "14px",
-                  border: "1px solid #e2e8f0",
-                  padding: "20px",
-                  display: "flex", 
-                  flexDirection: "column", 
-                  justifyContent: "space-between",
-                  boxShadow: "0 1px 3px rgba(0,0,0,0.02)",
-                  transition: "transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease",
-                  position: "relative",
-                  overflow: "hidden"
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 12px 24px -8px rgba(0,0,0,0.08)";
-                  e.currentTarget.style.borderColor = "#cbd5e1";
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.02)";
-                  e.currentTarget.style.borderColor = "#e2e8f0";
-                }}
-              >
-                {/* Top Header Strip Accent */}
+        activeTab === "college" ? (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
+            {filteredItems.map(renderCard)}
+          </div>
+        ) : (
+          /* ACADEMIC DEPARTMENTS - DUAL STREAM VIEW */
+          <div style={{ display: "flex", flexDirection: "column", gap: "28px" }}>
+            {/* TECHNICAL DEPARTMENTS SECTION */}
+            {(categoryFilter === "ALL" || categoryFilter === "TECHNICAL") && (
+              <div>
                 <div style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: "3px",
-                  background: item.active 
-                    ? (activeTab === "academic" ? "linear-gradient(90deg, #059669, #10b981)" : "linear-gradient(90deg, #2563eb, #3b82f6)") 
-                    : "#cbd5e1"
-                }} />
-
-                <div>
-                  {/* Badge & Status Header */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <span style={{ 
-                        padding: "3px 10px", 
-                        background: accent.bg, 
-                        color: accent.text, 
-                        border: `1px solid ${accent.border}`,
-                        fontWeight: 800, 
-                        fontSize: "12px", 
-                        borderRadius: "6px",
-                        fontFamily: "monospace",
-                        letterSpacing: "0.5px"
-                      }}>
-                        {item.code}
-                      </span>
-                      <span style={{ fontSize: "11px", color: "#94a3b8", fontWeight: 600 }}>
-                        ID #{item.id}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleToggleActive(item)}
-                      title={item.active ? "Click to deactivate track" : "Click to activate track"}
-                      style={{
-                        background: item.active ? "#ecfdf5" : "#f1f5f9",
-                        border: item.active ? "1px solid #a7f3d0" : "1px solid #e2e8f0",
-                        borderRadius: "20px",
-                        padding: "3px 9px",
-                        cursor: "pointer",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        transition: "all 0.15s ease"
-                      }}
-                    >
-                      <span style={{
-                        width: "6px",
-                        height: "6px",
-                        borderRadius: "50%",
-                        backgroundColor: item.active ? "#10b981" : "#94a3b8"
-                      }} />
-                      <span style={{
-                        fontSize: "11px",
-                        fontWeight: 700,
-                        color: item.active ? "#065f46" : "#64748b"
-                      }}>
-                        {item.active ? "Active" : "Inactive"}
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Title */}
-                  <h3 style={{ 
-                    margin: "0 0 8px 0", 
-                    fontSize: "16px", 
-                    fontWeight: 700, 
-                    color: "#0f172a",
-                    lineHeight: 1.3
-                  }}>
-                    {item.name}
-                  </h3>
-
-                  {/* Description */}
-                  <p style={{ 
-                    fontSize: "12.5px", 
-                    color: "#64748b", 
-                    margin: "0 0 16px 0", 
-                    minHeight: "36px", 
-                    lineHeight: 1.5,
-                    display: "-webkit-box",
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden"
-                  }}>
-                    {item.description || <i style={{ color: "#94a3b8" }}>No curriculum description provided.</i>}
-                  </p>
-
-                  {/* Associated Metrics Pills */}
-                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-                    {activeTab === "academic" ? (
-                      <>
-                        <div style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "5px",
-                          background: "#f8fafc",
-                          border: "1px solid #e2e8f0",
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          fontSize: "11.5px",
-                          color: "#475569"
-                        }}>
-                          <Users size={12} color="#059669" />
-                          <span><b>{item.candidatesCount ?? 0}</b> Examinees</span>
-                        </div>
-                        <div style={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: "5px",
-                          background: "#f8fafc",
-                          border: "1px solid #e2e8f0",
-                          padding: "3px 8px",
-                          borderRadius: "6px",
-                          fontSize: "11.5px",
-                          color: "#475569"
-                        }}>
-                          <BookOpen size={12} color="#2563eb" />
-                          <span><b>{item.associatedExamsCount ?? 0}</b> Exams</span>
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "5px",
-                        background: "#eff6ff",
-                        border: "1px solid #bfdbfe",
-                        padding: "3px 9px",
-                        borderRadius: "6px",
-                        fontSize: "11.5px",
-                        color: "#1d4ed8"
-                      }}>
-                        <Users size={12} color="#2563eb" />
-                        <span><b>{item.candidatesCount ?? 0}</b> Registered Candidates</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Card Action Footer */}
-                <div style={{ 
-                  display: "flex", 
-                  justifyContent: "space-between", 
-                  alignItems: "center", 
-                  paddingTop: "14px", 
-                  borderTop: "1px solid #f1f5f9" 
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 18px",
+                  background: "linear-gradient(90deg, #ecfdf5, #f0fdf4)",
+                  borderRadius: "12px",
+                  border: "1px solid #a7f3d0",
+                  marginBottom: "16px"
                 }}>
-                  <span style={{ fontSize: "11px", color: "#94a3b8" }}>
-                    {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : "System Managed"}
-                  </span>
-
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <button 
-                      type="button" 
-                      onClick={() => handleOpenEditModal(item)}
-                      style={{ 
-                        padding: "5px 12px", 
-                        fontSize: "12px", 
-                        fontWeight: 600,
-                        color: "#334155",
-                        background: "#ffffff",
-                        border: "1px solid #cbd5e1",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        display: "inline-flex", 
-                        alignItems: "center", 
-                        gap: "5px",
-                        transition: "all 0.12s ease"
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#f8fafc"; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#ffffff"; }}
-                    >
-                      <Edit3 size={13} color="#475569" />
-                      <span>Edit</span>
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => handleDelete(item)}
-                      style={{ 
-                        padding: "5px 10px", 
-                        fontSize: "12px", 
-                        fontWeight: 600,
-                        color: "#dc2626", 
-                        background: "#ffffff",
-                        border: "1px solid #fecaca",
-                        borderRadius: "6px",
-                        cursor: "pointer",
-                        display: "inline-flex", 
-                        alignItems: "center", 
-                        gap: "4px",
-                        transition: "all 0.12s ease"
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; }}
-                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#ffffff"; }}
-                    >
-                      <Trash2 size={13} color="#dc2626" />
-                      <span>Delete</span>
-                    </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "20px" }}>🛠️</span>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#065f46" }}>
+                        Technical Departments & Engineering Tracks
+                      </h3>
+                      <p style={{ margin: 0, fontSize: "12px", color: "#047857" }}>
+                        Core Engineering disciplines, software architecture, developer roles, and QA tracks
+                      </p>
+                    </div>
                   </div>
+                  <span style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    background: "#ffffff",
+                    color: "#047857",
+                    padding: "3px 10px",
+                    borderRadius: "999px",
+                    border: "1px solid #a7f3d0"
+                  }}>
+                    {filteredItems.filter(i => i.category !== "NON_TECHNICAL").length} Tracks
+                  </span>
                 </div>
+
+                {filteredItems.filter(i => i.category !== "NON_TECHNICAL").length === 0 ? (
+                  <div style={{ padding: "24px", textAlign: "center", color: "#94a3b8", fontSize: "13px", background: "#ffffff", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+                    No technical departments found matching your search.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
+                    {filteredItems.filter(i => i.category !== "NON_TECHNICAL").map(renderCard)}
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
+            )}
+
+            {/* NON-TECHNICAL DEPARTMENTS SECTION */}
+            {(categoryFilter === "ALL" || categoryFilter === "NON_TECHNICAL") && (
+              <div>
+                <div style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 18px",
+                  background: "linear-gradient(90deg, #faf5ff, #fdf4ff)",
+                  borderRadius: "12px",
+                  border: "1px solid #e9d5ff",
+                  marginBottom: "16px"
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "20px" }}>💼</span>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 700, color: "#6b21a8" }}>
+                        Non-Technical Departments & Business Operations
+                      </h3>
+                      <p style={{ margin: 0, fontSize: "12px", color: "#7e22ce" }}>
+                        Human resources, sales, marketing, business management, and operations tracks
+                      </p>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    background: "#ffffff",
+                    color: "#7e22ce",
+                    padding: "3px 10px",
+                    borderRadius: "999px",
+                    border: "1px solid #e9d5ff"
+                  }}>
+                    {filteredItems.filter(i => i.category === "NON_TECHNICAL").length} Tracks
+                  </span>
+                </div>
+
+                {filteredItems.filter(i => i.category === "NON_TECHNICAL").length === 0 ? (
+                  <div style={{ padding: "24px", textAlign: "center", color: "#94a3b8", fontSize: "13px", background: "#ffffff", borderRadius: "12px", border: "1px dashed #cbd5e1" }}>
+                    No non-technical departments found matching your search.
+                  </div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(360px, 1fr))", gap: "18px" }}>
+                    {filteredItems.filter(i => i.category === "NON_TECHNICAL").map(renderCard)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
       ) : (
         /* TABLE LIST VIEW */
         <div style={{
@@ -1089,6 +1336,7 @@ export default function DepartmentsPage() {
               <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#64748b", fontWeight: 700, fontSize: "11.5px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
                 <th style={{ padding: "12px 18px" }}>Code</th>
                 <th style={{ padding: "12px 18px" }}>Name / Title</th>
+                {activeTab === "academic" && <th style={{ padding: "12px 18px" }}>Track Stream</th>}
                 <th style={{ padding: "12px 18px" }}>Description</th>
                 <th style={{ padding: "12px 18px" }}>{activeTab === "academic" ? "Exams / Candidates" : "Enrolled"}</th>
                 <th style={{ padding: "12px 18px" }}>Status</th>
@@ -1126,6 +1374,22 @@ export default function DepartmentsPage() {
                       <div style={{ fontWeight: 700, color: "#0f172a" }}>{item.name}</div>
                       <div style={{ fontSize: "11px", color: "#94a3b8" }}>ID: #{item.id}</div>
                     </td>
+                    {activeTab === "academic" && (
+                      <td style={{ padding: "14px 18px", verticalAlign: "middle" }}>
+                        <span style={{
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          padding: "2px 8px",
+                          borderRadius: "999px",
+                          background: item.category === "NON_TECHNICAL" ? "#faf5ff" : "#ecfdf5",
+                          color: item.category === "NON_TECHNICAL" ? "#7e22ce" : "#047857",
+                          border: item.category === "NON_TECHNICAL" ? "1px solid #e9d5ff" : "1px solid #a7f3d0",
+                          whiteSpace: "nowrap"
+                        }}>
+                          {item.category === "NON_TECHNICAL" ? "💼 Non-Technical" : "🛠️ Technical"}
+                        </span>
+                      </td>
+                    )}
                     <td style={{ padding: "14px 18px", verticalAlign: "middle", maxWidth: "340px", color: "#64748b", lineHeight: 1.4 }}>
                       {item.description || <i style={{ color: "#94a3b8" }}>No description</i>}
                     </td>
@@ -1341,6 +1605,38 @@ export default function DepartmentsPage() {
                     }}
                   />
                 </div>
+
+                {/* Track / Category Selector (Academic Departments only) */}
+                {activeTab === "academic" && (
+                  <div>
+                    <label style={{ display: "block", fontSize: "12.5px", fontWeight: 700, color: "#334155", marginBottom: "6px" }}>
+                      Department Stream / Track *
+                    </label>
+                    <select
+                      value={formCategory}
+                      onChange={e => setFormCategory(e.target.value as "TECHNICAL" | "NON_TECHNICAL")}
+                      style={{
+                        width: "100%",
+                        height: "40px",
+                        padding: "0 12px",
+                        borderRadius: "8px",
+                        border: "1px solid #cbd5e1",
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: "#0f172a",
+                        backgroundColor: "#ffffff",
+                        outline: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                      <option value="TECHNICAL">🛠️ Technical Department (Engineering, Development, Testing, UI/UX)</option>
+                      <option value="NON_TECHNICAL">💼 Non-Technical Department (HR, Sales, Marketing, Operations)</option>
+                    </select>
+                    <span style={{ fontSize: "11px", color: "#64748b", marginTop: "3px", display: "block" }}>
+                      Determines whether candidates selecting this department in the candidate portal receive Technical or Non-Technical exams.
+                    </span>
+                  </div>
+                )}
 
                 {/* Description Field */}
                 <div>

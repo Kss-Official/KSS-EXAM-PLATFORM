@@ -50,6 +50,14 @@ export default function AdminLayout({
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
+
+  // Reset scroll to top cleanly whenever the admin page changes
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [path]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -572,7 +580,7 @@ export default function AdminLayout({
           </div>
         )}
 
-        <main className="admin-content">
+        <main className="admin-content" ref={contentRef}>
           {children}
         </main>
       </div>

@@ -203,14 +203,24 @@ class CandidateExamService:
             return "TECHNICAL"
 
         # Determine track from candidate's chosen department (Technical vs Non-Technical)
-        # Note: Department is NOT matched against DB; only Name & Email authorize the candidate.
-        input_d = (input_dept_name or "").strip().lower()
-        if "non" in input_d:
-            chosen_track = "Non-Technical Department"
-            chosen_category = "NON_TECHNICAL"
+        matched_db_dept = None
+        if input_dept_id:
+            matched_db_dept = db.query(Department).filter(Department.id == input_dept_id).first()
+        elif input_dept_name:
+            matched_db_dept = db.query(Department).filter(Department.name.ilike(input_dept_name.strip())).first()
+
+        if matched_db_dept:
+            cat = getattr(matched_db_dept, "category", None) or get_department_category(matched_db_dept.name, matched_db_dept.code or "")
+            chosen_category = cat
+            chosen_track = matched_db_dept.name
         else:
-            chosen_track = "Technical Department"
-            chosen_category = "TECHNICAL"
+            input_d = (input_dept_name or "").strip().lower()
+            if "non" in input_d:
+                chosen_track = "Non-Technical Department"
+                chosen_category = "NON_TECHNICAL"
+            else:
+                chosen_track = "Technical Department"
+                chosen_category = "TECHNICAL"
 
         # Store validated details
         resp.candidate_id = candidate.id

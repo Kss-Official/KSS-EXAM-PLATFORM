@@ -1462,4 +1462,236 @@
   display: inline-block;
 }
 
+/* =========================================================================
+   SMOOTH PAGE TRANSITIONS & PROFESSIONAL ADMIN ANIMATIONS
+   ========================================================================= */
+
+/* Top Loading Progress Bar (Zero Blanking) */
+.admin-top-progress-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(1, 120, 70, 0.12);
+  overflow: hidden;
+  z-index: 100;
+}
+
+.admin-top-progress-indicator {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #017846, #10b981, #017846);
+  animation: adminProgressBarIndeterminate 1.2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: 0% 50%;
+}
+
+@keyframes adminProgressBarIndeterminate {
+  0% { transform: translateX(-100%) scaleX(0.2); }
+  50% { transform: translateX(0%) scaleX(0.7); }
+  100% { transform: translateX(100%) scaleX(0.2); }
+}
+
+/* Page Transition Enter Animation */
+.admin-page-transition-wrap {
+  animation: adminPageFadeSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+@keyframes adminPageFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Sidebar Navigation Link Smooth Transitions */
+.admin-nav-link {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.admin-nav-link:hover {
+  transform: translateX(3px);
+}
+
+.admin-nav-link.active {
+  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.35) !important;
+}
+
+/* Button Micro-Interactions */
+button.primary, 
+button.secondary, 
+button.danger, 
+.admin-btn {
+  transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+button.primary:hover, 
+.admin-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.25);
+}
+
+button.primary:active, 
+button.secondary:active, 
+button.danger:active {
+  transform: translateY(0) scale(0.98) !important;
+}
+
+/* Stat Cards Smooth Hover */
+.stat-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease !important;
+}
+
+.stat-card:hover {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* Table Row Smooth Transitions */
+.admin-table tbody tr, 
+table tbody tr {
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+
+table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+/* Modal Smooth Scale-In Animation */
+@keyframes adminModalScaleIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.96) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.admin-modal-content {
+  animation: adminModalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Content Area Smooth Scrolling */
+.admin-content {
+  scroll-behavior: smooth;
+  position: relative;
+}
+
+/* ========================================================
+   CLEAN & UNIQUE ADMIN PORTAL ENHANCEMENTS
+   Strictly scoped to .admin-app (Zero impact on Candidate Portal)
+   ======================================================== */
+
+/* 1. Sleek Modern Scrollbar (Eliminates clunky Windows default scrollbars) */
+.admin-app *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.admin-app *::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.admin-app *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+  transition: background 0.2s ease;
+}
+
+.admin-app *::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 2. Glassmorphic Sticky Header */
+.admin-header {
+  background: rgba(255, 255, 255, 0.92) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04) !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* 3. Unique Stat Card Glow & Accent Line */
+.stat-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2.5px;
+  background: linear-gradient(90deg, #017846, #34d399);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.stat-card:hover::after {
+  opacity: 1;
+}
+
+/* 4. Enhanced Input & Select Focus Glow */
+.admin-app input[type="text"]:focus,
+.admin-app input[type="search"]:focus,
+.admin-app input[type="email"]:focus,
+.admin-app input[type="password"]:focus,
+.admin-app select:focus,
+.search-input-wrap input:focus,
+.search-input-wrapper input:focus {
+  border-color: #017846 !important;
+  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.12) !important;
+  outline: none;
+}
+
+/* 5. Polished Table Row Hover with Emerald Accent */
+.admin-table tbody tr:hover,
+.data-table tr:hover td {
+  background-color: rgba(1, 120, 70, 0.025) !important;
+}
+
+/* 6. Pulse Indicator for Live System Status */
+@keyframes adminHealthPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.18);
+    opacity: 0.82;
+  }
+}
+
+.health-dot.online {
+  animation: adminHealthPulse 2.4s infinite ease-in-out;
+}
+
+/* 7. Refined Notification Pill Pulse */
+@keyframes adminNotifyGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(1, 120, 70, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(1, 120, 70, 0);
+  }
+}
+
+.admin-notifications-badge {
+  animation: adminNotifyGlow 2s infinite ease-in-out;
+}
+
+
+
 
