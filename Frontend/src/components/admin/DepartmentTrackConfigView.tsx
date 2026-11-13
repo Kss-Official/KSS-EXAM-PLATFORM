@@ -69,8 +69,8 @@ export default function DepartmentTrackConfigView({
   onReviewQuestions
 }: DepartmentTrackConfigViewProps) {
   const isTech = category === "TECHNICAL";
-  const primaryBrand = isTech ? "#017846" : "#0284c7";
-  const lightBg = isTech ? "#EAF6EF" : "#f0f9ff";
+  const primaryBrand = isTech ? "#2563EB" : "#0284c7";
+  const lightBg = isTech ? "#EFF6FF" : "#f0f9ff";
   const paleBg = isTech ? "#F3FAF6" : "#f8fafc";
   const accentBorder = isTech ? "#86efac" : "#bae6fd";
 
@@ -298,7 +298,7 @@ export default function DepartmentTrackConfigView({
           alignItems: "center",
           flexWrap: "wrap",
           gap: "16px",
-          boxShadow: `0 4px 16px ${isTech ? "rgba(1, 120, 70, 0.06)" : "rgba(2, 132, 199, 0.06)"}`
+          boxShadow: `0 4px 16px ${isTech ? "rgba(37, 99, 235, 0.06)" : "rgba(2, 132, 199, 0.06)"}`
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
@@ -1096,7 +1096,7 @@ export default function DepartmentTrackConfigView({
                       style={{
                         background: "none",
                         border: "none",
-                        color: "#017846",
+                        color: "#2563EB",
                         fontSize: "12px",
                         fontWeight: 700,
                         cursor: "pointer",
@@ -1285,7 +1285,7 @@ export default function DepartmentTrackConfigView({
               padding: "10px 22px",
               fontSize: "13px",
               fontWeight: 700,
-              background: "#017846",
+              background: "#2563EB",
               display: "inline-flex",
               alignItems: "center",
               gap: "6px"

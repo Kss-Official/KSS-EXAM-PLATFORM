@@ -1460,6 +1460,15 @@ class CandidateService:
                 db.delete(att)
                 reset_count += 1
             cand.status = "ACTIVE"
+        else:
+            target_num = 1 if "1" in cleaned_target else (2 if "2" in cleaned_target else (3 if "3" in cleaned_target else None))
+            if target_num:
+                from app.models.exam import ExamSlot
+                attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
+                for att in attempts:
+                    slot_row = db.query(ExamSlot).filter(ExamSlot.exam_id == att.exam_id, ExamSlot.slot_number == target_num).first()
+                    if slot_row:
+                        att.slot_id = slot_row.id
 
         db.add(AuditLog(
             action="RESCHEDULE_CANDIDATE_SLOT",
@@ -1518,6 +1527,15 @@ class CandidateService:
                     db.delete(att)
                     total_resets += 1
                 cand.status = "ACTIVE"
+            else:
+                target_num = 1 if "1" in cleaned_target else (2 if "2" in cleaned_target else (3 if "3" in cleaned_target else None))
+                if target_num:
+                    from app.models.exam import ExamSlot
+                    attempts = db.query(ExamAttempt).filter(ExamAttempt.candidate_id == cand.id).all()
+                    for att in attempts:
+                        slot_row = db.query(ExamSlot).filter(ExamSlot.exam_id == att.exam_id, ExamSlot.slot_number == target_num).first()
+                        if slot_row:
+                            att.slot_id = slot_row.id
 
         db.add(AuditLog(
             action="BATCH_RESCHEDULE_CANDIDATE_SLOT",

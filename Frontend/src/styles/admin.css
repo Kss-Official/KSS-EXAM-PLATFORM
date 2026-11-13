@@ -46,12 +46,12 @@
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #017846, #014D32);
+  background: linear-gradient(135deg, #0A196F 0%, #2563EB 55%, #EA580C 100%);
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.4);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
 }
 
 .admin-sidebar-brand-text b {
@@ -107,9 +107,9 @@
 
 .admin-nav-link.active {
   color: #ffffff;
-  background: linear-gradient(135deg, #017846, #01663C);
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 65%, #EA580C 115%);
   font-weight: 600;
-  box-shadow: 0 4px 14px rgba(1, 120, 70, 0.35);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
   position: relative;
 }
 
@@ -121,8 +121,8 @@
   bottom: 8px;
   width: 4px;
   border-radius: 0 4px 4px 0;
-  background: #34d399;
-  box-shadow: 0 0 10px rgba(52, 211, 153, 0.7);
+  background: #F97316;
+  box-shadow: 0 0 10px rgba(249, 115, 22, 0.7);
 }
 
 .admin-nav-link .badge {
@@ -306,7 +306,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #017846;
+  background: #2563EB;
 }
 
 .admin-user-pill {
@@ -416,7 +416,7 @@
   justify-content: center;
 }
 
-.stat-card-icon.blue { background: #EAF6EF; color: #017846; }
+.stat-card-icon.blue { background: #EFF6FF; color: #2563EB; }
 .stat-card-icon.green { background: #ecfdf5; color: #10b981; }
 .stat-card-icon.amber { background: #fffbeb; color: #f59e0b; }
 .stat-card-icon.purple { background: #f5f3ff; color: #8b5cf6; }
@@ -499,7 +499,7 @@
 }
 
 .auth-form-inline input:focus {
-  border-color: #017846;
+  border-color: #2563EB;
 }
 
 /* Two Column Layout */
@@ -586,7 +586,7 @@
 }
 
 .status-pill.LIVE { background: #dcfce7; color: #15803d; }
-.status-pill.UPCOMING { background: #EAF6EF; color: #017846; }
+.status-pill.UPCOMING { background: #EFF6FF; color: #2563EB; }
 .status-pill.COMPLETED { background: #f1f5f9; color: #475569; }
 .status-pill.DRAFT { background: #fef3c7; color: #b45309; }
 
@@ -631,8 +631,8 @@
 }
 
 .search-input-wrap input:focus {
-  border-color: #017846;
-  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .filter-group {
@@ -690,8 +690,8 @@
 .form-group input:focus, 
 .form-group select:focus, 
 .form-group textarea:focus {
-  border-color: #017846;
-  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .form-error-msg {
@@ -875,8 +875,8 @@
 
 .search-input-wrapper input:focus {
   background: #ffffff;
-  border-color: #017846;
-  box-shadow: 0 0 0 3.5px rgba(1, 120, 70, 0.12);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3.5px rgba(37, 99, 235, 0.12);
 }
 
 .search-input-wrapper input::placeholder {
@@ -911,7 +911,7 @@
 
 .filter-pill.active {
   background: #ffffff;
-  color: #017846;
+  color: #2563EB;
   box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
   font-weight: 700;
 }
@@ -977,9 +977,9 @@
 }
 
 .btn-view {
-  background: #EAF6EF;
+  background: #EFF6FF;
   border: 1px solid #D9E6DF;
-  color: #017846;
+  color: #2563EB;
   padding: 5px 10px;
   border-radius: 6px;
   font-size: 11.5px;
@@ -1164,7 +1164,7 @@
   justify-content: center;
   width: 46px;
   height: 46px;
-  background: #EAF6EF;
+  background: #EFF6FF;
   border: 1px solid #D9E6DF;
   border-radius: 8px;
   flex-shrink: 0;
@@ -1174,7 +1174,7 @@
 .schedule-date-badge .month {
   font-size: 11.5px;
   font-weight: 800;
-  color: #017846;
+  color: #2563EB;
 }
 
 .schedule-date-badge .day {
@@ -1292,8 +1292,8 @@
   display: inline-flex;
   align-items: center;
   padding: 2.5px 7px;
-  background: #EAF6EF;
-  color: #017846;
+  background: #EFF6FF;
+  color: #2563EB;
   border: 1px solid #D9E6DF;
   border-radius: 6px;
   font-size: 11px;
@@ -1347,10 +1347,10 @@
 }
 
 .set-tab-btn.active {
-  border-color: #017846;
-  background: #EAF6EF;
-  color: #017846;
-  box-shadow: 0 2px 8px rgba(1, 120, 70, 0.15);
+  border-color: #2563EB;
+  background: #EFF6FF;
+  color: #2563EB;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
 }
 
 @media (max-width: 1024px) {
@@ -1398,10 +1398,10 @@
 }
 
 .candidate-round-tab.active {
-  border-color: #017846;
-  background: #eaf6ef;
-  color: #017846;
-  box-shadow: 0 2px 8px rgba(1, 120, 70, 0.15);
+  border-color: #2563EB;
+  background: #eff6ff;
+  color: #2563EB;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
 }
 
 .candidate-round-tab.active.round2 {
@@ -1420,7 +1420,7 @@
 }
 
 .candidate-round-tab.active .candidate-round-count {
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
 }
 
@@ -1442,8 +1442,8 @@
 }
 
 .candidate-id-badge.round1 {
-  color: #017846;
-  background: #eaf6ef;
+  color: #2563EB;
+  background: #eff6ff;
   border: 1px solid #bbf7d0;
 }
 
@@ -1475,7 +1475,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: rgba(1, 120, 70, 0.12);
+  background: rgba(37, 99, 235, 0.12);
   overflow: hidden;
   z-index: 100;
 }
@@ -1483,7 +1483,7 @@
 .admin-top-progress-indicator {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #017846, #10b981, #017846);
+  background: linear-gradient(90deg, #1E40AF, #2563EB, #EA580C);
   animation: adminProgressBarIndeterminate 1.2s infinite cubic-bezier(0.4, 0, 0.2, 1);
   transform-origin: 0% 50%;
 }
@@ -1522,7 +1522,7 @@
 }
 
 .admin-nav-link.active {
-  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.35) !important;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
 }
 
 /* Button Micro-Interactions */
@@ -1536,7 +1536,7 @@ button.danger,
 button.primary:hover, 
 .admin-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.25);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
 }
 
 button.primary:active, 
@@ -1634,7 +1634,7 @@ table tbody tr:hover {
   left: 0;
   right: 0;
   height: 2.5px;
-  background: linear-gradient(90deg, #017846, #34d399);
+  background: linear-gradient(90deg, #1E40AF, #2563EB, #EA580C);
   opacity: 0;
   transition: opacity 0.25s ease;
 }
@@ -1651,15 +1651,15 @@ table tbody tr:hover {
 .admin-app select:focus,
 .search-input-wrap input:focus,
 .search-input-wrapper input:focus {
-  border-color: #017846 !important;
-  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.12) !important;
+  border-color: #2563EB !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
   outline: none;
 }
 
 /* 5. Polished Table Row Hover with Emerald Accent */
 .admin-table tbody tr:hover,
 .data-table tr:hover td {
-  background-color: rgba(1, 120, 70, 0.025) !important;
+  background-color: rgba(37, 99, 235, 0.025) !important;
 }
 
 /* 6. Pulse Indicator for Live System Status */
@@ -1681,10 +1681,10 @@ table tbody tr:hover {
 /* 7. Refined Notification Pill Pulse */
 @keyframes adminNotifyGlow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(1, 120, 70, 0.5);
+    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.5);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(1, 120, 70, 0);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0);
   }
 }
 

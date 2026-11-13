@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import talentiseLogo from "../../assets/talentise_logo.png";
 import { 
   ShieldCheck, 
   Lock, 
@@ -144,8 +145,8 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           gap: "12px"
         }}
       >
-        <div style={{ width: "32px", height: "32px", border: "3px solid #017846", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        <span style={{ fontSize: "13px" }}>ExamSecure: Verifying administrator session...</span>
+        <div style={{ width: "32px", height: "32px", border: "3px solid #2563EB", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <span style={{ fontSize: "13px" }}>Talentise Global: Verifying administrator session...</span>
       </div>
     );
   }
@@ -186,7 +187,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           right: "20%",
           width: "400px",
           height: "400px",
-          background: "radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(234, 88, 12, 0.12) 0%, transparent 70%)",
           filter: "blur(60px)",
           pointerEvents: "none"
         }} 
@@ -204,26 +205,27 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         <div style={{ textAlign: "center", marginBottom: "24px" }}>
           <div 
             style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "16px",
-              background: "linear-gradient(135deg, #017846, #014D32)",
+              width: "64px",
+              height: "64px",
+              borderRadius: "18px",
+              background: "#ffffff",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               margin: "0 auto 14px",
-              boxShadow: "0 10px 25px rgba(1, 120, 70, 0.4)",
-              border: "1px solid rgba(255, 255, 255, 0.15)"
+              boxShadow: "0 10px 25px rgba(37, 99, 235, 0.35)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+              padding: "6px"
             }}
           >
-            <ShieldCheck size={30} color="#ffffff" />
+            <img src={talentiseLogo} alt="Talentise Global" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
           </div>
 
-          <h1 style={{ margin: "0 0 6px 0", fontSize: "23px", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.5px" }}>
-            ExamSecure Administrator
+          <h1 style={{ margin: "0 0 6px 0", fontSize: "24px", fontWeight: 800, color: "#ffffff", letterSpacing: "0.2px" }}>
+            TALENTISE <span style={{ color: "#FF5722" }}>GLOBAL</span>
           </h1>
           <p style={{ margin: 0, fontSize: "12.5px", color: "#94a3b8" }}>
-            Single-Administrator Secure Access ┬╖ Role-Based Control (RBAC)
+            Examination Administration Console · Super Administrator Access
           </p>
         </div>
 
@@ -240,7 +242,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         >
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-              <UserCheck size={16} color="#017846" />
+              <UserCheck size={16} color="#2563EB" />
               <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
                 Super Administrator Sign In
               </h2>
@@ -402,11 +404,11 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
                 fontSize: "13px",
                 fontWeight: 700,
                 color: "#ffffff",
-                background: "linear-gradient(135deg, #017846, #01663C)",
+                background: "linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%)",
                 border: "none",
                 borderRadius: "8px",
                 cursor: loading ? "not-allowed" : "pointer",
-                boxShadow: "0 4px 12px rgba(1, 120, 70, 0.3)",
+                boxShadow: "0 4px 14px rgba(37, 99, 235, 0.4)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

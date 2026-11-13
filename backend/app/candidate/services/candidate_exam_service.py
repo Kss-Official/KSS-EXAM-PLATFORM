@@ -467,7 +467,16 @@ class CandidateExamService:
                 set_index = int(total_assigned % len(active_sets))
                 question_set = active_sets[set_index]
 
-            slot = db.query(ExamSlot).filter(ExamSlot.exam_id == exam.id).order_by(ExamSlot.slot_number.asc()).first()
+            cand_batch_str = (candidate.batch or "").strip().lower()
+            cand_slot_num = 1
+            if "slot 2" in cand_batch_str or "slot2" in cand_batch_str:
+                cand_slot_num = 2
+            elif "slot 3" in cand_batch_str or "slot3" in cand_batch_str:
+                cand_slot_num = 3
+
+            slot = db.query(ExamSlot).filter(ExamSlot.exam_id == exam.id, ExamSlot.slot_number == cand_slot_num).first()
+            if not slot:
+                slot = db.query(ExamSlot).filter(ExamSlot.exam_id == exam.id).order_by(ExamSlot.slot_number.asc()).first()
 
             prior_attempt = db.query(ExamAttempt).filter(
                 ExamAttempt.candidate_id == candidate.id,
@@ -608,7 +617,16 @@ class CandidateExamService:
                     target_qs = sets[0]
 
                 if target_qs:
-                    slot = db.query(ExamSlot).filter(ExamSlot.exam_id == target_exam.id).first()
+                    cand_batch_str = (cand.batch or "").strip().lower()
+                    cand_slot_num = 1
+                    if "slot 2" in cand_batch_str or "slot2" in cand_batch_str:
+                        cand_slot_num = 2
+                    elif "slot 3" in cand_batch_str or "slot3" in cand_batch_str:
+                        cand_slot_num = 3
+
+                    slot = db.query(ExamSlot).filter(ExamSlot.exam_id == target_exam.id, ExamSlot.slot_number == cand_slot_num).first()
+                    if not slot:
+                        slot = db.query(ExamSlot).filter(ExamSlot.exam_id == target_exam.id).first()
                     attempt = ExamAttempt(
                         candidate_id=cand.id,
                         exam_id=target_exam.id,

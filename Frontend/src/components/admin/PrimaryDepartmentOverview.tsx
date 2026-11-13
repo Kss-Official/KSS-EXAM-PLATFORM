@@ -204,7 +204,7 @@ export default function PrimaryDepartmentOverview({
           alignItems: "center",
           flexWrap: "wrap",
           gap: "16px",
-          boxShadow: "0 2px 10px rgba(1, 120, 70, 0.05)"
+          boxShadow: "0 2px 10px rgba(37, 99, 235, 0.05)"
         }}
       >
         <div>
@@ -215,8 +215,8 @@ export default function PrimaryDepartmentOverview({
                 fontWeight: 700,
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
-                color: "#017846",
-                background: "#EAF6EF",
+                color: "#2563EB",
+                background: "#EFF6FF",
                 padding: "3px 9px",
                 borderRadius: "6px"
               }}
@@ -248,7 +248,7 @@ export default function PrimaryDepartmentOverview({
             }}
           >
             <span style={{ fontSize: "11px", color: "#64748b", fontWeight: 600, display: "block" }}>Sub-Departments</span>
-            <strong style={{ fontSize: "18px", color: "#017846" }}>
+            <strong style={{ fontSize: "18px", color: "#2563EB" }}>
               {technicalSubDepts.length + nonTechnicalSubDepts.length}
             </strong>
             <small style={{ display: "block", fontSize: "10px", color: "#94a3b8" }}>
@@ -290,20 +290,20 @@ export default function PrimaryDepartmentOverview({
         <div 
           style={{
             background: "#ffffff",
-            border: "1.5px solid #017846",
+            border: "1.5px solid #2563EB",
             borderRadius: "14px",
             padding: "24px",
             display: "flex",
             flexDirection: "column",
             justifyContent: "space-between",
-            boxShadow: "0 4px 20px rgba(1, 120, 70, 0.08)",
+            boxShadow: "0 4px 20px rgba(37, 99, 235, 0.08)",
             position: "relative",
             overflow: "hidden",
             transition: "all 0.2s ease"
           }}
         >
           {/* Top highlight bar */}
-          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, #017846, #10b981)" }} />
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: "4px", background: "linear-gradient(90deg, #2563EB, #10b981)" }} />
 
           <div>
             {/* Header info */}
@@ -314,8 +314,8 @@ export default function PrimaryDepartmentOverview({
                     width: "44px",
                     height: "44px",
                     borderRadius: "10px",
-                    background: "#EAF6EF",
-                    color: "#017846",
+                    background: "#EFF6FF",
+                    color: "#2563EB",
                     display: "grid",
                     placeItems: "center"
                   }}
@@ -327,7 +327,7 @@ export default function PrimaryDepartmentOverview({
                     style={{
                       fontSize: "10.5px",
                       fontWeight: 800,
-                      color: "#017846",
+                      color: "#2563EB",
                       letterSpacing: "0.06em",
                       textTransform: "uppercase"
                     }}
@@ -344,8 +344,8 @@ export default function PrimaryDepartmentOverview({
                 style={{
                   fontSize: "11px",
                   fontWeight: 700,
-                  background: "#EAF6EF",
-                  color: "#017846",
+                  background: "#EFF6FF",
+                  color: "#2563EB",
                   padding: "4px 10px",
                   borderRadius: "20px",
                   display: "inline-flex",
@@ -382,7 +382,7 @@ export default function PrimaryDepartmentOverview({
                   style={{
                     background: "none",
                     border: "none",
-                    color: "#017846",
+                    color: "#2563EB",
                     fontSize: "11.5px",
                     fontWeight: 700,
                     cursor: "pointer",
@@ -417,8 +417,8 @@ export default function PrimaryDepartmentOverview({
                     <span 
                       style={{
                         fontSize: "9.5px",
-                        background: "#EAF6EF",
-                        color: "#017846",
+                        background: "#EFF6FF",
+                        color: "#2563EB",
                         padding: "1px 5px",
                         borderRadius: "4px",
                         fontWeight: 700
@@ -469,7 +469,7 @@ export default function PrimaryDepartmentOverview({
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: 700, color: "#0f172a" }}>
-                  <Layers size={14} color="#017846" /> Common Technical Question Bank
+                  <Layers size={14} color="#2563EB" /> Common Technical Question Bank
                 </div>
                 <span style={{ fontSize: "11px", color: (technicalBank.masterQuestionPaperFile || techStats.configuredCount > 0) ? "#16a34a" : "#64748b", fontWeight: 600 }}>
                   {technicalBank.masterQuestionPaperFile ? "1 Question Paper Uploaded (Sets A-D Auto-Generated)" : "No Question Paper Uploaded"}
@@ -486,17 +486,17 @@ export default function PrimaryDepartmentOverview({
                     <div
                       key={setCode}
                       style={{
-                        background: hasQuestions ? "#dcfce7" : (hasFiles ? "#EAF6EF" : "#f1f5f9"),
+                        background: hasQuestions ? "#dcfce7" : (hasFiles ? "#EFF6FF" : "#f1f5f9"),
                         border: `1px solid ${hasQuestions ? "#86efac" : (hasFiles ? "#a7f3d0" : "#e2e8f0")}`,
                         borderRadius: "6px",
                         padding: "6px 4px",
                         textAlign: "center"
                       }}
                     >
-                      <b style={{ fontSize: "11px", color: hasQuestions ? "#166534" : (hasFiles ? "#017846" : "#475569") }}>
+                      <b style={{ fontSize: "11px", color: hasQuestions ? "#166534" : (hasFiles ? "#2563EB" : "#475569") }}>
                         Set {setCode}
                       </b>
-                      <div style={{ fontSize: "9.5px", color: hasQuestions ? "#15803d" : (hasFiles ? "#017846" : "#94a3b8"), marginTop: "2px" }}>
+                      <div style={{ fontSize: "9.5px", color: hasQuestions ? "#15803d" : (hasFiles ? "#2563EB" : "#94a3b8"), marginTop: "2px" }}>
                         {hasQuestions ? `${set.parsedQuestions.length} Qs` : (hasFiles ? "Synced" : "Empty")}
                       </div>
                     </div>
@@ -506,7 +506,7 @@ export default function PrimaryDepartmentOverview({
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "10px", fontSize: "11px", color: "#64748b" }}>
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-                  <Shuffle size={12} color={technicalBank.randomizeQuestions ? "#017846" : "#64748b"} /> Randomization: <b style={{ color: technicalBank.randomizeQuestions ? "#017846" : "#64748b" }}>{technicalBank.randomizeQuestions ? "Enabled (Shuffled Sets)" : "Disabled (Identical Sets)"}</b>
+                  <Shuffle size={12} color={technicalBank.randomizeQuestions ? "#2563EB" : "#64748b"} /> Randomization: <b style={{ color: technicalBank.randomizeQuestions ? "#2563EB" : "#64748b" }}>{technicalBank.randomizeQuestions ? "Enabled (Shuffled Sets)" : "Disabled (Identical Sets)"}</b>
                 </span>
                 <span>Shared by all {technicalSubDepts.length} Tech roles</span>
               </div>
@@ -528,8 +528,8 @@ export default function PrimaryDepartmentOverview({
               alignItems: "center",
               gap: "8px",
               borderRadius: "8px",
-              background: "#017846",
-              boxShadow: "0 2px 8px rgba(1, 120, 70, 0.2)"
+              background: "#2563EB",
+              boxShadow: "0 2px 8px rgba(37, 99, 235, 0.2)"
             }}
           >
             Configure Technical Department & Question Sets <ArrowRight size={16} />
@@ -913,8 +913,8 @@ export default function PrimaryDepartmentOverview({
                         borderRadius: "6px",
                         border: "none",
                         cursor: "pointer",
-                        background: quickMode === "existing" ? (isTech ? "#EAF6EF" : "#eff6ff") : "transparent",
-                        color: quickMode === "existing" ? (isTech ? "#017846" : "#0284c7") : "#64748b"
+                        background: quickMode === "existing" ? (isTech ? "#EFF6FF" : "#eff6ff") : "transparent",
+                        color: quickMode === "existing" ? (isTech ? "#2563EB" : "#0284c7") : "#64748b"
                       }}
                     >
                       {isTech ? "Technical Catalog / Roles" : "Non-Technical Catalog / Roles"} ({totalSelectable})
@@ -929,8 +929,8 @@ export default function PrimaryDepartmentOverview({
                         borderRadius: "6px",
                         border: "none",
                         cursor: "pointer",
-                        background: quickMode === "new" ? (isTech ? "#EAF6EF" : "#eff6ff") : "transparent",
-                        color: quickMode === "new" ? (isTech ? "#017846" : "#0284c7") : "#64748b"
+                        background: quickMode === "new" ? (isTech ? "#EFF6FF" : "#eff6ff") : "transparent",
+                        color: quickMode === "new" ? (isTech ? "#2563EB" : "#0284c7") : "#64748b"
                       }}
                     >
                       + Create Custom Sub-Dept
@@ -1031,7 +1031,7 @@ export default function PrimaryDepartmentOverview({
                       type="submit"
                       className="primary"
                       disabled={quickMode === "existing" && totalSelectable === 0}
-                      style={{ padding: "8px 20px", fontSize: "12.5px", background: isTech ? "#017846" : "#0284c7" }}
+                      style={{ padding: "8px 20px", fontSize: "12.5px", background: isTech ? "#2563EB" : "#0284c7" }}
                     >
                       Add to Examination
                     </button>

@@ -305,21 +305,21 @@ export default function ResultsPage() {
     const titleLower = (r.examTitle || "").toLowerCase().trim();
     const batchLower = (r.candidateBatch || "").toLowerCase().trim();
 
-    // 1. Direct slot number from database
+    // 1. Candidate's enrolled batch from Candidate Directory is the primary source of truth!
+    if (batchLower.includes("slot 1") || batchLower === "slot1") {
+      return "Slot 1";
+    }
+    if (batchLower.includes("slot 2") || batchLower === "slot2") {
+      return "Slot 2";
+    }
+    if (batchLower.includes("slot 3") || batchLower === "slot3") {
+      return "Slot 3";
+    }
+
+    // 2. Direct slot number from database
     if (r.slotNumber === 1) return "Slot 1";
     if (r.slotNumber === 2) return "Slot 2";
     if (r.slotNumber === 3) return "Slot 3";
-
-    // 2. Explicit Slot naming
-    if (batchLower.includes("slot 1") || titleLower.includes("slot 1") || r.examId === 98) {
-      return "Slot 1";
-    }
-    if (batchLower.includes("slot 2") || titleLower.includes("slot 2") || titleLower.includes("slot @") || r.examId === 99) {
-      return "Slot 2";
-    }
-    if (batchLower.includes("slot 3") || titleLower.includes("slot 3")) {
-      return "Slot 3";
-    }
 
     // 3. Dynamic timing match from slotTimings configuration
     const s1Start = slotTimings?.slot1?.startTime?.toLowerCase();
@@ -332,8 +332,12 @@ export default function ResultsPage() {
 
     // 4. Fallback checks for common time strings
     if (batchLower.includes("10:00") || batchLower.includes("11:00") || batchLower.includes("11:30")) return "Slot 1";
-    if (batchLower.includes("1:00") || batchLower.includes("1pm") || batchLower.includes("2:00") || batchLower.includes("2pm")) return "Slot 2";
+    if (batchLower.includes("12:00") || batchLower.includes("1:00") || batchLower.includes("1pm") || batchLower.includes("2:00") || batchLower.includes("2pm") || batchLower.includes("3:00") || batchLower.includes("3pm")) return "Slot 2";
     if (batchLower.includes("4:00") || batchLower.includes("4pm") || titleLower.includes("4:00") || titleLower.includes("4pm")) return "Slot 3";
+
+    if (r.examId === 98 || titleLower.includes("slot 1")) return "Slot 1";
+    if (r.examId === 99 || titleLower.includes("slot 2") || titleLower.includes("slot @")) return "Slot 2";
+    if (titleLower.includes("slot 3")) return "Slot 3";
 
     // Independent Mock / Demo exams without any slot designation
     if (
@@ -605,11 +609,11 @@ export default function ResultsPage() {
         <style>
           * { box-sizing: border-box; }
           body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 32px; color: #0f172a; margin: 0; background: #ffffff; }
-          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #017846; padding-bottom: 16px; margin-bottom: 20px; }
-          .title { font-size: 20px; font-weight: 800; color: #017846; margin: 0 0 6px 0; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2563EB; padding-bottom: 16px; margin-bottom: 20px; }
+          .title { font-size: 20px; font-weight: 800; color: #2563EB; margin: 0 0 6px 0; }
           .subtitle { font-size: 13px; color: #64748b; margin: 0; }
           .badge-box { text-align: right; }
-          .badge { background: #eaf6ef; color: #017846; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 13px; border: 1px solid #bbf7d0; display: inline-block; }
+          .badge { background: #eff6ff; color: #2563EB; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 13px; border: 1px solid #bbf7d0; display: inline-block; }
           .slot-tag { margin-top: 4px; font-size: 11.5px; font-weight: 600; color: #0284c7; }
           table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
           th { background: #f8fafc; color: #334155; text-align: left; padding: 10px 10px; border: 1px solid #cbd5e1; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
@@ -635,7 +639,7 @@ export default function ResultsPage() {
       <body>
         <div class="header">
           <div>
-            <h1 class="title">Kalpanaa Software Solutions &mdash; Official Results Report</h1>
+            <h1 class="title">Talentise Global &mdash; Official Results Report</h1>
             <p class="subtitle">Examination: <strong>${examTitle}</strong> &bull; Exam Date: <strong>${examDateLabel}</strong> &bull; Generated: ${dateStr}</p>
           </div>
           <div class="badge-box">
@@ -718,7 +722,7 @@ export default function ResultsPage() {
         <title>Examination Results - ${examTitle}</title>
         <style>
           body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #1e293b; }
-          h2 { color: #017846; margin-bottom: 4px; }
+          h2 { color: #2563EB; margin-bottom: 4px; }
           p { color: #64748b; font-size: 10pt; margin-top: 0; }
           table { border-collapse: collapse; width: 100%; margin-top: 14px; }
           th, td { border: 1px solid #cbd5e1; padding: 7px 9px; font-size: 10pt; text-align: left; }
@@ -726,7 +730,7 @@ export default function ResultsPage() {
         </style>
       </head>
       <body>
-        <h2>Kalpanaa Software Solutions &mdash; Official Results Report</h2>
+        <h2>Talentise Global &mdash; Official Results Report</h2>
         <p>Examination: <b>${examTitle}</b> | Exam Date: <b>${examDateLabel}</b> | Date Generated: ${dateStr} | Total Candidates: <b>${exportCandidates.length}</b></p>
         <table>
           <thead>
@@ -784,7 +788,7 @@ export default function ResultsPage() {
       <div className="admin-page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Award size={20} color="#017846" />
+            <Award size={20} color="#2563EB" />
             <strong style={{ fontSize: "16px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Examination Results & Scoring Analytics
             </strong>
@@ -852,7 +856,7 @@ export default function ResultsPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#334155", fontWeight: 700, fontSize: "13px" }}>
-              <Calendar size={16} color="#017846" />
+              <Calendar size={16} color="#2563EB" />
               <span>Examination Date:</span>
             </div>
 
@@ -871,9 +875,9 @@ export default function ResultsPage() {
                   fontWeight: 700,
                   cursor: "pointer",
                   border: "none",
-                  background: selectedDate === todayIst ? "#017846" : "transparent",
+                  background: selectedDate === todayIst ? "#2563EB" : "transparent",
                   color: selectedDate === todayIst ? "#ffffff" : "#475569",
-                  boxShadow: selectedDate === todayIst ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                  boxShadow: selectedDate === todayIst ? "0 2px 6px rgba(37, 99, 235, 0.25)" : "none",
                   transition: "all 0.15s ease"
                 }}
               >
@@ -881,7 +885,7 @@ export default function ResultsPage() {
                 {todayAttemptCount !== undefined && (
                   <span style={{
                     background: selectedDate === todayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
-                    color: selectedDate === todayIst ? "#ffffff" : "#017846",
+                    color: selectedDate === todayIst ? "#ffffff" : "#2563EB",
                     padding: "1px 7px",
                     borderRadius: "10px",
                     fontSize: "11px",
@@ -906,9 +910,9 @@ export default function ResultsPage() {
                   fontWeight: 700,
                   cursor: "pointer",
                   border: "none",
-                  background: selectedDate === yesterdayIst ? "#017846" : "transparent",
+                  background: selectedDate === yesterdayIst ? "#2563EB" : "transparent",
                   color: selectedDate === yesterdayIst ? "#ffffff" : "#475569",
-                  boxShadow: selectedDate === yesterdayIst ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                  boxShadow: selectedDate === yesterdayIst ? "0 2px 6px rgba(37, 99, 235, 0.25)" : "none",
                   transition: "all 0.15s ease"
                 }}
               >
@@ -916,7 +920,7 @@ export default function ResultsPage() {
                 {yesterdayAttemptCount !== undefined && (
                   <span style={{
                     background: selectedDate === yesterdayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
-                    color: selectedDate === yesterdayIst ? "#ffffff" : "#017846",
+                    color: selectedDate === yesterdayIst ? "#ffffff" : "#2563EB",
                     padding: "1px 7px",
                     borderRadius: "10px",
                     fontSize: "11px",
@@ -941,9 +945,9 @@ export default function ResultsPage() {
                   fontWeight: 700,
                   cursor: "pointer",
                   border: "none",
-                  background: selectedDate === tomorrowIst ? "#017846" : "transparent",
+                  background: selectedDate === tomorrowIst ? "#2563EB" : "transparent",
                   color: selectedDate === tomorrowIst ? "#ffffff" : "#475569",
-                  boxShadow: selectedDate === tomorrowIst ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                  boxShadow: selectedDate === tomorrowIst ? "0 2px 6px rgba(37, 99, 235, 0.25)" : "none",
                   transition: "all 0.15s ease"
                 }}
               >
@@ -951,7 +955,7 @@ export default function ResultsPage() {
                 {tomorrowAttemptCount !== undefined && (
                   <span style={{
                     background: selectedDate === tomorrowIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
-                    color: selectedDate === tomorrowIst ? "#ffffff" : "#017846",
+                    color: selectedDate === tomorrowIst ? "#ffffff" : "#2563EB",
                     padding: "1px 7px",
                     borderRadius: "10px",
                     fontSize: "11px",
@@ -978,9 +982,9 @@ export default function ResultsPage() {
                     fontWeight: 700,
                     cursor: "pointer",
                     border: "none",
-                    background: selectedDate === d ? "#017846" : "transparent",
+                    background: selectedDate === d ? "#2563EB" : "transparent",
                     color: selectedDate === d ? "#ffffff" : "#475569",
-                    boxShadow: selectedDate === d ? "0 2px 6px rgba(1, 120, 70, 0.25)" : "none",
+                    boxShadow: selectedDate === d ? "0 2px 6px rgba(37, 99, 235, 0.25)" : "none",
                     transition: "all 0.15s ease"
                   }}
                 >
@@ -1044,15 +1048,15 @@ export default function ResultsPage() {
             display: "flex",
             alignItems: "center",
             gap: "6px",
-            background: selectedDate === todayIst ? "#eaf6ef" : "#f1f5f9",
+            background: selectedDate === todayIst ? "#eff6ff" : "#f1f5f9",
             border: `1px solid ${selectedDate === todayIst ? "#bbf7d0" : "#cbd5e1"}`,
             padding: "5px 12px",
             borderRadius: "8px",
             fontSize: "12px",
-            color: selectedDate === todayIst ? "#017846" : "#475569",
+            color: selectedDate === todayIst ? "#2563EB" : "#475569",
             fontWeight: 600
           }}>
-            <CalendarDays size={14} color={selectedDate === todayIst ? "#017846" : "#64748b"} />
+            <CalendarDays size={14} color={selectedDate === todayIst ? "#2563EB" : "#64748b"} />
             <span>Active Date: <strong>{formatDateLabel(selectedDate, todayIst, yesterdayIst, tomorrowIst)}</strong></span>
           </div>
         </div>
@@ -1063,7 +1067,7 @@ export default function ResultsPage() {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#334155", fontWeight: 700, fontSize: "13px" }}>
-              <Clock size={16} color="#017846" />
+              <Clock size={16} color="#2563EB" />
               <span>Examination Slot:</span>
             </div>
 
@@ -1216,9 +1220,9 @@ export default function ResultsPage() {
                   fontWeight: 700,
                   cursor: "pointer",
                   border: "none",
-                  background: slotFilter === "ALL" ? "#017846" : "transparent",
+                  background: slotFilter === "ALL" ? "#2563EB" : "transparent",
                   color: slotFilter === "ALL" ? "#ffffff" : "#475569",
-                  boxShadow: slotFilter === "ALL" ? "0 2px 6px rgba(1, 120, 70, 0.3)" : "none",
+                  boxShadow: slotFilter === "ALL" ? "0 2px 6px rgba(37, 99, 235, 0.3)" : "none",
                   transition: "all 0.15s ease"
                 }}
               >
@@ -1380,7 +1384,7 @@ export default function ResultsPage() {
             <div className="stat-card-value">{topScore}</div>
             <span className="stat-card-sub">Top scoring candidate</span>
           </div>
-          <div className="stat-card-icon emerald" style={{ color: "#017846" }}><Award size={22} /></div>
+          <div className="stat-card-icon emerald" style={{ color: "#2563EB" }}><Award size={22} /></div>
         </div>
       </div>
 
@@ -1450,7 +1454,7 @@ export default function ResultsPage() {
         {/* Left: Quick Score Presets */}
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <span style={{ fontSize: "12px", fontWeight: 700, color: "#475569", display: "inline-flex", alignItems: "center", gap: "5px" }}>
-            <SlidersHorizontal size={14} color="#017846" />
+            <SlidersHorizontal size={14} color="#2563EB" />
             Marks Filter:
           </span>
 
@@ -1478,9 +1482,9 @@ export default function ResultsPage() {
                 fontSize: "11.5px",
                 fontWeight: 600,
                 cursor: "pointer",
-                border: scorePreset === p.id ? "1.5px solid #017846" : "1px solid #cbd5e1",
-                background: scorePreset === p.id ? "#eaf6ef" : "#f8fafc",
-                color: scorePreset === p.id ? "#017846" : "#475569",
+                border: scorePreset === p.id ? "1.5px solid #2563EB" : "1px solid #cbd5e1",
+                background: scorePreset === p.id ? "#eff6ff" : "#f8fafc",
+                color: scorePreset === p.id ? "#2563EB" : "#475569",
                 transition: "all 0.12s ease"
               }}
             >
@@ -1611,11 +1615,11 @@ export default function ResultsPage() {
             width: "34px",
             height: "34px",
             borderRadius: "8px",
-            background: "#eaf6ef",
+            background: "#eff6ff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#017846"
+            color: "#2563EB"
           }}>
             <CheckCircle2 size={18} />
           </div>
@@ -1662,7 +1666,7 @@ export default function ResultsPage() {
                 fontWeight: 600,
                 border: "none",
                 background: exportMode === "QUALIFIED" ? "#ffffff" : "transparent",
-                color: exportMode === "QUALIFIED" ? "#017846" : "#64748b",
+                color: exportMode === "QUALIFIED" ? "#2563EB" : "#64748b",
                 boxShadow: exportMode === "QUALIFIED" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
                 cursor: "pointer"
               }}
@@ -1682,12 +1686,12 @@ export default function ResultsPage() {
               padding: "7px 14px",
               fontSize: "12px",
               fontWeight: 600,
-              background: exportCandidates.length === 0 ? "#94a3b8" : "#017846",
+              background: exportCandidates.length === 0 ? "#94a3b8" : "#2563EB",
               color: "#ffffff",
               border: "none",
               borderRadius: "8px",
               cursor: exportCandidates.length === 0 ? "not-allowed" : "pointer",
-              boxShadow: exportCandidates.length === 0 ? "none" : "0 2px 6px rgba(1, 120, 70, 0.25)",
+              boxShadow: exportCandidates.length === 0 ? "none" : "0 2px 6px rgba(37, 99, 235, 0.25)",
               transition: "all 0.15s ease"
             }}
             title="Download printable / PDF report of candidates"
@@ -1790,7 +1794,7 @@ export default function ResultsPage() {
                           style={{
                             padding: "6px 14px",
                             borderRadius: "6px",
-                            background: "#017846",
+                            background: "#2563EB",
                             color: "#ffffff",
                             fontSize: "12px",
                             fontWeight: 600,
@@ -1826,7 +1830,7 @@ export default function ResultsPage() {
                           style={{
                             padding: "6px 14px",
                             borderRadius: "6px",
-                            background: "#017846",
+                            background: "#2563EB",
                             color: "#ffffff",
                             fontSize: "12px",
                             fontWeight: 600,
@@ -1901,7 +1905,7 @@ export default function ResultsPage() {
                       </td>
                       <td>
                         <div style={{ fontSize: "12.5px", fontWeight: 700 }}>{r.examTitle}</div>
-                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#017846" }}>Set {r.setCode}</span>
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#2563EB" }}>Set {r.setCode}</span>
                       </td>
                       <td>
                         <span style={{ color: "#16a34a", fontWeight: 700 }}>{r.answeredCount}</span> /{" "}
@@ -1949,7 +1953,7 @@ export default function ResultsPage() {
                           </small>
                         )}
                         {r.receiptId && (
-                          <span style={{ fontSize: "10px", color: "#017846", fontFamily: "JetBrains Mono, monospace", display: "block", marginTop: "2px" }} title="Submission Receipt ID">
+                          <span style={{ fontSize: "10px", color: "#2563EB", fontFamily: "JetBrains Mono, monospace", display: "block", marginTop: "2px" }} title="Submission Receipt ID">
                             {r.receiptId}
                           </span>
                         )}

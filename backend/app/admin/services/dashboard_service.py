@@ -208,19 +208,26 @@ class DashboardService:
             )
 
             if not is_independent_exam:
-                if a.slot and a.slot.slot_number in (1, 2, 3):
-                    slot_num = a.slot.slot_number
-                elif 'slot 1' in cand_batch_lower or 'slot 1' in exam_title_lower or a.exam_id == 98:
+                # 1. Candidate's enrolled batch is the primary administrative truth!
+                if 'slot 1' in cand_batch_lower or cand_batch_lower == 'slot1':
                     slot_num = 1
-                elif 'slot 2' in cand_batch_lower or 'slot 2' in exam_title_lower or '@' in exam_title_lower or a.exam_id == 99:
+                elif 'slot 2' in cand_batch_lower or cand_batch_lower == 'slot2':
                     slot_num = 2
-                elif 'slot 3' in cand_batch_lower or 'slot 3' in exam_title_lower:
+                elif 'slot 3' in cand_batch_lower or cand_batch_lower == 'slot3':
                     slot_num = 3
+                elif a.slot and a.slot.slot_number in (1, 2, 3):
+                    slot_num = a.slot.slot_number
                 elif '10:00' in cand_batch_lower or '10am' in cand_batch_lower or '11:00' in cand_batch_lower or '11:30' in cand_batch_lower:
                     slot_num = 1
-                elif '1:00' in cand_batch_lower or '1pm' in cand_batch_lower or '2:00' in cand_batch_lower or '2pm' in cand_batch_lower:
+                elif '12:00' in cand_batch_lower or '1:00' in cand_batch_lower or '1pm' in cand_batch_lower or '2:00' in cand_batch_lower or '2pm' in cand_batch_lower:
                     slot_num = 2
                 elif '4:00' in cand_batch_lower or '4pm' in cand_batch_lower or '4:00' in exam_title_lower or '4pm' in exam_title_lower:
+                    slot_num = 3
+                elif 'slot 1' in exam_title_lower or a.exam_id == 98:
+                    slot_num = 1
+                elif 'slot 2' in exam_title_lower or '@' in exam_title_lower or a.exam_id == 99:
+                    slot_num = 2
+                elif 'slot 3' in exam_title_lower:
                     slot_num = 3
             ts = a.submitted_at or a.started_at or a.created_at
             exam_dt_str = None

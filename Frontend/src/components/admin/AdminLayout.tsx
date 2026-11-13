@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
+import talentiseLogo from "../../assets/talentise_logo.png";
 import { 
   ShieldCheck, 
   LayoutDashboard, 
@@ -169,12 +170,14 @@ export default function AdminLayout({
       <aside className={`admin-sidebar ${mobileMenuOpen ? "open" : ""}`}>
         <div className="admin-sidebar-header">
           <Link to="/admin/dashboard" className="admin-sidebar-brand" onClick={() => setMobileMenuOpen(false)}>
-            <div className="admin-sidebar-logo">
-              <ShieldCheck size={22} />
+            <div className="admin-sidebar-logo" style={{ background: "#ffffff", padding: "3px", boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)" }}>
+              <img src={talentiseLogo} alt="Talentise Global" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
             </div>
             <div className="admin-sidebar-brand-text">
-              <b>ExamSecure</b>
-              <small>ADMIN CONSOLE</small>
+              <b style={{ color: "#ffffff", letterSpacing: "0.4px" }}>
+                TALENTISE <span style={{ color: "#FF5722" }}>GLOBAL</span>
+              </b>
+              <small style={{ color: "#94a3b8", letterSpacing: "0.8px" }}>EXAM ADMIN CONSOLE</small>
             </div>
           </Link>
           <button 
@@ -311,9 +314,9 @@ export default function AdminLayout({
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 style={{
                   cursor: "pointer",
-                  border: userMenuOpen ? "1.5px solid #017846" : "1px solid #e2e8f0",
+                  border: userMenuOpen ? "1.5px solid #2563EB" : "1px solid #e2e8f0",
                   background: userMenuOpen ? "#f8fafc" : "#ffffff",
-                  boxShadow: userMenuOpen ? "0 0 0 3px rgba(1, 120, 70, 0.12)" : "none",
+                  boxShadow: userMenuOpen ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "none",
                   paddingRight: "8px",
                   transition: "all 0.15s ease",
                   display: "flex",
@@ -366,10 +369,10 @@ export default function AdminLayout({
                         fontSize: "10px",
                         fontWeight: 600,
                         padding: "2px 6px",
-                        background: "#EAF6EF",
-                        color: "#017846",
+                        background: "#EFF6FF",
+                        color: "#1E40AF",
                         borderRadius: "4px",
-                        border: "1px solid #D9E6DF"
+                        border: "1px solid #BFDBFE"
                       }}
                     >
                       {adminRoleDisplay}
@@ -403,7 +406,7 @@ export default function AdminLayout({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
-                      <User size={15} color="#017846" />
+                      <User size={15} color="#2563EB" />
                       <span>Profile</span>
                     </button>
 
@@ -432,7 +435,7 @@ export default function AdminLayout({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
-                      <Settings size={15} color="#017846" />
+                      <Settings size={15} color="#2563EB" />
                       <span>Settings</span>
                     </button>
 
@@ -520,7 +523,7 @@ export default function AdminLayout({
               {/* Profile Details Grid */}
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <User size={16} color="#017846" style={{ flexShrink: 0 }} />
+                  <User size={16} color="#2563EB" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Full Name</div>
                     <strong style={{ color: "#0f172a" }}>{adminFullName}</strong>
@@ -528,7 +531,7 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Mail size={16} color="#017846" style={{ flexShrink: 0 }} />
+                  <Mail size={16} color="#2563EB" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Email Address</div>
                     <strong style={{ color: "#0f172a", wordBreak: "break-all" }}>{adminEmail}</strong>
@@ -536,19 +539,19 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Briefcase size={16} color="#017846" style={{ flexShrink: 0 }} />
+                  <Briefcase size={16} color="#2563EB" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Department & Role</div>
-                    <strong style={{ color: "#0f172a" }}>Examination Controller ┬╖ Head Administrator</strong>
+                    <strong style={{ color: "#0f172a" }}>Examination Controller · Head Administrator</strong>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Shield size={16} color="#16a34a" style={{ flexShrink: 0 }} />
+                  <Shield size={16} color="#2563EB" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Access Permissions</div>
-                    <span style={{ fontSize: "11.5px", color: "#166534", fontWeight: 600 }}>
-                      ROLE_SUPER_ADMIN ┬╖ Safe Exam Browser Controller
+                    <span style={{ fontSize: "11.5px", color: "#1E40AF", fontWeight: 600 }}>
+                      ROLE_SUPER_ADMIN · Safe Exam Browser Controller
                     </span>
                   </div>
                 </div>

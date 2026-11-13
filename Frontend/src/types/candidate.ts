@@ -66,6 +66,9 @@ export interface CandidateSession {
   percentage?: number;
   qualificationStatus?: string;
   isPublished?: boolean;
+  questions?: any[];
+  assignedSet?: string;
+  serverOffset?: number;
 }
 
 export interface SubmissionReceipt {
@@ -88,6 +91,9 @@ export interface SubmissionReceipt {
   percentage?: number;
   qualificationStatus?: string;
   isPublished?: boolean;
+  questions?: any[];
+  assignedSet?: string;
+  serverOffset?: number;
 }
 
 export interface ReadinessCheckState {

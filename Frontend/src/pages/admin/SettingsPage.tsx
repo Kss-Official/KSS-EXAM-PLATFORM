@@ -47,7 +47,7 @@ export default function SettingsPage() {
       <div className="panel-card">
         <div className="panel-card-header">
           <div className="panel-card-title">
-            <Server size={16} color="#017846" />
+            <Server size={16} color="#2563EB" />
             <span>FastAPI & PostgreSQL Backend Configuration</span>
           </div>
           <span className="api-status-pill up">Vite Config</span>

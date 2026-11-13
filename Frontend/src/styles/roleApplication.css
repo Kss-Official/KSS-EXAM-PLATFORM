@@ -1,4 +1,4 @@
-﻿/* Role & Application Details Page Stylesheet */
+/* Role & Application Details Page Stylesheet */
 
 .role-app-page {
   min-height: 100vh;
@@ -29,9 +29,10 @@
 }
 
 .role-app-logo {
-  width: 210px;
+  width: auto;
   height: auto;
-  max-height: 40px;
+  max-height: 46px;
+  max-width: 220px;
   object-fit: contain;
   display: block;
 }
@@ -52,7 +53,7 @@
 }
 
 .role-app-hero-title .highlight {
-  color: #017846;
+  color: #EA580C;
 }
 
 .role-app-hero-desc {
@@ -87,11 +88,11 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: #eaf6ef;
+  background: #EFF6FF;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #017846;
+  color: #2563EB;
   flex-shrink: 0;
 }
 
@@ -202,8 +203,8 @@
 
 .role-app-input-wrap:focus-within,
 .role-app-input-wrap.open {
-  border-color: #017846;
-  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .role-app-input-icon {
@@ -256,8 +257,8 @@ input.role-app-text-input:focus-visible,
 
 .role-app-select-trigger:focus-visible,
 .role-app-select-trigger.open {
-  border-color: #017846;
-  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
   outline: none;
 }
 
@@ -322,8 +323,8 @@ input.role-app-text-input:focus-visible,
 }
 
 .role-app-dropdown-item.selected {
-  background: #eaf6ef;
-  color: #017846;
+  background: #EFF6FF;
+  color: #1E40AF;
   font-weight: 700;
 }
 
@@ -343,13 +344,14 @@ input.role-app-text-input:focus-visible,
 }
 
 .role-app-skills-box:focus-within {
-  border-color: #017846;
-  box-shadow: 0 0 0 3px rgba(1, 120, 70, 0.1);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
 .role-app-skill-chip {
-  background: #eaf6ef;
-  color: #017846;
+  background: #EFF6FF;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
   border-radius: 999px;
   padding: 3px 9px 3px 11px;
   font-size: 12px;
@@ -365,7 +367,7 @@ input.role-app-text-input:focus-visible,
   border: none;
   padding: 0;
   cursor: pointer;
-  color: #017846;
+  color: #1E40AF;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -472,9 +474,9 @@ input.role-app-skills-input:focus-visible,
 }
 
 .role-app-pill.active {
-  background: #eaf6ef;
-  border-color: #017846;
-  color: #017846;
+  background: #EFF6FF;
+  border-color: #2563EB;
+  color: #1E40AF;
   font-weight: 600;
 }
 
@@ -512,7 +514,7 @@ input.role-app-skills-input:focus-visible,
 }
 
 .role-app-btn-continue {
-  background: #017846;
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%);
   border: none;
   border-radius: 8px;
   padding: 10px 24px;
@@ -523,14 +525,15 @@ input.role-app-skills-input:focus-visible,
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.22);
-  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  transition: all 0.18s ease;
   font-family: inherit;
 }
 
 .role-app-btn-continue:hover {
-  background: #01663c;
-  box-shadow: 0 3px 8px rgba(1, 120, 70, 0.3);
+  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 60%, #C2410C 115%);
+  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
+  transform: translateY(-1px);
 }
 
 /* Responsive Media Queries */

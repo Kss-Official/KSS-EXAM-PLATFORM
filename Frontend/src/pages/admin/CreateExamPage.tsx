@@ -787,8 +787,8 @@ export default function CreateExamPage() {
         <span style={{ 
           fontSize: "11.5px", 
           fontWeight: 600, 
-          color: "#017846", 
-          background: "#EAF6EF", 
+          color: "#2563EB", 
+          background: "#EFF6FF", 
           padding: "6px 12px", 
           borderRadius: "8px",
           border: "1px solid #d1fae5"
@@ -877,8 +877,8 @@ export default function CreateExamPage() {
                 padding: "8px 12px",
                 borderRadius: "8px",
                 border: "none",
-                background: isActive ? "#EAF6EF" : "transparent",
-                color: isActive ? "#017846" : (isDone ? "#166534" : "#64748b"),
+                background: isActive ? "#EFF6FF" : "transparent",
+                color: isActive ? "#2563EB" : (isDone ? "#166534" : "#64748b"),
                 cursor: "pointer",
                 textAlign: "left",
                 transition: "all 0.15s ease",
@@ -891,7 +891,7 @@ export default function CreateExamPage() {
                   width: "24px",
                   height: "24px",
                   borderRadius: "50%",
-                  background: isActive ? "#017846" : (isDone ? "#dcfce7" : "#f1f5f9"),
+                  background: isActive ? "#2563EB" : (isDone ? "#dcfce7" : "#f1f5f9"),
                   color: isActive ? "#ffffff" : (isDone ? "#166534" : "#64748b"),
                   display: "grid",
                   placeItems: "center",
@@ -915,7 +915,7 @@ export default function CreateExamPage() {
         {wizardStep === 1 && (
           <div className="admin-form-card" style={{ marginBottom: "20px" }}>
             <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#0f172a" }}>
-              <Calendar size={18} color="#017846" /> 1. Examination Details & Timing
+              <Calendar size={18} color="#2563EB" /> 1. Examination Details & Timing
             </h3>
 
             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -1014,7 +1014,7 @@ export default function CreateExamPage() {
                     setWizardStep(2);
                   }
                 }}
-                style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 22px", fontSize: "13px", background: "#017846" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 22px", fontSize: "13px", background: "#2563EB" }}
               >
                 Continue to Marking Scheme <ArrowRight size={16} />
               </button>
@@ -1026,7 +1026,7 @@ export default function CreateExamPage() {
         {wizardStep === 2 && (
           <div className="admin-form-card" style={{ marginBottom: "20px" }}>
             <h3 style={{ margin: "0 0 16px 0", fontSize: "16px", display: "flex", alignItems: "center", gap: "8px", color: "#0f172a" }}>
-              <Layers size={18} color="#017846" /> 2. Marking Scheme & Qualification Rules
+              <Layers size={18} color="#2563EB" /> 2. Marking Scheme & Qualification Rules
             </h3>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px", marginBottom: "16px" }}>
@@ -1144,7 +1144,7 @@ export default function CreateExamPage() {
                     setWizardStep(3);
                   }
                 }}
-                style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 22px", fontSize: "13px", background: "#017846" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 22px", fontSize: "13px", background: "#2563EB" }}
               >
                 Continue to Department Sets & Questions <ArrowRight size={16} />
               </button>
@@ -1202,7 +1202,7 @@ export default function CreateExamPage() {
                       gap: "8px",
                       padding: "10px 22px",
                       fontSize: "13px",
-                      background: "#017846"
+                      background: "#2563EB"
                     }}
                   >
                     Continue to Review & Launch <ArrowRight size={16} />
@@ -1270,7 +1270,7 @@ export default function CreateExamPage() {
                 <div style={{ background: "#f8fafc", padding: "12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
                   <small style={{ color: "#64748b", display: "block", fontSize: "11px" }}>Title & Duration</small>
                   <b style={{ color: "#0f172a", fontSize: "13px" }}>{title || "(Untitled Examination)"}</b>
-                  <div style={{ fontSize: "11px", color: "#017846", marginTop: "4px" }}>
+                  <div style={{ fontSize: "11px", color: "#2563EB", marginTop: "4px" }}>
                     {durationMinutes} Minutes ({timingMode === "SCHEDULED" ? `Scheduled: ${examDate} at ${startTime}` : "On-Demand Duration"})
                   </div>
                 </div>
@@ -1279,7 +1279,7 @@ export default function CreateExamPage() {
                   <small style={{ color: "#64748b", display: "block", fontSize: "11px" }}>Primary Department Tracks</small>
                   <b style={{ color: "#0f172a", fontSize: "13px" }}>2 Categories · {technicalSubDepts.length + nonTechnicalSubDepts.length} Sub-Depts</b>
                   <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
-                    <span style={{ fontSize: "10px", background: "#EAF6EF", color: "#017846", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                    <span style={{ fontSize: "10px", background: "#EFF6FF", color: "#2563EB", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
                       Tech: {technicalSubDepts.length} roles
                     </span>
                     <span style={{ fontSize: "10px", background: "#e0f2fe", color: "#0284c7", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
@@ -1331,9 +1331,9 @@ export default function CreateExamPage() {
                   >
                     <div>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <Code2 size={16} color="#017846" />
+                        <Code2 size={16} color="#2563EB" />
                         <b style={{ fontSize: "13px", color: "#0f172a" }}>Technical Department Track</b>
-                        <span style={{ fontSize: "10.5px", background: "#EAF6EF", color: "#017846", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                        <span style={{ fontSize: "10.5px", background: "#EFF6FF", color: "#2563EB", padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>
                           {technicalSubDepts.length} Sub-Departments
                         </span>
                       </div>
@@ -1355,8 +1355,8 @@ export default function CreateExamPage() {
                               fontSize: "10.5px",
                               padding: "2px 7px",
                               borderRadius: "4px",
-                              background: count > 0 ? "#dcfce7" : (hasFiles ? "#EAF6EF" : "#f1f5f9"),
-                              color: count > 0 ? "#15803d" : (hasFiles ? "#017846" : "#64748b"),
+                              background: count > 0 ? "#dcfce7" : (hasFiles ? "#EFF6FF" : "#f1f5f9"),
+                              color: count > 0 ? "#15803d" : (hasFiles ? "#2563EB" : "#64748b"),
                               fontWeight: 600
                             }}
                           >
@@ -1364,7 +1364,7 @@ export default function CreateExamPage() {
                           </span>
                         );
                       })}
-                      <span style={{ fontSize: "10px", color: "#017846", background: "#EAF6EF", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
+                      <span style={{ fontSize: "10px", color: "#2563EB", background: "#EFF6FF", padding: "2px 6px", borderRadius: "4px", fontWeight: 700 }}>
                         🔀 Shuffling: {technicalBank.randomizeQuestions ? "Active" : "Off"}
                       </span>
                     </div>
@@ -1489,7 +1489,7 @@ export default function CreateExamPage() {
 
               <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
                 {submissionProgress && (
-                  <span style={{ fontSize: "12px", color: "#017846", fontWeight: 600 }}>
+                  <span style={{ fontSize: "12px", color: "#2563EB", fontWeight: 600 }}>
                     ⏳ {submissionProgress}
                   </span>
                 )}
@@ -1502,7 +1502,7 @@ export default function CreateExamPage() {
                   type="submit" 
                   className="primary" 
                   disabled={submitting}
-                  style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "11px 26px", fontSize: "13px", background: "#017846" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "11px 26px", fontSize: "13px", background: "#2563EB" }}
                 >
                   <Save size={16} /> {submitting ? "Saving & Launching..." : (publishImmediately ? "Create & Publish Live Examination" : "Save as Draft Examination")}
                 </button>
@@ -1602,7 +1602,7 @@ export default function CreateExamPage() {
                 type="button" 
                 className="primary" 
                 onClick={() => setReviewingSet(null)} 
-                style={{ fontSize: "12.5px", padding: "8px 22px", background: "#017846" }}
+                style={{ fontSize: "12.5px", padding: "8px 22px", background: "#2563EB" }}
               >
                 Done Reviewing
               </button>

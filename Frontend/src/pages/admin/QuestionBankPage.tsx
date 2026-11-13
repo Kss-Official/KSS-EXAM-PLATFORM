@@ -576,7 +576,7 @@ export default function QuestionBankPage() {
       <div className="admin-page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Layers size={20} color="#017846" />
+            <Layers size={20} color="#2563EB" />
             <strong style={{ fontSize: "16px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Question Bank Management
             </strong>
@@ -659,13 +659,13 @@ export default function QuestionBankPage() {
             width: "56px",
             height: "56px",
             borderRadius: "50%",
-            background: "#EAF6EF",
+            background: "#EFF6FF",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             margin: "0 auto 16px"
           }}>
-            <Layers size={28} color="#017846" />
+            <Layers size={28} color="#2563EB" />
           </div>
           <h3 style={{ margin: "0 0 8px", fontSize: "17px", color: "#0f172a", fontWeight: 700 }}>
             No Active Examinations Found
@@ -713,7 +713,7 @@ export default function QuestionBankPage() {
                 background: "none",
                 border: "none",
                 padding: 0,
-                color: selectedDept ? "#017846" : "#0f172a",
+                color: selectedDept ? "#2563EB" : "#0f172a",
                 fontWeight: selectedDept ? 600 : 700,
                 cursor: selectedDept ? "pointer" : "default"
               }}
@@ -734,7 +734,7 @@ export default function QuestionBankPage() {
                     background: "none",
                     border: "none",
                     padding: 0,
-                    color: selectedSetCode ? (isDeptNonTech(selectedDept) ? "#0284c7" : "#017846") : "#0f172a",
+                    color: selectedSetCode ? (isDeptNonTech(selectedDept) ? "#0284c7" : "#2563EB") : "#0f172a",
                     fontWeight: selectedSetCode ? 600 : 700,
                     cursor: selectedSetCode ? "pointer" : "default"
                   }}
@@ -785,7 +785,7 @@ export default function QuestionBankPage() {
 
               {loadingDepts ? (
                 <div style={{ padding: "50px", textAlign: "center", color: "#64748b" }}>
-                  <div style={{ display: "inline-block", width: "24px", height: "24px", border: "3px solid #cbd5e1", borderTopColor: "#017846", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                  <div style={{ display: "inline-block", width: "24px", height: "24px", border: "3px solid #cbd5e1", borderTopColor: "#2563EB", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
                   <p style={{ marginTop: "12px", fontSize: "13px" }}>Loading examination tracks & question sets...</p>
                 </div>
               ) : displayedDepts.length === 0 ? (
@@ -820,7 +820,7 @@ export default function QuestionBankPage() {
                       borderRadius: "12px",
                       padding: "22px",
                       cursor: technicalDepts.length > 0 ? "pointer" : "not-allowed",
-                      boxShadow: "0 4px 14px rgba(1, 120, 70, 0.06)",
+                      boxShadow: "0 4px 14px rgba(37, 99, 235, 0.06)",
                       transition: "all 0.2s ease",
                       display: "flex",
                       flexDirection: "column",
@@ -830,16 +830,16 @@ export default function QuestionBankPage() {
                     }}
                     onMouseEnter={e => {
                       if (technicalDepts.length > 0) {
-                        e.currentTarget.style.borderColor = "#017846";
+                        e.currentTarget.style.borderColor = "#2563EB";
                         e.currentTarget.style.transform = "translateY(-2px)";
-                        e.currentTarget.style.boxShadow = "0 8px 24px rgba(1, 120, 70, 0.15)";
+                        e.currentTarget.style.boxShadow = "0 8px 24px rgba(37, 99, 235, 0.15)";
                       }
                     }}
                     onMouseLeave={e => {
                       if (technicalDepts.length > 0) {
                         e.currentTarget.style.borderColor = "#bbf7d0";
                         e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(1, 120, 70, 0.06)";
+                        e.currentTarget.style.boxShadow = "0 4px 14px rgba(37, 99, 235, 0.06)";
                       }
                     }}
                   >
@@ -851,8 +851,8 @@ export default function QuestionBankPage() {
                             width: "38px",
                             height: "38px",
                             borderRadius: "10px",
-                            background: "#EAF6EF",
-                            color: "#017846",
+                            background: "#EFF6FF",
+                            color: "#2563EB",
                             display: "grid",
                             placeItems: "center"
                           }}>
@@ -864,7 +864,7 @@ export default function QuestionBankPage() {
                               fontWeight: 700,
                               textTransform: "uppercase",
                               letterSpacing: "0.5px",
-                              color: "#017846"
+                              color: "#2563EB"
                             }}>
                               Primary Track · Mandatory
                             </span>
@@ -877,8 +877,8 @@ export default function QuestionBankPage() {
                         <span style={{
                           fontSize: "12px",
                           fontWeight: 700,
-                          background: "#EAF6EF",
-                          color: "#017846",
+                          background: "#EFF6FF",
+                          color: "#2563EB",
                           padding: "4px 10px",
                           borderRadius: "20px",
                           border: "1px solid #bbf7d0"
@@ -910,7 +910,7 @@ export default function QuestionBankPage() {
                                 fontWeight: 500
                               }}
                             >
-                              {d.name} <b style={{ color: "#017846" }}>({d.code})</b>
+                              {d.name} <b style={{ color: "#2563EB" }}>({d.code})</b>
                             </span>
                           ))}
                         </div>
@@ -939,7 +939,7 @@ export default function QuestionBankPage() {
                       <button
                         type="button"
                         style={{
-                          background: "linear-gradient(135deg, #017846, #01663C)",
+                          background: "linear-gradient(135deg, #2563EB, #1D4ED8)",
                           color: "#ffffff",
                           border: "none",
                           padding: "8px 14px",
@@ -950,7 +950,7 @@ export default function QuestionBankPage() {
                           alignItems: "center",
                           gap: "6px",
                           cursor: "pointer",
-                          boxShadow: "0 2px 6px rgba(1, 120, 70, 0.25)"
+                          boxShadow: "0 2px 6px rgba(37, 99, 235, 0.25)"
                         }}
                       >
                         Open Sets <ChevronRight size={15} />
@@ -1136,7 +1136,7 @@ export default function QuestionBankPage() {
 
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "12.5px", color: "#64748b" }}>
-                Active Track: <b style={{ color: isDeptNonTech(selectedDept) ? "#0284c7" : "#017846" }}>
+                Active Track: <b style={{ color: isDeptNonTech(selectedDept) ? "#0284c7" : "#2563EB" }}>
                   {isDeptNonTech(selectedDept) ? "Non-Technical Department" : "Technical Department"}
                 </b>
               </span>
@@ -1182,8 +1182,8 @@ export default function QuestionBankPage() {
               <span style={{
                 fontSize: "11px",
                 fontWeight: 700,
-                color: isDeptNonTech(selectedDept) ? "#0284c7" : "#017846",
-                background: isDeptNonTech(selectedDept) ? "#eff6ff" : "#EAF6EF",
+                color: isDeptNonTech(selectedDept) ? "#0284c7" : "#2563EB",
+                background: isDeptNonTech(selectedDept) ? "#eff6ff" : "#EFF6FF",
                 padding: "2px 8px",
                 borderRadius: "4px"
               }}>
@@ -1226,8 +1226,8 @@ export default function QuestionBankPage() {
                       justifyContent: "space-between"
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.borderColor = "#017846";
-                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(1, 120, 70, 0.12)";
+                      e.currentTarget.style.borderColor = "#2563EB";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(37, 99, 235, 0.12)";
                     }}
                     onMouseLeave={e => {
                       e.currentTarget.style.borderColor = "#e2e8f0";
@@ -1243,7 +1243,7 @@ export default function QuestionBankPage() {
                             height: "28px",
                             lineHeight: "28px",
                             borderRadius: "50%",
-                            background: "#017846",
+                            background: "#2563EB",
                             color: "#ffffff",
                             textAlign: "center",
                             fontWeight: 700,
@@ -1566,7 +1566,7 @@ export default function QuestionBankPage() {
                       }}
                     >
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                        <span style={{ fontWeight: 700, color: "#017846", fontSize: "13px" }}>Question #{idx + 1}</span>
+                        <span style={{ fontWeight: 700, color: "#2563EB", fontSize: "13px" }}>Question #{idx + 1}</span>
                         <button
                           type="button"
                           onClick={() => handleRemoveDraftQuestion(idx)}
@@ -1742,7 +1742,7 @@ export default function QuestionBankPage() {
                     >
                       <div style={{ maxWidth: "88%" }}>
                         <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
-                          <span style={{ fontWeight: 700, color: "#017846", fontSize: "13px", flexShrink: 0, marginTop: "2px" }}>Q{idx + 1}.</span>
+                          <span style={{ fontWeight: 700, color: "#2563EB", fontSize: "13px", flexShrink: 0, marginTop: "2px" }}>Q{idx + 1}.</span>
                           <div style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", flex: 1 }}>
                             <FormattedContent content={q.questionText} />
                           </div>

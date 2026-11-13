@@ -19,22 +19,25 @@ import {
   Video,
   Menu,
   Mail,
-  UserX
+  UserX,
+  Loader2
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
-import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
+import talentiseLogo from "../../assets/talentise_logo.png";
 import { useFaceDetection } from "../../hooks/useFaceDetection";
 
 interface SystemCheckPageProps {
   profile: CandidateProfile;
   onBack: () => void;
-  onStartExam: () => void;
+  onStartExam: () => void | Promise<void>;
+  isStartingExam?: boolean;
 }
 
 export default function SystemCheckPage({
   profile,
   onBack,
-  onStartExam
+  onStartExam,
+  isStartingExam = false
 }: SystemCheckPageProps) {
   // System detection states
   const [osName, setOsName] = useState("Windows 11 / 10 (64-bit)");
@@ -243,8 +246,8 @@ export default function SystemCheckPage({
       <nav className="nav">
         <div className="brand">
           <img 
-            src={kalpanaaLogo} 
-            alt="Kalpanaa Software Solutions" 
+            src={talentiseLogo} 
+            alt="Talentise Global" 
             className="candidate-portal-logo" 
           />
         </div>
@@ -346,7 +349,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Monitor size={20} color="#017846" />
+                      <Monitor size={20} color="#2563EB" />
                     </div>
                     <strong className="compat-box-name">Operating System</strong>
                     <p className="compat-box-desc">Check if your device OS is supported.</p>
@@ -362,7 +365,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Globe size={20} color="#017846" />
+                      <Globe size={20} color="#2563EB" />
                     </div>
                     <strong className="compat-box-name">Web Browser</strong>
                     <p className="compat-box-desc">Check if your browser version is supported.</p>
@@ -453,7 +456,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Menu size={20} color="#017846" />
+                      <Menu size={20} color="#2563EB" />
                     </div>
                     <strong className="compat-box-name">Screen Resolution</strong>
                     <p className="compat-box-desc">Ensure minimum resolution is met.</p>
@@ -469,7 +472,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Wifi size={20} color="#017846" />
+                      <Wifi size={20} color="#2563EB" />
                     </div>
                     <strong className="compat-box-name">Network & Internet</strong>
                     <p className="compat-box-desc">Check your internet connection stability.</p>
@@ -681,11 +684,17 @@ export default function SystemCheckPage({
             <button
               type="button"
               className="compat-btn-continue"
-              disabled={!canContinueToExam}
+              disabled={!canContinueToExam || isStartingExam}
               onClick={onStartExam}
               title={!canContinueToExam ? "Please enable camera, microphone, and agree to instructions to proceed" : "Start your examination"}
             >
-              Continue to Exam
+              {isStartingExam ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  <Loader2 size={15} className="animate-spin" /> Preparing Assessment...
+                </span>
+              ) : (
+                "Continue to Exam"
+              )}
             </button>
           </div>
         </div>

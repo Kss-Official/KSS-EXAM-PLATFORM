@@ -128,7 +128,7 @@ export default function ExamsPage() {
       <div className="admin-page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <BookOpen size={20} color="#017846" />
+            <BookOpen size={20} color="#2563EB" />
             <strong style={{ fontSize: "15px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Examinations Management
             </strong>
@@ -152,7 +152,7 @@ export default function ExamsPage() {
             type="button"
             className="admin-btn primary" 
             onClick={() => navigate("/admin/exams/new")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #017846, #01663C)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(1, 120, 70, 0.25)" }}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", background: "linear-gradient(135deg, #2563EB, #1D4ED8)", color: "#ffffff", border: "none", fontSize: "12.5px", fontWeight: 700, cursor: "pointer", boxShadow: "0 2px 8px rgba(37, 99, 235, 0.25)" }}
           >
             <PlusCircle size={15} /> Create New Exam
           </button>
@@ -502,12 +502,12 @@ export default function ExamsPage() {
                   width: "44px",
                   height: "44px",
                   borderRadius: "12px",
-                  background: "#EAF6EF",
+                  background: "#EFF6FF",
                   border: "1px solid #d1fae5",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#017846",
+                  color: "#2563EB",
                   flexShrink: 0
                 }}>
                   <BookOpen size={22} />
@@ -610,7 +610,7 @@ export default function ExamsPage() {
                   <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
                     Exam Duration
                   </div>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#017846", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#2563EB", display: "flex", alignItems: "center", gap: "5px" }}>
                     <Clock size={14} /> {selectedExam.durationMinutes} Minutes
                   </div>
                 </div>
@@ -663,7 +663,7 @@ export default function ExamsPage() {
               alignItems: "center"
             }}>
               <span style={{ fontSize: "12px", color: "#64748b" }}>
-                Results Published: <b style={{ color: selectedExam.resultsPublished ? "#017846" : "#64748b" }}>{selectedExam.resultsPublished ? "Yes" : "No"}</b>
+                Results Published: <b style={{ color: selectedExam.resultsPublished ? "#2563EB" : "#64748b" }}>{selectedExam.resultsPublished ? "Yes" : "No"}</b>
               </span>
               <button 
                 type="button"

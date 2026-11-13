@@ -320,7 +320,7 @@ export default function DepartmentsPage() {
           border: "1px solid #e2e8f0",
           borderLeft: item.active 
             ? (activeTab === "academic" 
-                ? (item.category === "NON_TECHNICAL" ? "4px solid #7e22ce" : "4px solid #017846")
+                ? (item.category === "NON_TECHNICAL" ? "4px solid #7e22ce" : "4px solid #2563EB")
                 : "4px solid #2563eb")
             : "4px solid #cbd5e1",
           padding: "20px",
@@ -583,7 +583,7 @@ export default function DepartmentsPage() {
       <div style={{
         background: "#ffffff",
         border: "1px solid #e2e8f0",
-        borderLeft: activeTab === "academic" ? "4px solid #017846" : "4px solid #2563eb",
+        borderLeft: activeTab === "academic" ? "4px solid #2563EB" : "4px solid #2563eb",
         borderRadius: "12px",
         padding: "20px 24px",
         boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)",
@@ -599,14 +599,14 @@ export default function DepartmentsPage() {
             height: "52px",
             borderRadius: "14px",
             background: activeTab === "academic" 
-              ? "linear-gradient(135deg, #017846 0%, #059669 100%)" 
+              ? "linear-gradient(135deg, #2563EB 0%, #059669 100%)" 
               : "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             color: "#ffffff",
             boxShadow: activeTab === "academic" 
-              ? "0 8px 16px -4px rgba(1, 120, 70, 0.35)" 
+              ? "0 8px 16px -4px rgba(37, 99, 235, 0.35)" 
               : "0 8px 16px -4px rgba(37, 99, 235, 0.35)"
           }}>
             {activeTab === "academic" ? <GraduationCap size={28} /> : <Building2 size={28} />}
@@ -615,7 +615,7 @@ export default function DepartmentsPage() {
             <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#64748b", fontWeight: 500, marginBottom: "4px" }}>
               <span>Admin Console</span>
               <ChevronRight size={12} color="#94a3b8" />
-              <span style={{ color: activeTab === "academic" ? "#017846" : "#2563eb", fontWeight: 600 }}>
+              <span style={{ color: activeTab === "academic" ? "#2563EB" : "#2563eb", fontWeight: 600 }}>
                 {activeTab === "academic" ? "Academic Tracks" : "Institutions & Campuses"}
               </span>
             </div>
@@ -665,7 +665,7 @@ export default function DepartmentsPage() {
               fontWeight: 700,
               color: "#ffffff",
               background: activeTab === "academic" 
-                ? "linear-gradient(135deg, #017846 0%, #059669 100%)" 
+                ? "linear-gradient(135deg, #2563EB 0%, #059669 100%)" 
                 : "linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)",
               border: "none",
               cursor: "pointer",
@@ -673,7 +673,7 @@ export default function DepartmentsPage() {
               alignItems: "center", 
               gap: "8px",
               boxShadow: activeTab === "academic" 
-                ? "0 4px 12px rgba(1, 120, 70, 0.28)" 
+                ? "0 4px 12px rgba(37, 99, 235, 0.28)" 
                 : "0 4px 12px rgba(37, 99, 235, 0.28)",
               transition: "all 0.15s ease"
             }}
@@ -860,7 +860,7 @@ export default function DepartmentsPage() {
               border: "none",
               cursor: "pointer",
               background: activeTab === "academic" ? "#ffffff" : "transparent",
-              color: activeTab === "academic" ? "#017846" : "#64748b",
+              color: activeTab === "academic" ? "#2563EB" : "#64748b",
               boxShadow: activeTab === "academic" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
               display: "inline-flex",
               alignItems: "center",
@@ -872,7 +872,7 @@ export default function DepartmentsPage() {
             <span>Academic Departments</span>
             <span style={{
               background: activeTab === "academic" ? "#ecfdf5" : "#e2e8f0",
-              color: activeTab === "academic" ? "#017846" : "#64748b",
+              color: activeTab === "academic" ? "#2563EB" : "#64748b",
               fontSize: "11px",
               padding: "2px 7px",
               borderRadius: "12px",
@@ -1032,7 +1032,7 @@ export default function DepartmentsPage() {
                 borderRadius: "6px",
                 cursor: "pointer",
                 background: categoryFilter === "ALL" ? "#ffffff" : "transparent",
-                color: categoryFilter === "ALL" ? "#017846" : "#64748b",
+                color: categoryFilter === "ALL" ? "#2563EB" : "#64748b",
                 boxShadow: categoryFilter === "ALL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
                 display: "inline-flex",
                 alignItems: "center",
@@ -1054,7 +1054,7 @@ export default function DepartmentsPage() {
                 borderRadius: "6px",
                 cursor: "pointer",
                 background: categoryFilter === "TECHNICAL" ? "#ffffff" : "transparent",
-                color: categoryFilter === "TECHNICAL" ? "#017846" : "#64748b",
+                color: categoryFilter === "TECHNICAL" ? "#2563EB" : "#64748b",
                 boxShadow: categoryFilter === "TECHNICAL" ? "0 1px 2px rgba(0,0,0,0.08)" : "none",
                 display: "inline-flex",
                 alignItems: "center",
@@ -1135,7 +1135,7 @@ export default function DepartmentsPage() {
       {/* Main Content Area */}
       {loading ? (
         <div style={{ textAlign: "center", padding: "64px 0", color: "#64748b" }}>
-          <Loader2 size={36} className="animate-spin" style={{ margin: "0 auto 12px", color: activeTab === "academic" ? "#017846" : "#2563eb" }} />
+          <Loader2 size={36} className="animate-spin" style={{ margin: "0 auto 12px", color: activeTab === "academic" ? "#2563EB" : "#2563eb" }} />
           <p style={{ fontSize: "14px", fontWeight: 500 }}>
             Loading {activeTab === "academic" ? "departments & curriculum tracks" : "colleges & campuses"} from database...
           </p>
@@ -1163,7 +1163,7 @@ export default function DepartmentsPage() {
             onClick={handleOpenCreateModal}
             style={{
               padding: "8px 18px",
-              background: activeTab === "academic" ? "#017846" : "#2563eb",
+              background: activeTab === "academic" ? "#2563EB" : "#2563eb",
               color: "#ffffff",
               borderRadius: "8px",
               border: "none",
@@ -1206,7 +1206,7 @@ export default function DepartmentsPage() {
                       fontSize: "11px",
                       fontWeight: 700,
                       background: "#ecfdf5",
-                      color: "#017846",
+                      color: "#2563EB",
                       padding: "2px 8px",
                       borderRadius: "999px",
                       border: "1px solid #a7f3d0"
@@ -1633,7 +1633,7 @@ export default function DepartmentsPage() {
                     type="checkbox"
                     checked={formActive}
                     onChange={e => setFormActive(e.target.checked)}
-                    style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#017846" }}
+                    style={{ width: "18px", height: "18px", cursor: "pointer", accentColor: "#2563EB" }}
                   />
                 </div>
               </div>
@@ -1665,7 +1665,7 @@ export default function DepartmentsPage() {
                     fontSize: "13px",
                     fontWeight: 700,
                     color: "#ffffff",
-                    background: activeTab === "academic" ? "#017846" : "#2563eb",
+                    background: activeTab === "academic" ? "#2563EB" : "#2563eb",
                     border: "none",
                     cursor: "pointer",
                     display: "inline-flex",

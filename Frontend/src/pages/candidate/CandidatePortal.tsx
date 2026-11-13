@@ -1,14 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "../../router";
 import type { CandidateProfile, SubmissionReceipt } from "../../types/candidate";
-import type { SubmissionResponse } from "../../services/api";
+import { 
+  type SubmissionResponse, 
+  startCandidateAttempt, 
+  verifyCandidateEligibility 
+} from "../../services/api";
 import {
   loadCandidateSession,
   saveCandidateSession,
   createCandidateSession,
   finalizeCandidateSession,
   clearCandidateSession,
-  DEMO_TOTAL_QUESTIONS
+  DEMO_TOTAL_QUESTIONS,
+  DEMO_EXAM_DURATION_SECONDS
 } from "../../services/candidateSessionStorage";
 
 import CandidateEntryPage from "./CandidateEntryPage";
@@ -22,6 +27,7 @@ export default function CandidatePortal() {
 
   // Temporary draft profile before starting exam
   const [draftProfile, setDraftProfile] = useState<CandidateProfile | null>(null);
+  const [isStartingExam, setIsStartingExam] = useState(false);
 
   // Sync state with storage
   const [activeSession, setActiveSession] = useState(() => loadCandidateSession());
@@ -112,7 +118,7 @@ export default function CandidatePortal() {
     navigate("/candidate/role-application");
   };
 
-  const handleStartExam = () => {
+  const handleStartExam = async () => {
     const profileToUse = draftProfile || activeSession?.profile;
     if (!profileToUse) {
       navigate("/candidate");
@@ -127,9 +133,78 @@ export default function CandidatePortal() {
       return;
     }
 
-    const newSession = createCandidateSession(profileToUse);
-    setActiveSession(newSession);
-    navigate("/candidate/exam");
+    setIsStartingExam(true);
+    try {
+      let dbCandId = profileToUse.dbCandidateId;
+      let assignedExamId = profileToUse.assignedExamId;
+
+      // Auto-recover candidate profile if dbCandidateId is missing
+      if (!dbCandId && profileToUse.email) {
+        try {
+          const verifyRes = await verifyCandidateEligibility({
+            email: profileToUse.email.trim().toLowerCase(),
+            fullName: profileToUse.name,
+            name: profileToUse.name,
+            departmentId: profileToUse.departmentId,
+            departmentName: profileToUse.department,
+            department: profileToUse.department
+          });
+          if (verifyRes.eligible && verifyRes.candidateId && (verifyRes.assignedExamId || verifyRes.examId)) {
+            dbCandId = verifyRes.candidateId;
+            assignedExamId = verifyRes.assignedExamId || verifyRes.examId;
+            profileToUse.dbCandidateId = dbCandId;
+            profileToUse.assignedExamId = assignedExamId;
+            if (verifyRes.examTitle) profileToUse.examTitle = verifyRes.examTitle;
+            if (verifyRes.questionSetCode) profileToUse.questionSetCode = verifyRes.questionSetCode;
+            if (verifyRes.token) localStorage.setItem("examsecure_candidate_token", verifyRes.token);
+          }
+        } catch (recoveryErr) {
+          console.warn("[CandidatePortal] Eligibility verification during start notice:", recoveryErr);
+        }
+      }
+
+      let attemptData: any = null;
+      if (dbCandId && assignedExamId) {
+        try {
+          attemptData = await startCandidateAttempt(dbCandId, assignedExamId);
+        } catch (attemptErr) {
+          console.warn("[CandidatePortal] Attempt prefetch notice:", attemptErr);
+        }
+      }
+
+      const durationSecs = attemptData?.totalDurationSeconds || DEMO_EXAM_DURATION_SECONDS;
+      const newSession = createCandidateSession(profileToUse, durationSecs);
+
+      if (attemptData) {
+        newSession.backendAttemptId = attemptData.attemptId;
+        newSession.questions = attemptData.questions || [];
+        newSession.assignedSet = attemptData.questionSetCode || attemptData.setCode || profileToUse.questionSetCode;
+        if (attemptData.deadlineAt || attemptData.expiresAt) {
+          const sDeadline = new Date(attemptData.deadlineAt || attemptData.expiresAt).getTime();
+          if (sDeadline > 0) newSession.deadline = sDeadline;
+        }
+        if (attemptData.serverTime) {
+          const serverMs = new Date(attemptData.serverTime).getTime();
+          newSession.serverOffset = serverMs - Date.now();
+        }
+        if (attemptData.attemptId && attemptData.questions) {
+          try {
+            sessionStorage.setItem(`examsecure_questions_${attemptData.attemptId}`, JSON.stringify(attemptData.questions));
+          } catch {}
+        }
+      }
+
+      // Purge any stale generic questions cache so stale questions from previous sessions never leak
+      try {
+        sessionStorage.removeItem("examsecure_last_questions");
+      } catch {}
+
+      saveCandidateSession(newSession);
+      setActiveSession(newSession);
+      navigate("/candidate/exam");
+    } finally {
+      setIsStartingExam(false);
+    }
   };
 
   const handleFinalizeExam = (
@@ -236,6 +311,7 @@ export default function CandidatePortal() {
           profile={profile}
           onBack={handleBackToRoleApplication}
           onStartExam={handleStartExam}
+          isStartingExam={isStartingExam}
         />
       );
     }

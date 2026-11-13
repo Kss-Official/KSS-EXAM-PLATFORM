@@ -60,7 +60,7 @@
 
 .coding-exam-progress-fill {
   height: 100%;
-  background: #017846;
+  background: #2563EB;
   border-radius: 999px;
   transition: width 0.3s ease;
 }
@@ -235,9 +235,9 @@
 }
 
 .coding-exam-nav-item.active {
-  border-color: #017846;
+  border-color: #2563EB;
   background: #f0fdf4;
-  box-shadow: 0 2px 8px rgba(1, 120, 70, 0.15);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.15);
 }
 
 .coding-exam-nav-q-row {
@@ -253,7 +253,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #017846;
+  background: #2563EB;
 }
 
 .coding-exam-nav-dot.unattempted {
@@ -318,7 +318,7 @@
 }
 
 .coding-exam-q-number strong {
-  color: #017846;
+  color: #2563EB;
   font-weight: 800;
 }
 
@@ -561,7 +561,7 @@
 }
 
 .coding-exam-btn-run {
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -573,11 +573,11 @@
   gap: 7px;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.3);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
 }
 
 .coding-exam-btn-run:hover:not(:disabled) {
-  background: #01663c;
+  background: #1d4ed8;
 }
 
 .coding-exam-btn-run:disabled {

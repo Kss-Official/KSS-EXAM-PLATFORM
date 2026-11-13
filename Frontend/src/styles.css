@@ -10,27 +10,29 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Brand Color Palette: #017846 */
-  --primary: #017846;
-  --primary-hover: #01663C;
-  --primary-dark: #014D32;
-  --primary-light: #EAF6EF;
-  --primary-pale: #F3FAF6;
+  /* Brand Color Palette: Talentise Global */
+  --primary: #1E40AF;
+  --primary-hover: #1D4ED8;
+  --primary-dark: #0F2B82;
+  --primary-light: #EFF6FF;
+  --primary-pale: #F8FAFC;
+  --accent-orange: #EA580C;
+  --accent-orange-light: #FFF7ED;
 
   /* Theme Tokens mapped to brand palette */
-  --blue: #017846;
-  --blue-hover: #01663C;
-  --blue-light: #EAF6EF;
+  --blue: #1E40AF;
+  --blue-hover: #1D4ED8;
+  --blue-light: #EFF6FF;
   --ink: #111827;
   --muted: #526579;
-  --line: #D9E6DF;
+  --line: #E2E8F0;
   --surface: #ffffff;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
   --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
-  --shadow-md: 0 4px 12px -2px rgba(1, 120, 70, 0.08);
-  --shadow-lg: 0 12px 30px -4px rgba(1, 120, 70, 0.12);
+  --shadow-md: 0 4px 12px -2px rgba(30, 64, 175, 0.08);
+  --shadow-lg: 0 12px 30px -4px rgba(30, 64, 175, 0.12);
 }
 
 * {
@@ -65,7 +67,7 @@ button {
 button:focus-visible, 
 input:not(.role-app-text-input):not(.role-app-skills-input):focus-visible, 
 select:focus-visible {
-  outline: 2px solid #017846;
+  outline: 2px solid #2563EB;
   outline-offset: 2px;
 }
 
@@ -175,8 +177,8 @@ select:focus-visible {
   place-items: center;
   border-radius: 10px;
   color: white;
-  background: linear-gradient(145deg, #017846, #014D32);
-  box-shadow: 0 4px 10px rgba(1, 120, 70, 0.25);
+  background: linear-gradient(135deg, #0A196F 0%, #2563EB 55%, #EA580C 100%);
+  box-shadow: 0 4px 10px rgba(37, 99, 235, 0.25);
 }
 
 .brand b {
@@ -207,8 +209,8 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  background: #EAF6EF;
-  color: #017846;
+  background: #EFF6FF;
+  color: #2563EB;
   border-radius: 6px;
   font-size: 11px;
   font-weight: 700;
@@ -238,7 +240,7 @@ select:focus-visible {
 .nav-track span {
   display: block;
   height: 100%;
-  background: #017846;
+  background: #2563EB;
   transition: width 0.2s ease;
 }
 
@@ -263,7 +265,7 @@ select:focus-visible {
 }
 
 .timer-badge svg {
-  color: #017846;
+  color: #2563EB;
 }
 
 .demo-tag {
@@ -373,7 +375,7 @@ select:focus-visible {
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 0.8px;
-  color: #017846;
+  color: #2563EB;
 }
 
 .topicbadge {
@@ -461,18 +463,18 @@ select:focus-visible {
 }
 
 .option:hover {
-  border-color: #017846;
+  border-color: #2563EB;
   background: #f8fafc;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.08);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.08);
 }
 
 .option.selected {
-  border-color: #017846;
-  background: #EAF6EF;
-  color: #014D32;
+  border-color: #2563EB;
+  background: #EFF6FF;
+  color: #0A196F;
   font-weight: 600;
-  box-shadow: 0 0 0 1.5px #017846, 0 4px 16px rgba(1, 120, 70, 0.12);
+  box-shadow: 0 0 0 1.5px #2563EB, 0 4px 16px rgba(37, 99, 235, 0.12);
 }
 
 .letter {
@@ -491,10 +493,10 @@ select:focus-visible {
 }
 
 .selected .letter {
-  background: #017846;
-  border-color: #017846;
+  background: #2563EB;
+  border-color: #2563EB;
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.3);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
 }
 
 .opt-text {
@@ -515,8 +517,8 @@ select:focus-visible {
 }
 
 .selected .radio {
-  border-color: #017846;
-  background: #017846;
+  border-color: #2563EB;
+  background: #2563EB;
 }
 
 .radio i {
@@ -673,9 +675,9 @@ select:focus-visible {
 }
 
 .grid button.answered {
-  background: #EAF6EF;
+  background: #EFF6FF;
   border-color: #D9E6DF;
-  color: #017846;
+  color: #2563EB;
 }
 
 .grid button.flagged {
@@ -685,9 +687,9 @@ select:focus-visible {
 }
 
 .grid button.current {
-  border: 2px solid #017846 !important;
-  color: #017846;
-  box-shadow: 0 0 0 1px #017846;
+  border: 2px solid #2563EB !important;
+  color: #2563EB;
+  box-shadow: 0 0 0 1px #2563EB;
 }
 
 .grid button.current.answered {
@@ -958,7 +960,7 @@ select:focus-visible {
 }
 
 .candidate-portal-logo {
-  height: 38px;
+  height: 42px;
   width: auto;
   max-width: 260px;
   object-fit: contain;
@@ -969,9 +971,9 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #014D32;
-  border: 1px solid #D9E6DF;
-  background: #EAF6EF;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
+  background: #EFF6FF;
   border-radius: 999px;
   padding: 5px 13px;
   font-size: 11px;
@@ -980,7 +982,7 @@ select:focus-visible {
 }
 
 .secure svg {
-  color: #017846;
+  color: #2563EB;
 }
 
 .hero {
@@ -996,7 +998,7 @@ select:focus-visible {
 }
 
 .eyebrow {
-  color: #017846;
+  color: #2563EB;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.6px;
@@ -1007,7 +1009,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #017846;
+  color: #2563EB;
   margin-bottom: 6px;
 }
 
@@ -1015,7 +1017,7 @@ select:focus-visible {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #017846;
+  background: #EA580C;
 }
 
 .intro h1 {
@@ -1030,8 +1032,10 @@ select:focus-visible {
 
 .intro h1 em {
   font-style: normal;
-  color: #017846;
   display: block;
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 50%, #EA580C 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
 .lead {
@@ -1060,9 +1064,9 @@ select:focus-visible {
   height: 32px;
   display: grid;
   place-items: center;
-  border: 1px solid #D9E6DF;
-  background: #F3FAF6;
-  color: #017846;
+  border: 1px solid #BFDBFE;
+  background: #EFF6FF;
+  color: #2563EB;
   border-radius: 8px;
   flex-shrink: 0;
 }
@@ -1085,7 +1089,7 @@ select:focus-visible {
 
 .intro-divider {
   border: none;
-  border-top: 1px solid #D9E6DF;
+  border-top: 1px solid #E2E8F0;
   margin: 14px 0 10px;
 }
 
@@ -1093,15 +1097,15 @@ select:focus-visible {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.8px;
-  color: #526579;
+  color: #64748b;
   text-transform: uppercase;
 }
 
 .login {
   background: #ffffff;
-  border: 1px solid #D9E6DF;
+  border: 1px solid #E2E8F0;
   border-radius: 16px;
-  box-shadow: 0 12px 36px -6px rgba(17, 24, 39, 0.07), 0 4px 14px rgba(1, 120, 70, 0.04);
+  box-shadow: 0 12px 36px -6px rgba(15, 23, 42, 0.08), 0 4px 14px rgba(37, 99, 235, 0.05);
   padding: clamp(16px, 2.2vh, 24px) clamp(20px, 2.6vw, 32px);
 }
 
@@ -1110,14 +1114,14 @@ select:focus-visible {
   height: 38px;
   display: grid;
   place-items: center;
-  color: #017846;
-  background: #EAF6EF;
+  color: #2563EB;
+  background: #EFF6FF;
   border-radius: 10px;
   margin-bottom: 12px;
 }
 
 .login .eyebrow {
-  color: #017846;
+  color: #2563EB;
   margin-bottom: 3px;
 }
 
@@ -1131,7 +1135,7 @@ select:focus-visible {
 }
 
 .login h2 span.entry-brand {
-  color: #017846;
+  color: #EA580C;
 }
 
 .muted {
@@ -1182,8 +1186,8 @@ select:focus-visible {
 }
 
 .login input:focus, .login select:focus, .dept-select:focus {
-  border-color: #017846;
-  box-shadow: 0 0 0 2px rgba(1, 120, 70, 0.15);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.18);
 }
 
 .login input.input-error, .dept-select.input-error {
@@ -1199,23 +1203,23 @@ select:focus-visible {
   margin-top: 3px;
 }
 
-/* Green information panel */
+/* Talentise Blue information panel */
 .green-info-panel {
-  background: #EAF6EF;
-  border: 1px solid #D9E6DF;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
   border-radius: 8px;
   padding: 8px 11px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  color: #014D32;
+  color: #1E3A8A;
   font-size: 11px;
   line-height: 1.4;
   margin-top: 2px;
 }
 
 .green-info-panel svg {
-  color: #017846;
+  color: #2563EB;
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -1226,22 +1230,23 @@ select:focus-visible {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  background: #017846;
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%);
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  padding: 9px 15px;
-  font-size: 12.5px;
+  padding: 10px 15px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.15s ease;
-  box-shadow: 0 4px 12px rgba(1, 120, 70, 0.25);
+  transition: all 0.18s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
   margin-top: 2px;
 }
 
 .btn-primary-entry:hover:not(:disabled) {
-  background: #01663C;
-  box-shadow: 0 6px 16px rgba(1, 120, 70, 0.35);
+  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 60%, #C2410C 115%);
+  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-primary-entry:disabled {
@@ -1254,7 +1259,7 @@ select:focus-visible {
   justify-content: center;
   align-items: center;
   gap: 6px;
-  color: #526579;
+  color: #64748b;
   font-size: 8.5px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -1263,7 +1268,7 @@ select:focus-visible {
 }
 
 .card-bottom-footnote svg {
-  color: #017846;
+  color: #2563EB;
 }
 
 .footnote {
@@ -1481,8 +1486,8 @@ select:focus-visible {
 }
 
 .dept-select:focus {
-  border-color: #017846;
-  box-shadow: 0 0 0 2px rgba(1, 120, 70, 0.15);
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15);
 }
 
 .dept-select option {
@@ -1546,7 +1551,7 @@ select:focus-visible {
 .text-link-btn {
   background: none;
   border: none;
-  color: #017846;
+  color: #2563EB;
   font-size: 11px;
   font-weight: 600;
   text-decoration: underline;
@@ -1579,7 +1584,7 @@ select:focus-visible {
 }
 
 .dept-highlight {
-  color: #017846;
+  color: #2563EB;
 }
 
 /* Check Section & Cards */
@@ -1611,8 +1616,8 @@ select:focus-visible {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: #EAF6EF;
-  color: #017846;
+  background: #EFF6FF;
+  color: #2563EB;
   flex-shrink: 0;
 }
 
@@ -1652,7 +1657,7 @@ select:focus-visible {
 }
 
 .check-item-icon {
-  color: #017846;
+  color: #2563EB;
   display: grid;
   place-items: center;
 }
@@ -1680,8 +1685,8 @@ select:focus-visible {
 }
 
 .status-chip.ready {
-  background: #EAF6EF;
-  color: #014D32;
+  background: #EFF6FF;
+  color: #0A196F;
 }
 
 .status-chip.warning {
@@ -1727,7 +1732,7 @@ select:focus-visible {
 
 .spin-icon {
   animation: spin 1s linear infinite;
-  color: #017846;
+  color: #2563EB;
 }
 
 @keyframes spin {
@@ -1975,10 +1980,10 @@ select:focus-visible {
 }
 
 .autosave-badge.saving {
-  color: #017846;
-  background: #EAF6EF;
+  color: #2563EB;
+  background: #EFF6FF;
   border-color: #D9E6DF;
-  box-shadow: 0 1px 3px rgba(1, 120, 70, 0.08);
+  box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08);
 }
 
 .autosave-badge.error {
@@ -1991,7 +1996,7 @@ select:focus-visible {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #017846;
+  background: #2563EB;
   animation: pulse 1s infinite;
 }
 
@@ -2268,7 +2273,7 @@ select:focus-visible {
   font-size: 10.5px;
   font-weight: 800;
   letter-spacing: 1.8px;
-  color: #017846;
+  color: #2563EB;
   text-transform: uppercase;
   margin-bottom: 6px;
 }
@@ -2283,7 +2288,7 @@ select:focus-visible {
 }
 
 .compat-title .compat-accent {
-  color: #017846;
+  color: #2563EB;
 }
 
 .compat-subtitle {
@@ -2344,8 +2349,8 @@ select:focus-visible {
 }
 
 .compat-icon-badge.green {
-  background: #eaf6ef;
-  color: #017846;
+  background: #eff6ff;
+  color: #2563EB;
 }
 
 /* Candidate details 3-column row */
@@ -2392,7 +2397,7 @@ select:focus-visible {
 .compat-recheck-btn {
   background: #ffffff;
   border: 1px solid #a7f3d0;
-  color: #017846;
+  color: #2563EB;
   padding: 6px 14px;
   border-radius: 8px;
   font-size: 12px;
@@ -2405,8 +2410,8 @@ select:focus-visible {
 }
 
 .compat-recheck-btn:hover:not(:disabled) {
-  background: #eaf6ef;
-  border-color: #017846;
+  background: #eff6ff;
+  border-color: #2563EB;
 }
 
 /* Aligned 2-row layout in Browser & System card */
@@ -2473,8 +2478,9 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  background: #eaf6ef;
-  color: #017846;
+  background: #EFF6FF;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
   font-size: 10.5px;
   font-weight: 700;
   padding: 3px 11px;
@@ -2594,7 +2600,7 @@ select:focus-visible {
 }
 
 .compat-enable-btn {
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
   border: none;
   border-radius: 8px;
@@ -2606,12 +2612,12 @@ select:focus-visible {
   align-items: center;
   gap: 6px;
   margin: 12px 0 6px;
-  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.25);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
   transition: all 0.15s ease;
 }
 
 .compat-enable-btn:hover:not(:disabled) {
-  background: #01663c;
+  background: #1d4ed8;
 }
 
 .compat-state-label {
@@ -2724,7 +2730,7 @@ select:focus-visible {
 
 .compat-audio-fill {
   height: 100%;
-  background: #017846;
+  background: #2563EB;
   border-radius: 999px;
   transition: width 0.08s ease;
 }
@@ -2734,8 +2740,8 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #eaf6ef;
-  color: #014d32;
+  background: #eff6ff;
+  color: #0a196f;
   border: 1px solid #d9e6df;
   border-radius: 999px;
   padding: 4px 12px;
@@ -2760,7 +2766,7 @@ select:focus-visible {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
   font-size: 11px;
   font-weight: 800;
@@ -2786,7 +2792,7 @@ select:focus-visible {
 }
 
 .compat-checkbox-container {
-  background: #eaf6ef;
+  background: #eff6ff;
   border: 1px solid #d9e6df;
   border-radius: 10px;
   padding: 12px 16px;
@@ -2798,7 +2804,7 @@ select:focus-visible {
 .compat-custom-checkbox {
   width: 17px;
   height: 17px;
-  accent-color: #017846;
+  accent-color: #2563EB;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -2806,7 +2812,7 @@ select:focus-visible {
 .compat-checkbox-label {
   font-size: 12px;
   font-weight: 600;
-  color: #014d32;
+  color: #0a196f;
   cursor: pointer;
   user-select: none;
 }
@@ -2871,14 +2877,15 @@ select:focus-visible {
 }
 
 .compat-pill-badge.green {
-  background: #dcfce7;
-  color: #166534;
+  background: #EFF6FF;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
 }
 
 .compat-pill-badge.amber {
-  background: #fffbeb;
-  color: #d97706;
-  border: 1px solid #fde68a;
+  background: #FFF7ED;
+  color: #C2410C;
+  border: 1px solid #FED7AA;
 }
 
 .compat-footer-actions {
@@ -2907,20 +2914,22 @@ select:focus-visible {
 }
 
 .compat-btn-continue {
-  background: #017846;
+  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%);
   color: #ffffff;
   border: none;
-  padding: 9px 24px;
+  padding: 10px 24px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(1, 120, 70, 0.25);
-  transition: all 0.15s ease;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  transition: all 0.18s ease;
 }
 
 .compat-btn-continue:hover:not(:disabled) {
-  background: #01663c;
+  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 60%, #C2410C 115%);
+  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
+  transform: translateY(-1px);
 }
 
 .compat-btn-continue:disabled {
@@ -2985,7 +2994,7 @@ select:focus-visible {
 }
 
 .exam-nav-logo {
-  height: 38px;
+  height: 40px;
   width: auto;
   object-fit: contain;
 }
@@ -2994,9 +3003,9 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #eaf6ef;
+  background: #eff6ff;
   border: 1px solid #bbf7d0;
-  color: #017846;
+  color: #2563EB;
   border-radius: 9999px;
   padding: 5px 14px;
   font-size: 12px;
@@ -3020,7 +3029,7 @@ select:focus-visible {
 
 .exam-progress-bar-fill {
   height: 100%;
-  background: #017846;
+  background: #2563EB;
   border-radius: 9999px;
   transition: width 0.3s ease;
 }
@@ -3079,9 +3088,9 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  background: #eaf6ef;
+  background: #eff6ff;
   border: 1px solid #bbf7d0;
-  color: #017846;
+  color: #2563EB;
   border-radius: 9999px;
   padding: 6px 14px;
   font-size: 13.5px;
@@ -3200,7 +3209,7 @@ select:focus-visible {
 .exam-qnum-tag {
   font-size: 13px;
   font-weight: 800;
-  color: #017846;
+  color: #2563EB;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -3294,9 +3303,9 @@ select:focus-visible {
 }
 
 .exam-option-card.selected {
-  border: 1.5px solid #017846;
-  background: #ffffff;
-  box-shadow: 0 0 0 1px rgba(1, 120, 70, 0.12);
+  border: 1.5px solid #2563EB;
+  background: #EFF6FF;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
 }
 
 .exam-option-left {
@@ -3321,8 +3330,8 @@ select:focus-visible {
 }
 
 .exam-option-letter.selected {
-  background: #dcfce7;
-  color: #017846;
+  background: #DBEAFE;
+  color: #1E40AF;
 }
 
 .exam-option-text {
@@ -3344,7 +3353,7 @@ select:focus-visible {
 }
 
 .exam-custom-radio.selected {
-  border-color: #017846;
+  border-color: #2563EB;
   border-width: 2px;
 }
 
@@ -3352,7 +3361,7 @@ select:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #017846;
+  background: #2563EB;
 }
 
 /* Bottom Card Actions: Previous & Next */
@@ -3394,7 +3403,7 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #017846;
+  background: #2563EB;
   border: none;
   color: #ffffff;
   border-radius: 8px;
@@ -3403,11 +3412,11 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 6px rgba(1, 120, 70, 0.22);
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
 }
 
 .exam-btn-next:hover:not(:disabled) {
-  background: #01663c;
+  background: #1d4ed8;
 }
 
 .exam-btn-next:disabled {
@@ -3743,7 +3752,7 @@ select:focus-visible {
 }
 
 .qnav-dot.green {
-  background: #017846;
+  background: #2563EB;
 }
 
 .qnav-dot.amber {
@@ -3810,7 +3819,7 @@ select:focus-visible {
 .qnav-sec-count {
   font-size: 11px;
   font-weight: 700;
-  color: #017846;
+  color: #2563EB;
 }
 
 /* Grid of 15 Question Buttons per Section */
@@ -3848,16 +3857,16 @@ select:focus-visible {
 }
 
 .qnav-btn.answered {
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
-  border: 1px solid #017846;
+  border: 1px solid #2563EB;
 }
 
 .qnav-btn.answered.current-answered {
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
-  border: 1px solid #017846;
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px #017846;
+  border: 1px solid #2563EB;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px #2563EB;
 }
 
 .qnav-btn.flagged {
@@ -3867,8 +3876,8 @@ select:focus-visible {
 }
 
 .qnav-btn.current {
-  border: 1.5px solid #017846;
-  color: #017846;
+  border: 1.5px solid #2563EB;
+  color: #2563EB;
   background: #ffffff;
   font-weight: 800;
 }
@@ -3880,7 +3889,7 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #017846;
+  background: #2563EB;
   color: #ffffff;
   border: none;
   border-radius: 10px;
@@ -3889,11 +3898,11 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(1, 120, 70, 0.25);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .qnav-submit-btn:hover {
-  background: #01663c;
+  background: #1d4ed8;
 }
 
 /* Mobile Drawer & Responsiveness */

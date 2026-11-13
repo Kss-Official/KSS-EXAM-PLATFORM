@@ -64,7 +64,7 @@ export default function ExamTimer({ deadline, serverOffset = 0, isSubmitted, onE
       title="Exam Time Remaining"
       aria-label={`Time remaining: ${minutes} minutes and ${seconds} seconds`}
     >
-      <Clock3 size={15} color="#017846" />
+      <Clock3 size={15} color="#2563EB" />
       <span className="exam-timer-digits">{String(minutes).padStart(2, "0")} : {String(seconds).padStart(2, "0")}</span>
     </div>
   );

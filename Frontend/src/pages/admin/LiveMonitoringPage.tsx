@@ -128,10 +128,7 @@ export default function LiveMonitoringPage() {
     if (!isSilent) setRefreshing(true);
     try {
       const [examineesData, alertsData] = await Promise.all([
-        getLiveExaminees({
-          batch: selectedSlot !== "ALL" ? selectedSlot : undefined,
-          search: search.trim() ? search.trim() : undefined
-        }),
+        getLiveExaminees({}),
         getProctorAlerts({ limit: 100 })
       ]);
       setExaminees(examineesData);
@@ -148,7 +145,7 @@ export default function LiveMonitoringPage() {
         setRefreshing(false);
       }
     }
-  }, [selectedSlot, search]);
+  }, []);
 
   // Initial load
   useEffect(() => {
@@ -355,7 +352,7 @@ export default function LiveMonitoringPage() {
               height: "36px", 
               borderRadius: "10px", 
               background: "#ecfdf5", 
-              color: "#017846" 
+              color: "#2563EB" 
             }}>
               <Radio size={20} className={autoRefresh ? "animate-pulse" : ""} />
             </span>
@@ -418,8 +415,8 @@ export default function LiveMonitoringPage() {
               gap: "6px",
               padding: "7px 14px",
               borderRadius: "8px",
-              border: "1px solid #017846",
-              background: "#017846",
+              border: "1px solid #2563EB",
+              background: "#2563EB",
               color: "#ffffff",
               fontSize: "12.5px",
               fontWeight: 700,
@@ -446,14 +443,14 @@ export default function LiveMonitoringPage() {
             <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase" }}>
               Active Examinees (Writing)
             </span>
-            <span style={{ padding: "6px", borderRadius: "8px", background: "#ecfdf5", color: "#017846" }}>
+            <span style={{ padding: "6px", borderRadius: "8px", background: "#ecfdf5", color: "#2563EB" }}>
               <Radio size={18} />
             </span>
           </div>
           <div style={{ fontSize: "28px", fontWeight: 800, color: "#0f172a" }}>
             {activeExamineesCount}
           </div>
-          <span style={{ fontSize: "12px", color: "#017846", fontWeight: 600 }}>
+          <span style={{ fontSize: "12px", color: "#2563EB", fontWeight: 600 }}>
             Live in examination session
           </span>
         </div>
@@ -555,7 +552,7 @@ export default function LiveMonitoringPage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginRight: "4px" }}>
-            <Calendar size={16} color="#017846" />
+            <Calendar size={16} color="#2563EB" />
             <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Exam Date:
             </span>
@@ -571,8 +568,8 @@ export default function LiveMonitoringPage() {
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: selectedDate === todayIst ? "2px solid #017846" : "1px solid #cbd5e1",
-              backgroundColor: selectedDate === todayIst ? "#017846" : "#f8fafc",
+              border: selectedDate === todayIst ? "2px solid #2563EB" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === todayIst ? "#2563EB" : "#f8fafc",
               color: selectedDate === todayIst ? "#ffffff" : "#334155",
               transition: "all 0.15s ease",
               display: "inline-flex",
@@ -635,8 +632,8 @@ export default function LiveMonitoringPage() {
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: selectedDate === tomorrowIst ? "2px solid #017846" : "1px solid #cbd5e1",
-              backgroundColor: selectedDate === tomorrowIst ? "#017846" : "#f8fafc",
+              border: selectedDate === tomorrowIst ? "2px solid #2563EB" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === tomorrowIst ? "#2563EB" : "#f8fafc",
               color: selectedDate === tomorrowIst ? "#ffffff" : "#334155",
               transition: "all 0.15s ease",
               display: "inline-flex",
@@ -705,7 +702,7 @@ export default function LiveMonitoringPage() {
                 padding: "6px 12px",
                 borderRadius: "8px",
                 border: selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst && selectedDate !== "ALL"
-                  ? "2px solid #017846"
+                  ? "2px solid #2563EB"
                   : "1px solid #cbd5e1",
                 backgroundColor: selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst && selectedDate !== "ALL"
                   ? "#ecfdf5"
@@ -729,7 +726,7 @@ export default function LiveMonitoringPage() {
             padding: "4px 10px",
             borderRadius: "6px",
             background: selectedDate === todayIst ? "#ecfdf5" : (selectedDate === "ALL" ? "#f1f5f9" : "#eff6ff"),
-            color: selectedDate === todayIst ? "#017846" : (selectedDate === "ALL" ? "#0f172a" : "#1d4ed8"),
+            color: selectedDate === todayIst ? "#2563EB" : (selectedDate === "ALL" ? "#0f172a" : "#1d4ed8"),
             border: selectedDate === todayIst ? "1px solid #a7f3d0" : (selectedDate === "ALL" ? "1px solid #cbd5e1" : "1px solid #bfdbfe"),
             display: "inline-flex",
             alignItems: "center",
@@ -769,8 +766,8 @@ export default function LiveMonitoringPage() {
             style={{
               padding: "8px 18px",
               borderRadius: "8px",
-              border: activeTab === "examinees" ? "1px solid #017846" : "1px solid #cbd5e1",
-              background: activeTab === "examinees" ? "#017846" : "#ffffff",
+              border: activeTab === "examinees" ? "1px solid #2563EB" : "1px solid #cbd5e1",
+              background: activeTab === "examinees" ? "#2563EB" : "#ffffff",
               color: activeTab === "examinees" ? "#ffffff" : "#475569",
               fontSize: "13px",
               fontWeight: 700,
@@ -970,7 +967,7 @@ export default function LiveMonitoringPage() {
                               padding: "2px 7px",
                               borderRadius: "4px",
                               background: (cand.examDate || todayIst) === todayIst ? "#ecfdf5" : "#f1f5f9",
-                              color: (cand.examDate || todayIst) === todayIst ? "#017846" : "#475569",
+                              color: (cand.examDate || todayIst) === todayIst ? "#2563EB" : "#475569",
                               border: (cand.examDate || todayIst) === todayIst ? "1px solid #a7f3d0" : "1px solid #e2e8f0",
                               fontWeight: 700,
                               fontSize: "11px"
@@ -1015,11 +1012,11 @@ export default function LiveMonitoringPage() {
                               padding: "4px 10px",
                               borderRadius: "12px",
                               background: "#ecfdf5",
-                              color: "#017846",
+                              color: "#2563EB",
                               fontWeight: 700,
                               fontSize: "12px"
                             }}>
-                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#017846" }} />
+                              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#2563EB" }} />
                               Writing
                             </span>
                           )}
@@ -1073,7 +1070,7 @@ export default function LiveMonitoringPage() {
                         <td style={{ padding: "14px 18px" }}>
                           {isWriting ? (
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                              <Clock size={14} color="#017846" />
+                              <Clock size={14} color="#2563EB" />
                               <strong style={{ fontSize: "14px", color: cand.remainingSeconds < 300 ? "#dc2626" : "#0f172a" }}>
                                 {formatTimer(cand.remainingSeconds)}
                               </strong>
@@ -1139,22 +1136,22 @@ export default function LiveMonitoringPage() {
                             <button
                               type="button"
                               onClick={() => handleGiveExtraTime(cand, 10)}
-                              disabled={extraTimeLoadingId === cand.candidateId || isStopped}
+                              disabled={extraTimeLoadingId === cand.candidateId || isStopped || isSubmitted}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: "4px",
                                 padding: "6px 12px",
                                 borderRadius: "6px",
-                                border: "1px solid #bfdbfe",
-                                background: "#eff6ff",
-                                color: "#1d4ed8",
+                                border: isSubmitted || isStopped ? "1px solid #e2e8f0" : "1px solid #bfdbfe",
+                                background: isSubmitted || isStopped ? "#f8fafc" : "#eff6ff",
+                                color: isSubmitted || isStopped ? "#94a3b8" : "#1d4ed8",
                                 fontSize: "12px",
                                 fontWeight: 700,
-                                cursor: (extraTimeLoadingId === cand.candidateId || isStopped) ? "not-allowed" : "pointer",
-                                opacity: isStopped ? 0.4 : 1
+                                cursor: (extraTimeLoadingId === cand.candidateId || isStopped || isSubmitted) ? "not-allowed" : "pointer",
+                                opacity: isSubmitted || isStopped ? 0.5 : 1
                               }}
-                              title="Grant +10 minutes additional time to this candidate"
+                              title={isSubmitted ? "Candidate has already submitted the examination" : isStopped ? "Exam session is terminated" : "Grant +10 minutes additional time to this candidate"}
                             >
                               <Clock size={13} />
                               {extraTimeLoadingId === cand.candidateId ? "Adding..." : "+10 Mins"}
@@ -1164,21 +1161,22 @@ export default function LiveMonitoringPage() {
                             <button
                               type="button"
                               onClick={() => setStopModalTarget(cand)}
-                              disabled={isStopped}
+                              disabled={isStopped || isSubmitted}
                               style={{
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: "4px",
                                 padding: "6px 12px",
                                 borderRadius: "6px",
-                                border: "1px solid #fecaca",
-                                background: isStopped ? "#f1f5f9" : "#fee2e2",
-                                color: isStopped ? "#94a3b8" : "#dc2626",
+                                border: isSubmitted || isStopped ? "1px solid #e2e8f0" : "1px solid #fecaca",
+                                background: isSubmitted || isStopped ? "#f8fafc" : "#fee2e2",
+                                color: isSubmitted || isStopped ? "#94a3b8" : "#dc2626",
                                 fontSize: "12px",
                                 fontWeight: 700,
-                                cursor: isStopped ? "not-allowed" : "pointer"
+                                cursor: isStopped || isSubmitted ? "not-allowed" : "pointer",
+                                opacity: isSubmitted || isStopped ? 0.5 : 1
                               }}
-                              title="Stop candidate's live examination"
+                              title={isSubmitted ? "Candidate has already submitted the examination" : isStopped ? "Exam session is already stopped" : "Stop candidate's live examination"}
                             >
                               <UserX size={13} />
                               Stop Exam
@@ -1204,7 +1202,7 @@ export default function LiveMonitoringPage() {
         }}>
           {filteredAlerts.length === 0 ? (
             <div style={{ textAlign: "center", padding: "48px", color: "#64748b" }}>
-              <ShieldCheck size={36} color="#017846" style={{ margin: "0 auto 12px" }} />
+              <ShieldCheck size={36} color="#2563EB" style={{ margin: "0 auto 12px" }} />
               <h3 style={{ margin: "0 0 6px", fontSize: "16px", color: "#0f172a" }}>No Suspicious Activity Detected</h3>
               <p style={{ margin: 0, fontSize: "13px" }}>All candidate sessions are currently verified and clear of security alerts.</p>
             </div>
@@ -1277,7 +1275,7 @@ export default function LiveMonitoringPage() {
                               borderRadius: "6px",
                               border: "1px solid #bbf7d0",
                               background: "#ecfdf5",
-                              color: "#017846",
+                              color: "#2563EB",
                               fontSize: "12px",
                               fontWeight: 700,
                               cursor: "pointer"
@@ -1473,7 +1471,7 @@ export default function LiveMonitoringPage() {
                     display: "inline-block",
                     fontSize: "12px",
                     fontWeight: 600,
-                    color: "#017846",
+                    color: "#2563EB",
                     background: "#ecfdf5",
                     border: "1px solid #d1fae5",
                     padding: "2px 10px",
@@ -1759,7 +1757,7 @@ export default function LiveMonitoringPage() {
             <div style={{ padding: "20px 24px", overflowY: "auto", flex: 1 }}>
               {loadingHistory ? (
                 <div style={{ textAlign: "center", padding: "40px 20px", color: "#64748b" }}>
-                  <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", color: "#017846" }} />
+                  <RefreshCw size={24} className="animate-spin" style={{ margin: "0 auto 12px", color: "#2563EB" }} />
                   <div style={{ fontSize: "13.5px", fontWeight: 500 }}>Fetching proctor alert history...</div>
                 </div>
               ) : candidateHistory.length === 0 ? (
@@ -1774,7 +1772,7 @@ export default function LiveMonitoringPage() {
                     alignItems: "center",
                     justifyContent: "center",
                     margin: "0 auto 12px",
-                    color: "#017846"
+                    color: "#2563EB"
                   }}>
                     <ShieldCheck size={26} />
                   </div>

@@ -117,7 +117,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                 type="button"
                 onClick={this.handleReset}
                 style={{
-                  background: "#017846",
+                  background: "#2563EB",
                   color: "#ffffff",
                   border: "none",
                   borderRadius: "8px",
