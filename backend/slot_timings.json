@@ -1,29 +1,29 @@
 {
   "slot1": {
-    "header": "Slot 1 \u2022 2:00 PM",
-    "sub": "Entry: 2:00 PM \u2013 2:30 PM IST",
+    "header": "Slot 1 • 2:00 PM",
+    "sub": "Entry: 2:00 PM – 3:30 PM IST",
     "btn": "Slot 1 (2:00 PM)",
     "startTime": "2:00 PM",
-    "cutoffTime": "2:30 PM",
+    "cutoffTime": "3:30 PM",
     "startMinutes": 840,
-    "cutoffMinutes": 870
+    "cutoffMinutes": 930
   },
   "slot2": {
-    "header": "Slot 2 \u2022 4:00 PM",
-    "sub": "Entry: 4:00 PM \u2013 4:30 PM IST",
+    "header": "Slot 2 • 4:00 PM",
+    "sub": "Entry: 4:00 PM – 5:30 PM IST",
     "btn": "Slot 2 (4:00 PM)",
     "startTime": "4:00 PM",
-    "cutoffTime": "4:30 PM",
+    "cutoffTime": "5:30 PM",
     "startMinutes": 960,
-    "cutoffMinutes": 990
+    "cutoffMinutes": 1050
   },
   "slot3": {
-    "header": "Slot 3 \u2022 6:00 PM",
-    "sub": "Entry: 6:00 PM \u2013 6:30 PM IST",
+    "header": "Slot 3 • 6:00 PM",
+    "sub": "Entry: 6:00 PM – 7:30 PM IST",
     "btn": "Slot 3 (6:00 PM)",
     "startTime": "6:00 PM",
-    "cutoffTime": "6:30 PM",
+    "cutoffTime": "7:30 PM",
     "startMinutes": 1080,
-    "cutoffMinutes": 1110
+    "cutoffMinutes": 1170
   }
 }

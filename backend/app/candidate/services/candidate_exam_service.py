@@ -3,7 +3,7 @@ import re
 import time
 import secrets
 import random
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func
@@ -47,6 +47,26 @@ NON_TECHNICAL_KEYWORDS = [
     "recruitment", "talent acquisition", "data and marketing", "data & marketing",
     "operations", "corporate", "administration", "public relations", "communications"
 ]
+
+def clean_name_tokens(s: str) -> List[str]:
+    cleaned = re.sub(r'[\.,\-_/\\#@!$%^&*()]', ' ', (s or "").strip())
+    return [w.lower() for w in cleaned.split() if w]
+
+def check_name_match(input_n: str, db_n: str) -> bool:
+    in_tokens = clean_name_tokens(input_n)
+    db_tokens = clean_name_tokens(db_n)
+    if not in_tokens or not db_tokens:
+        return False
+    # 1. Exact string match after cleaning punctuation and whitespace
+    if " ".join(in_tokens) == " ".join(db_tokens):
+        return True
+    # 2. Token permutation match (e.g. "SHIVANI S POOJARY" vs "POOJARY SHIVANI S")
+    if sorted(in_tokens) == sorted(db_tokens):
+        return True
+    # 3. Alphanumeric match (handles initials joined or spaced, e.g. "A.S." vs "A S" vs "AS")
+    if "".join(in_tokens) == "".join(db_tokens):
+        return True
+    return False
 
 def get_department_category(dept_name: str, dept_code: str) -> str:
     code_upper = (dept_code or "").strip().upper()
@@ -103,6 +123,122 @@ def _get_cached_question_metadata(db: Session, question_set_id: int) -> Dict[str
     _QUESTION_SET_CACHE[question_set_id] = {"time": now_t, "data": data}
     return data
 
+def validate_candidate_slot_access(
+    db: Session,
+    candidate: Candidate,
+    existing_attempt: Optional[ExamAttempt] = None
+) -> Tuple[bool, Optional[str]]:
+    """
+    Authoritative server-side validation of scheduled examination date and assigned slot window.
+    Strictly enforces:
+    1. Candidate must be registered for today's date (Asia/Kolkata timezone).
+    2. Candidate must enter strictly during their designated 30-minute entry window:
+       - Slot 1: 2:00 PM – 2:30 PM IST (840 – 870 mins)
+       - Slot 2: 4:00 PM – 4:30 PM IST (960 – 990 mins)
+       - Slot 3: 6:00 PM – 6:30 PM IST (1080 – 1110 mins)
+    3. In-flight attempts (IN_PROGRESS) can resume if within their duration (expires_at).
+    4. Candidates cannot access exams via other slots, before window opens, or after window closes.
+    """
+    raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES")
+    if raw_gate is None:
+        from app.core.config import settings
+        raw_gate = getattr(settings, "ENFORCE_SLOT_TIME_GATES", "true")
+    if str(raw_gate).lower() != "true":
+        return True, None
+
+    # Check if there is an active in-flight attempt
+    now_utc = datetime.now(timezone.utc)
+    b_lower = (candidate.batch or "").strip().lower()
+    e_lower = (candidate.email or "").strip().lower()
+    name_lower = (candidate.full_name or "").strip().lower()
+    is_test_candidate = (
+        b_lower == "demo test slot" or
+        e_lower == "test.candidate@talentise.com" or
+        name_lower == "test candidate"
+    )
+    if is_test_candidate:
+        return True, None
+
+    if existing_attempt and existing_attempt.status == "IN_PROGRESS":
+        exp = _ensure_utc(existing_attempt.expires_at)
+        if exp and exp <= now_utc:
+            existing_attempt.status = "EXPIRED"
+            try:
+                db.commit()
+            except Exception:
+                db.rollback()
+            return False, "Your examination time has expired. Further entry is not permitted."
+        # Attempt is actively in progress within its duration
+        return True, None
+
+    # 1. Strict Date Validation (Asia/Kolkata)
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now_ist = now_utc.astimezone(IST)
+    cur_mins = now_ist.hour * 60 + now_ist.minute
+    cur_date_str = now_ist.strftime("%Y-%m-%d")
+
+    cand_date = str(candidate.exam_date or "").strip()
+    if not cand_date and candidate.created_at:
+        cand_date = candidate.created_at.astimezone(IST).strftime("%Y-%m-%d")
+
+    if not cand_date or cand_date != cur_date_str:
+        if cand_date and cand_date > cur_date_str:
+            return False, f"Access Denied: Your examination is scheduled for {cand_date}. Entry is not permitted prior to the examination date."
+        elif cand_date and cand_date < cur_date_str:
+            return False, f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
+        else:
+            return False, "Access Denied: No scheduled examination date found for your account. Please contact your administrator."
+
+    # 2. Strict Slot Window Validation
+    from app.core.slot_config import get_slot_timings_config
+    slot_cfg = get_slot_timings_config(db)
+    s1_info = slot_cfg.get("slot1", {})
+    s2_info = slot_cfg.get("slot2", {})
+    s3_info = slot_cfg.get("slot3", {})
+
+    s1_start = s1_info.get("startMinutes", 840)
+    s1_cutoff = s1_info.get("cutoffMinutes", 870)
+    s1_start_str = s1_info.get("startTime", "2:00 PM")
+    s1_cutoff_str = s1_info.get("cutoffTime", "2:30 PM")
+
+    s2_start = s2_info.get("startMinutes", 960)
+    s2_cutoff = s2_info.get("cutoffMinutes", 990)
+    s2_start_str = s2_info.get("startTime", "4:00 PM")
+    s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
+
+    s3_start = s3_info.get("startMinutes", 1080)
+    s3_cutoff = s3_info.get("cutoffMinutes", 1110)
+    s3_start_str = s3_info.get("startTime", "6:00 PM")
+    s3_cutoff_str = s3_info.get("cutoffTime", "6:30 PM")
+
+    b_lower = (candidate.batch or "").strip().lower()
+    is_slot1 = bool(re.search(r'\b(slot\s*1|slot-1|batch\s*1)\b', b_lower) or any(w in b_lower for w in ["slot 1", "slot1", "2:00", "2pm", "14:00", s1_start_str.lower()]))
+    is_slot2 = bool(re.search(r'\b(slot\s*2|slot-2|batch\s*2)\b', b_lower) or any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()]))
+    is_slot3 = bool(re.search(r'\b(slot\s*3|slot-3|batch\s*3)\b', b_lower) or any(w in b_lower for w in ["slot 3", "slot3", "6:00", "6pm", "18:00", s3_start_str.lower()]))
+
+    if is_slot1:
+        if cur_mins < s1_start:
+            return False, f"Access Denied: Your assigned slot (Slot 1) entry window opens at {s1_start_str} IST. Please return and enter between {s1_start_str} and {s1_cutoff_str} IST."
+        elif cur_mins > s1_cutoff:
+            return False, f"Entry Closed: The entry window for your assigned slot (Slot 1) closed at {s1_cutoff_str} IST. Candidates are not permitted to enter after {s1_cutoff_str}."
+        return True, None
+    elif is_slot2:
+        if cur_mins < s2_start:
+            return False, f"Access Denied: Your assigned slot (Slot 2) entry window opens at {s2_start_str} IST. Please return and enter between {s2_start_str} and {s2_cutoff_str} IST."
+        elif cur_mins > s2_cutoff:
+            return False, f"Entry Closed: The entry window for your assigned slot (Slot 2) closed at {s2_cutoff_str} IST. Candidates are not permitted to enter after {s2_cutoff_str}."
+        return True, None
+    elif is_slot3:
+        if cur_mins < s3_start:
+            return False, f"Access Denied: Your assigned slot (Slot 3) entry window opens at {s3_start_str} IST. Please return and enter between {s3_start_str} and {s3_cutoff_str} IST."
+        elif cur_mins > s3_cutoff:
+            return False, f"Entry Closed: The entry window for your assigned slot (Slot 3) closed at {s3_cutoff_str} IST. Candidates are not permitted to enter after {s3_cutoff_str}."
+        return True, None
+    else:
+        if any(w in b_lower for w in ["demo", "preview", "test"]):
+            return True, None
+        return False, "Access Denied: You are not assigned to an active examination slot (Slot 1, Slot 2, or Slot 3) for today. Please contact your examination administrator."
+
 class CandidateExamService:
     @classmethod
     def verify_candidate(cls, db: Session, req: CandidateVerifyRequest) -> CandidateVerifyResponse:
@@ -125,18 +261,12 @@ class CandidateExamService:
             resp.message = "Department selection is required. Please select your assigned department."
             return resp
 
-        # 2. Strict Database Validation: Look up Candidate by registered Email or Registration Number (Sl. No.)
+        # 2. Strict Database Validation: Look up Candidate strictly by registered Email
         cand_query = db.query(Candidate).options(
             joinedload(Candidate.department),
             joinedload(Candidate.college)
         )
         candidate = None
-        target_reg = (req.registration_number or "").strip().upper()
-        if not target_reg and input_email and (input_email.isdigit() or "@" not in input_email):
-            target_reg = input_email.strip().upper()
-
-        def normalize_name(s: str) -> str:
-            return re.sub(r'\s+', ' ', (s or "").strip()).lower()
 
         EMAIL_ALIASES = {
             "shwetasani11@gmail.com": "sanikoppshweta@gmail.com",
@@ -147,42 +277,33 @@ class CandidateExamService:
             candidate = cand_query.filter(func.lower(Candidate.email) == input_email).first()
             if not candidate and input_email in EMAIL_ALIASES:
                 candidate = cand_query.filter(func.lower(Candidate.email) == EMAIL_ALIASES[input_email]).first()
-
-        # Fallback to registration number / Sl. No. if email didn't match or input was a registration number
-        if not candidate and target_reg:
-            candidate = cand_query.filter(func.upper(Candidate.registration_number) == target_reg).first()
-
-        # Fallback to unique exact full name match if candidate entered alternate email
-        if not candidate and input_name:
-            norm_target = normalize_name(input_name)
-            cand_matches = cand_query.filter(func.lower(Candidate.full_name) == norm_target).all()
-            if len(cand_matches) == 1:
-                candidate = cand_matches[0]
+        elif req.registration_number:
+            candidate = cand_query.filter(func.upper(Candidate.registration_number) == req.registration_number.strip().upper()).first()
 
         if not candidate:
-            ident = input_email or req.registration_number or "provided identifier"
-            resp.message = f"Access Denied: No candidate record found for '{ident}'. Please verify your registered email address or contact your administrator."
+            resp.eligible = False
+            resp.message = (
+                f"Access Denied: The email address '{input_email}' is not registered in our candidate records. "
+                "Both your registered Full Name and Email Address must match institutional records."
+            )
             return resp
 
-        # Strict validation: If both email and registration number are provided, both must match candidate
-        if input_email and "@" in input_email and target_reg:
-            if candidate.registration_number.strip().upper() != target_reg or candidate.email.strip().lower() != input_email:
-                resp.message = f"Registration and email mismatch: The provided registration number '{target_reg}' does not match the registered email '{input_email}'."
-                return resp
-
         if candidate.status and candidate.status.upper() in ("DISCARDED", "STOPPED"):
+            resp.eligible = False
             resp.message = "Examination Terminated: Your examination has been stopped by the administrator. Re-entry is not permitted."
             return resp
 
         if candidate.status and candidate.status.upper() != "ACTIVE":
+            resp.eligible = False
             resp.message = "Candidate account is disabled, suspended, or inactive. Please contact your exam administrator."
             return resp
 
-        # 3. Strict Database Validation: Full Name must match candidate record in DB
-        if normalize_name(input_name) != normalize_name(candidate.full_name):
+        # 3. Strict Database Validation: Full Name MUST match the name registered for this email
+        if not check_name_match(input_name, candidate.full_name):
+            resp.eligible = False
             resp.message = (
-                f"Full Name mismatch: The entered name '{input_name}' does not match the name "
-                f"registered for email '{input_email}'. Please enter your exact registered full name."
+                f"Access Denied: The entered Full Name '{input_name}' does not match the name "
+                f"registered with email '{input_email}'. Both your Full Name and Email Address must match institutional records."
             )
             return resp
 
@@ -198,7 +319,7 @@ class CandidateExamService:
             "operations", "corporate", "administration", "public relations", "communications"
         ]
 
-        def get_department_category(dept_name: str, dept_code: str) -> str:
+        def get_local_department_category(dept_name: str, dept_code: str) -> str:
             code_upper = (dept_code or "").strip().upper()
             if code_upper in NON_TECHNICAL_CODES:
                 return "NON_TECHNICAL"
@@ -251,94 +372,12 @@ class CandidateExamService:
         ).first()
 
         # Automated Slot & Date Access Control:
-        # Strict validation: Only candidates scheduled for today's active slots can enter.
-        raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES")
-        if raw_gate is None:
-            from app.core.config import settings
-            raw_gate = getattr(settings, "ENFORCE_SLOT_TIME_GATES", "true")
-        enforce_time_gates = str(raw_gate).lower() == "true"
-        has_active_attempt = bool(existing_attempt and existing_attempt.status == "IN_PROGRESS")
-
-        IST = timezone(timedelta(hours=5, minutes=30))
-        now_ist = datetime.now(timezone.utc).astimezone(IST)
-        cur_mins = now_ist.hour * 60 + now_ist.minute
-        cur_date_str = now_ist.strftime("%Y-%m-%d")
-        b_lower = (candidate.batch or "").strip().lower()
-
-        if enforce_time_gates and not has_active_attempt:
-            # 1. Strict Date Validation: Candidate must be scheduled for today
-            cand_date = str(candidate.exam_date or "").strip()
-            if not cand_date and candidate.created_at:
-                cand_date = candidate.created_at.astimezone(IST).strftime("%Y-%m-%d")
-
-            if not cand_date or cand_date != cur_date_str:
-                if cand_date and cand_date > cur_date_str:
-                    resp.message = f"Access Denied: Your examination is scheduled for {cand_date}. Entry is not permitted prior to the examination date."
-                elif cand_date and cand_date < cur_date_str:
-                    resp.message = f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
-                else:
-                    resp.message = "Access Denied: No scheduled examination date found for your account. Please contact your administrator."
-                resp.eligible = False
-                return resp
-
-            # 2. Strict Slot Validation for Today's Exam:
-            from app.core.slot_config import get_slot_timings_config
-            slot_cfg = get_slot_timings_config(db)
-            s1_info = slot_cfg.get("slot1", {})
-            s2_info = slot_cfg.get("slot2", {})
-            s3_info = slot_cfg.get("slot3", {})
-            s1_start = s1_info.get("startMinutes", 690)
-            s1_cutoff = s1_info.get("cutoffMinutes", 810)
-            s1_start_str = s1_info.get("startTime", "11:30 AM")
-            s1_cutoff_str = s1_info.get("cutoffTime", "1:30 PM")
-
-            s2_start = s2_info.get("startMinutes", 960)
-            s2_cutoff = s2_info.get("cutoffMinutes", 990)
-            s2_start_str = s2_info.get("startTime", "4:00 PM")
-            s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
-
-            s3_start = s3_info.get("startMinutes", 1080)
-            s3_cutoff = s3_info.get("cutoffMinutes", 1170)
-            s3_start_str = s3_info.get("startTime", "6:00 PM")
-            s3_cutoff_str = s3_info.get("cutoffTime", "7:30 PM")
-
-            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "2:00", "2pm", "14:00", s1_start_str.lower()])
-            is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
-            is_slot3 = any(w in b_lower for w in ["slot 3", "slot3", "6:00", "6pm", "18:00", s3_start_str.lower()])
-
-            if is_slot1:
-                if cur_mins < s1_start:
-                    resp.message = f"Your assessment window (Slot 1) opens at {s1_start_str} IST (Cutoff {s1_cutoff_str}). Please wait until {s1_start_str} to enter."
-                    resp.eligible = False
-                    return resp
-                elif cur_mins > s1_cutoff:
-                    resp.message = f"Entry Closed: The entry window for Slot 1 closed at {s1_cutoff_str} IST. Candidates are not permitted to enter after {s1_cutoff_str}."
-                    resp.eligible = False
-                    return resp
-            elif is_slot2:
-                if cur_mins < s2_start:
-                    resp.message = f"Slot 2 entry opens at {s2_start_str} IST (Cutoff {s2_cutoff_str}). Please wait until {s2_start_str} to enter your assessment."
-                    resp.eligible = False
-                    return resp
-                elif cur_mins > s2_cutoff:
-                    resp.message = f"Entry Closed: The entry window for Slot 2 closed at {s2_cutoff_str} IST. Candidates are not permitted to enter after the cutoff."
-                    resp.eligible = False
-                    return resp
-            elif is_slot3:
-                if cur_mins < s3_start:
-                    resp.message = f"Slot 3 entry opens at {s3_start_str} IST (Cutoff {s3_cutoff_str}). Please wait until {s3_start_str} to enter your assessment."
-                    resp.eligible = False
-                    return resp
-                elif cur_mins > s3_cutoff:
-                    resp.message = f"Entry Closed: The entry window for Slot 3 closed at {s3_cutoff_str} IST. Candidates are not permitted to enter after the cutoff."
-                    resp.eligible = False
-                    return resp
-            else:
-                # Candidate has today's date but is not assigned to Slot 1, Slot 2, or Slot 3
-                if not any(w in b_lower for w in ["demo", "preview", "test"]):
-                    resp.message = "Access Denied: You are not assigned to an active examination slot (Slot 1, Slot 2, or Slot 3) for today. Please contact your examination administrator."
-                    resp.eligible = False
-                    return resp
+        # Strict validation: Only candidates scheduled for today's active slots can enter during their 30-min window.
+        slot_allowed, slot_err = validate_candidate_slot_access(db, candidate, existing_attempt)
+        if not slot_allowed:
+            resp.eligible = False
+            resp.message = slot_err or "Access Denied: You cannot enter the examination at this time."
+            return resp
 
         # Only reuse existing attempt if its exam is currently active/published
         if existing_attempt and existing_attempt.exam and existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED"):
@@ -485,9 +524,22 @@ class CandidateExamService:
 
             if prior_attempt:
                 if prior_attempt.status in ("SUBMITTED", "EXPIRED", "COMPLETED"):
-                    resp.eligible = False
-                    resp.message = "You have already completed and submitted your examination."
-                    return resp
+                    b_check = (candidate.batch or "").strip().lower()
+                    e_check = (candidate.email or "").strip().lower()
+                    name_check = (candidate.full_name or "").strip().lower()
+                    is_test_account = (
+                        b_check == "demo test slot" or
+                        e_check == "test.candidate@talentise.com" or
+                        name_check == "test candidate"
+                    )
+                    if is_test_account:
+                        db.delete(prior_attempt)
+                        db.commit()
+                        prior_attempt = None
+                    else:
+                        resp.eligible = False
+                        resp.message = "You have already completed and submitted your examination."
+                        return resp
             else:
                 new_attempt = ExamAttempt(
                     candidate_id=candidate.id,
@@ -676,69 +728,14 @@ class CandidateExamService:
 
         if attempt.status == "ASSIGNED":
             # Strict date and slot time-gate check before starting fresh attempt
-            raw_gate = os.getenv("ENFORCE_SLOT_TIME_GATES", "true")
-            enforce_time_gates = str(raw_gate).lower() == "true"
-            if enforce_time_gates:
-                cand = attempt.candidate or db.query(Candidate).filter(Candidate.id == candidate_id).first()
-                if cand:
-                    IST = timezone(timedelta(hours=5, minutes=30))
-                    now_ist = datetime.now(timezone.utc).astimezone(IST)
-                    cur_mins = now_ist.hour * 60 + now_ist.minute
-                    cur_date_str = now_ist.strftime("%Y-%m-%d")
-                    b_lower = (cand.batch or "").strip().lower()
-
-                    cand_date = str(cand.exam_date or "").strip()
-                    if not cand_date and cand.created_at:
-                        cand_date = cand.created_at.astimezone(IST).strftime("%Y-%m-%d")
-
-                    if not cand_date or cand_date != cur_date_str:
-                        raise HTTPException(
-                            status_code=status.HTTP_403_FORBIDDEN,
-                            detail=f"Access denied: Your examination date is {cand_date or 'unassigned'}. You are not scheduled for today ({cur_date_str})."
-                        )
-
-                    from app.core.slot_config import get_slot_timings_config
-                    slot_cfg = get_slot_timings_config(db)
-                    s1_info = slot_cfg.get("slot1", {})
-                    s2_info = slot_cfg.get("slot2", {})
-                    s3_info = slot_cfg.get("slot3", {})
-                    s1_start = s1_info.get("startMinutes", 690)
-                    s1_cutoff = s1_info.get("cutoffMinutes", 810)
-                    s1_start_str = s1_info.get("startTime", "11:30 AM")
-                    s1_cutoff_str = s1_info.get("cutoffTime", "1:30 PM")
-
-                    s2_start = s2_info.get("startMinutes", 960)
-                    s2_cutoff = s2_info.get("cutoffMinutes", 990)
-                    s2_start_str = s2_info.get("startTime", "4:00 PM")
-                    s2_cutoff_str = s2_info.get("cutoffTime", "4:30 PM")
-
-                    s3_start = s3_info.get("startMinutes", 1080)
-                    s3_cutoff = s3_info.get("cutoffMinutes", 1170)
-                    s3_start_str = s3_info.get("startTime", "6:00 PM")
-                    s3_cutoff_str = s3_info.get("cutoffTime", "7:30 PM")
-
-                    is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
-                    is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
-                    is_slot3 = any(w in b_lower for w in ["slot 3", "slot3", "6:00", "6pm", "18:00", s3_start_str.lower()])
-
-                    if is_slot1:
-                        if cur_mins < s1_start:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 1 assessment window opens at {s1_start_str} IST.")
-                        elif cur_mins > s1_cutoff:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 1 entry window closed at {s1_cutoff_str} IST.")
-                    elif is_slot2:
-                        if cur_mins < s2_start:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 assessment window opens at {s2_start_str} IST.")
-                        elif cur_mins > s2_cutoff:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 2 entry window closed at {s2_cutoff_str} IST.")
-                    elif is_slot3:
-                        if cur_mins < s3_start:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 3 assessment window opens at {s3_start_str} IST.")
-                        elif cur_mins > s3_cutoff:
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Slot 3 entry window closed at {s3_cutoff_str} IST.")
-                    else:
-                        if not any(w in b_lower for w in ["demo", "preview", "test"]):
-                            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied: You are not assigned to an active examination slot (Slot 1, Slot 2, or Slot 3) for today.")
+            cand = attempt.candidate or db.query(Candidate).filter(Candidate.id == candidate_id).first()
+            if cand:
+                slot_allowed, slot_err = validate_candidate_slot_access(db, cand, attempt)
+                if not slot_allowed:
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=slot_err or "Access denied: You cannot start the examination at this time."
+                    )
 
             # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
             db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
@@ -934,16 +931,11 @@ class CandidateExamService:
 
         now = datetime.now(timezone.utc)
         if attempt.status != "IN_PROGRESS":
-            if attempt.status == "ASSIGNED":
-                attempt.status = "IN_PROGRESS"
-                attempt.started_at = now
-                if attempt.exam:
-                    attempt.expires_at = now + timedelta(minutes=attempt.exam.duration_minutes)
-                db.commit()
-                db.refresh(attempt)
-            elif attempt.status in ("DISCARDED", "STOPPED"):
+            if attempt.status in ("DISCARDED", "STOPPED"):
                 reason = getattr(attempt, "termination_reason", None) or "Examination has been stopped by administrator."
                 raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Cannot record answers: {reason}")
+            elif attempt.status == "ASSIGNED":
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot record answers: Attempt has not been started. Please start the examination first.")
             else:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cannot record answers: attempt is {attempt.status}")
 

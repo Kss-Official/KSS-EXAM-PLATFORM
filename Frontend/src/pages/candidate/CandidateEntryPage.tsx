@@ -13,7 +13,7 @@ import type { CandidateProfile, Department } from "../../types/candidate";
 import DepartmentSelector from "../../components/candidate/DepartmentSelector";
 import { loadCandidateSession, clearCandidateSession } from "../../services/candidateSessionStorage";
 import DemoRestartDialog from "../../components/candidate/DemoRestartDialog";
-import { verifyCandidateEligibility, ApiError } from "../../services/api";
+import { verifyCandidateEligibility, getCandidateSlotTimings, type SlotTimingsConfig, ApiError } from "../../services/api";
 import talentiseLogo from "../../assets/talentise_logo.png";
 
 interface CandidateEntryPageProps {
@@ -47,6 +47,27 @@ export default function CandidateEntryPage({
 
   const [existingSession, setExistingSession] = useState<ReturnType<typeof loadCandidateSession>>(null);
   const [showRestartModal, setShowRestartModal] = useState(false);
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig | null>(null);
+
+  // Dynamically load and poll current slot timings to reflect live administrative updates
+  useEffect(() => {
+    let mounted = true;
+    const fetchTimings = () => {
+      getCandidateSlotTimings()
+        .then(cfg => {
+          if (mounted && cfg && cfg.slot1) {
+            setSlotTimings(cfg);
+          }
+        })
+        .catch(() => {});
+    };
+    fetchTimings();
+    const timer = setInterval(fetchTimings, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const session = loadCandidateSession();
@@ -284,6 +305,30 @@ export default function CandidateEntryPage({
                 >
                   <RotateCcw size={13} /> Reset Attempt
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* Live Dynamic Slot Entry Schedule */}
+          {slotTimings && (
+            <div className="live-slot-schedule-banner" role="region" aria-label="Official Slot Entry Schedule">
+              <div className="live-slot-header">
+                <span className="live-pulse-dot" />
+                <span>OFFICIAL ENTRY WINDOWS &bull; NOV 14</span>
+              </div>
+              <div className="live-slot-chips">
+                <div className="live-slot-chip">
+                  <span className="slot-badge-label">Slot 1</span>
+                  <span className="slot-badge-time">{slotTimings.slot1.startTime} – {slotTimings.slot1.cutoffTime}</span>
+                </div>
+                <div className="live-slot-chip">
+                  <span className="slot-badge-label">Slot 2</span>
+                  <span className="slot-badge-time">{slotTimings.slot2.startTime} – {slotTimings.slot2.cutoffTime}</span>
+                </div>
+                <div className="live-slot-chip">
+                  <span className="slot-badge-label">Slot 3</span>
+                  <span className="slot-badge-time">{slotTimings.slot3?.startTime || "6:00 PM"} – {slotTimings.slot3?.cutoffTime || "6:30 PM"}</span>
+                </div>
               </div>
             </div>
           )}

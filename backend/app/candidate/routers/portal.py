@@ -61,10 +61,32 @@ def get_eligible_departments(db: Session = Depends(get_db)):
     from app.models import Department
     from app.admin.routers.departments import is_academic_department, to_dto
 
-    depts = db.query(Department).filter(Department.active == True).order_by(Department.name.asc()).all()
+    depts = db.query(Department).filter(Department.active == True).all()
     academic_depts = [d for d in depts if is_academic_department(d)]
     
+    # Preferred order matching client examination streams
+    preferred_order = [
+        "Computer Science & Engineering (CSE)",
+        "Information Science & Engineering (ISE)",
+        "Master of Computer Applications (MCA)",
+        "Information Technology (IT)",
+        "AI & Machine Learning (CSE-AIML)",
+        "Data Science (CSE-DS)",
+        "IoT & Cyber Security (CSE-IOT)"
+    ]
+    name_to_rank = {name.lower(): idx for idx, name in enumerate(preferred_order)}
+    academic_depts.sort(key=lambda d: (name_to_rank.get((d.name or "").lower(), 999), d.name or ""))
+    
     return [to_dto(d) for d in academic_depts]
+
+@router.get("/slot-timings")
+def get_candidate_slot_timings(db: Session = Depends(get_db)):
+    """
+    Public endpoint providing live examination slot schedules and entry cutoff windows
+    so candidate portals dynamically reflect real-time administrative changes.
+    """
+    from app.core.slot_config import get_slot_timings_config
+    return get_slot_timings_config(db=db)
 
 @router.post("/verify", response_model=CandidateVerifyResponse)
 @router.post("/login", response_model=CandidateVerifyResponse)

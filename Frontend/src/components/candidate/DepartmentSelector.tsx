@@ -9,19 +9,13 @@ interface DepartmentSelectorProps {
 }
 
 export const FALLBACK_DEPARTMENTS: DepartmentDto[] = [
-  { id: 71, name: "Developer", code: "DEV", category: "TECHNICAL", active: true },
-  { id: 72, name: "AI/ML Developer", code: "AIML", category: "TECHNICAL", active: true },
-  { id: 73, name: "Computer Science and Engineering", code: "CSE", category: "TECHNICAL", active: true },
-  { id: 74, name: "Information Technology", code: "IT", category: "TECHNICAL", active: true },
-  { id: 75, name: "Electronics & Communication Engineering", code: "ECE", category: "TECHNICAL", active: true },
-  { id: 76, name: "Electrical & Electronics Engineering", code: "EEE", category: "TECHNICAL", active: true },
-  { id: 77, name: "Mechanical Engineering", code: "MECH", category: "TECHNICAL", active: true },
-  { id: 78, name: "Civil Engineering", code: "CIVIL", category: "TECHNICAL", active: true },
-  { id: 79, name: "Quality Assurance & Testing", code: "QA", category: "TECHNICAL", active: true },
-  { id: 80, name: "DevOps", code: "DEVOPS", category: "TECHNICAL", active: true },
-  { id: 81, name: "UI/UX Design & Product", code: "UIUX", category: "TECHNICAL", active: true },
-  { id: 82, name: "Human Resources", code: "HR", category: "NON_TECHNICAL", active: true },
-  { id: 83, name: "Sales & Marketing", code: "SALES_MKT", category: "NON_TECHNICAL", active: true }
+  { id: 3, name: "Computer Science & Engineering (CSE)", code: "CSE", category: "TECHNICAL", active: true },
+  { id: 19, name: "Information Science & Engineering (ISE)", code: "ISE", category: "TECHNICAL", active: true },
+  { id: 20, name: "Master of Computer Applications (MCA)", code: "MCA", category: "TECHNICAL", active: true },
+  { id: 4, name: "Information Technology (IT)", code: "IT", category: "TECHNICAL", active: true },
+  { id: 17, name: "AI & Machine Learning (CSE-AIML)", code: "CSE-AIML", category: "TECHNICAL", active: true },
+  { id: 22, name: "Data Science (CSE-DS)", code: "CSE-DS", category: "TECHNICAL", active: true },
+  { id: 18, name: "IoT & Cyber Security (CSE-IOT)", code: "CSE-IOT", category: "TECHNICAL", active: true }
 ];
 
 export default function DepartmentSelector({

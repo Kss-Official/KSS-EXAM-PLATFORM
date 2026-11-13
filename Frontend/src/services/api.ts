@@ -1152,6 +1152,16 @@ export async function getSlotTimings(): Promise<SlotTimingsConfig> {
   return result;
 }
 
+export async function getCandidateSlotTimings(): Promise<SlotTimingsConfig> {
+  const result = await request<SlotTimingsConfig>("candidate/slot-timings", { cache: "no-store" });
+  if (result && result.slot1) {
+    try {
+      localStorage.setItem("examsecure_slot_timings_v1", JSON.stringify(result));
+    } catch {}
+  }
+  return result;
+}
+
 export async function updateSlotTimings(data: Partial<SlotTimingsConfig>): Promise<SlotTimingsConfig> {
   const result = await request<SlotTimingsConfig>("admin/candidates/slot-timings", {
     method: "PUT",

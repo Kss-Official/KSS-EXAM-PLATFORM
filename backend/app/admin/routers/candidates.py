@@ -236,8 +236,8 @@ def update_slot_timings(
         for exam in active_exams:
             for s_num, s_key in [(1, "slot1"), (2, "slot2"), (3, "slot3")]:
                 s_info = cfg.get(s_key, {})
-                s_start_min = s_info.get("startMinutes", 690 if s_num == 1 else (960 if s_num == 2 else 1080))
-                s_cut_min = s_info.get("cutoffMinutes", 810 if s_num == 1 else (990 if s_num == 2 else 1170))
+                s_start_min = s_info.get("startMinutes", 840 if s_num == 1 else (960 if s_num == 2 else 1080))
+                s_cut_min = s_info.get("cutoffMinutes", 870 if s_num == 1 else (990 if s_num == 2 else 1110))
 
                 start_dt = datetime(today.year, today.month, today.day, s_start_min // 60, s_start_min % 60, tzinfo=IST)
                 end_dt = datetime(today.year, today.month, today.day, s_cut_min // 60, s_cut_min % 60, tzinfo=IST)

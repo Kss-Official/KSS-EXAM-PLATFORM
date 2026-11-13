@@ -410,21 +410,22 @@ export default function CandidatesPage() {
   });
   const [savingSlotTimings, setSavingSlotTimings] = useState(false);
 
-  // Load slot timings configuration on mount directly from backend (PostgreSQL)
+  // Load slot timings configuration on mount directly from backend (PostgreSQL) and keep dynamically synced
   useEffect(() => {
-    getSlotTimings().then(cfg => {
-      if (cfg && cfg.slot1 && cfg.slot2) {
-        setSlotTimings(cfg);
-        setEditForm({
-          slot1StartTime: cfg.slot1.startTime || "10:00 AM",
-          slot1CutoffTime: cfg.slot1.cutoffTime || "12:00 PM",
-          slot2StartTime: cfg.slot2.startTime || "1:00 PM",
-          slot2CutoffTime: cfg.slot2.cutoffTime || "3:00 PM",
-          slot3StartTime: cfg.slot3?.startTime || "4:00 PM",
-          slot3CutoffTime: cfg.slot3?.cutoffTime || "6:00 PM"
-        });
-      }
-    }).catch(() => {});
+    let mounted = true;
+    const loadTimings = () => {
+      getSlotTimings().then(cfg => {
+        if (mounted && cfg && cfg.slot1 && cfg.slot2) {
+          setSlotTimings(cfg);
+        }
+      }).catch(() => {});
+    };
+    loadTimings();
+    const interval = setInterval(loadTimings, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
@@ -832,13 +833,27 @@ export default function CandidatesPage() {
   };
 
   const openEditSlotModal = () => {
+    getSlotTimings().then(cfg => {
+      if (cfg && cfg.slot1) {
+        setSlotTimings(cfg);
+        setEditForm({
+          slot1StartTime: cfg.slot1.startTime || "2:00 PM",
+          slot1CutoffTime: cfg.slot1.cutoffTime || "2:30 PM",
+          slot2StartTime: cfg.slot2.startTime || "4:00 PM",
+          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM",
+          slot3StartTime: cfg.slot3?.startTime || "6:00 PM",
+          slot3CutoffTime: cfg.slot3?.cutoffTime || "6:30 PM"
+        });
+      }
+    }).catch(() => {});
+
     setEditForm({
-      slot1StartTime: slotTimings.slot1.startTime || "10:00 AM",
-      slot1CutoffTime: slotTimings.slot1.cutoffTime || "12:00 PM",
-      slot2StartTime: slotTimings.slot2.startTime || "1:00 PM",
-      slot2CutoffTime: slotTimings.slot2.cutoffTime || "3:00 PM",
-      slot3StartTime: slotTimings.slot3?.startTime || "4:00 PM",
-      slot3CutoffTime: slotTimings.slot3?.cutoffTime || "6:00 PM"
+      slot1StartTime: slotTimings.slot1.startTime || "2:00 PM",
+      slot1CutoffTime: slotTimings.slot1.cutoffTime || "2:30 PM",
+      slot2StartTime: slotTimings.slot2.startTime || "4:00 PM",
+      slot2CutoffTime: slotTimings.slot2.cutoffTime || "4:30 PM",
+      slot3StartTime: slotTimings.slot3?.startTime || "6:00 PM",
+      slot3CutoffTime: slotTimings.slot3?.cutoffTime || "6:30 PM"
     });
     setIsEditSlotModalOpen(true);
   };
