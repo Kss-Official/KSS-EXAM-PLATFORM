@@ -168,22 +168,72 @@ export default function AdminLayout({
     <div className="admin-app">
       {/* Sidebar */}
       <aside className={`admin-sidebar ${mobileMenuOpen ? "open" : ""}`}>
-        <div className="admin-sidebar-header">
-          <Link to="/admin/dashboard" className="admin-sidebar-brand" onClick={() => setMobileMenuOpen(false)}>
-            <div className="admin-sidebar-logo" style={{ background: "#ffffff", padding: "3px", boxShadow: "0 4px 12px rgba(37, 99, 235, 0.25)" }}>
-              <img src={talentiseLogo} alt="Talentise Global" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+        <div className="admin-sidebar-header" style={{ padding: "14px 16px 14px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", position: "relative" }}>
+          <Link 
+            to="/admin/dashboard" 
+            className="admin-sidebar-brand" 
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", textDecoration: "none", width: "100%" }}
+          >
+            {/* Crisp High-Res Brand Card */}
+            <div style={{
+              background: "#ffffff",
+              borderRadius: "10px",
+              padding: "7px 12px",
+              width: "100%",
+              boxSizing: "border-box",
+              boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              border: "1px solid rgba(255, 255, 255, 0.15)"
+            }}>
+              <img 
+                src={talentiseLogo} 
+                alt="Talentise Global" 
+                style={{ 
+                  height: "36px", 
+                  maxWidth: "100%", 
+                  objectFit: "contain",
+                  display: "block" 
+                }} 
+              />
             </div>
-            <div className="admin-sidebar-brand-text">
-              <b style={{ color: "#ffffff", letterSpacing: "0.4px" }}>
-                TALENTISE <span style={{ color: "#FF5722" }}>GLOBAL</span>
-              </b>
-              <small style={{ color: "#94a3b8", letterSpacing: "0.8px" }}>EXAM ADMIN CONSOLE</small>
+            {/* Sub-header Brand Strip */}
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "space-between", 
+              width: "100%", 
+              padding: "0 2px" 
+            }}>
+              <span style={{ 
+                fontSize: "10px", 
+                letterSpacing: "1px", 
+                color: "#94a3b8", 
+                fontWeight: 700, 
+                textTransform: "uppercase" 
+              }}>
+                Exam Admin Console
+              </span>
+              <span style={{ 
+                fontSize: "9px", 
+                fontWeight: 800, 
+                background: "rgba(255, 87, 34, 0.15)", 
+                color: "#FF5722", 
+                padding: "1px 6px", 
+                borderRadius: "4px",
+                border: "1px solid rgba(255, 87, 34, 0.35)",
+                letterSpacing: "0.5px"
+              }}>
+                SEB PROCTOR
+              </span>
             </div>
           </Link>
           <button 
             type="button" 
             className="sidebar-toggle-btn"
-            style={{ color: "#ffffff" }}
+            style={{ color: "#ffffff", position: "absolute", top: "14px", right: "12px" }}
             onClick={() => setMobileMenuOpen(false)}
           >
             <X size={18} />

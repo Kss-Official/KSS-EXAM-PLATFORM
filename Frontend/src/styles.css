@@ -11,17 +11,26 @@
   -moz-osx-font-smoothing: grayscale;
 
   /* Brand Color Palette: Talentise Global */
-  --primary: #1E40AF;
-  --primary-hover: #1D4ED8;
-  --primary-dark: #0F2B82;
-  --primary-light: #EFF6FF;
-  --primary-pale: #F8FAFC;
-  --accent-orange: #EA580C;
+  --primary: #FF5722;
+  --primary-hover: #F4511E;
+  --primary-dark: #D84315;
+  --primary-light: #FFF7ED;
+  --primary-pale: #FFFAEC;
+
+  --navy: #0A196F;
+  --navy-hover: #061CA4;
+  --navy-dark: #050E42;
+  --navy-light: #EFF6FF;
+
+  --accent-orange: #FF5722;
+  --accent-orange-hover: #F4511E;
   --accent-orange-light: #FFF7ED;
+  --accent-amber: #FB9F0C;
+  --accent-amber-light: #FEF3C7;
 
   /* Theme Tokens mapped to brand palette */
-  --blue: #1E40AF;
-  --blue-hover: #1D4ED8;
+  --blue: #0A196F;
+  --blue-hover: #061CA4;
   --blue-light: #EFF6FF;
   --ink: #111827;
   --muted: #526579;
@@ -31,8 +40,8 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.05);
-  --shadow-md: 0 4px 12px -2px rgba(30, 64, 175, 0.08);
-  --shadow-lg: 0 12px 30px -4px rgba(30, 64, 175, 0.12);
+  --shadow-md: 0 4px 12px -2px rgba(255, 87, 34, 0.12);
+  --shadow-lg: 0 12px 30px -4px rgba(255, 87, 34, 0.18);
 }
 
 * {
@@ -109,15 +118,22 @@ select:focus-visible {
 }
 
 .primary {
-  background: var(--blue);
+  background: linear-gradient(135deg, #FF6B00 0%, #FF5722 50%, #EA580C 100%);
   color: white;
+  border: none;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(255, 87, 34, 0.35);
+  transition: all 0.15s ease;
 }
 .primary:hover:not(:disabled) {
-  background: var(--blue-hover);
+  background: linear-gradient(135deg, #FF7A1A 0%, #F4511E 50%, #D84315 100%);
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.5);
+  transform: translateY(-1px);
 }
 .primary:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .secondary {
@@ -470,11 +486,11 @@ select:focus-visible {
 }
 
 .option.selected {
-  border-color: #2563EB;
-  background: #EFF6FF;
+  border-color: #FF5722;
+  background: #FFF7ED;
   color: #0A196F;
   font-weight: 600;
-  box-shadow: 0 0 0 1.5px #2563EB, 0 4px 16px rgba(37, 99, 235, 0.12);
+  box-shadow: 0 0 0 1.5px #FF5722, 0 4px 16px rgba(255, 87, 34, 0.12);
 }
 
 .letter {
@@ -493,10 +509,10 @@ select:focus-visible {
 }
 
 .selected .letter {
-  background: #2563EB;
-  border-color: #2563EB;
+  background: #FF5722;
+  border-color: #FF5722;
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 2px 6px rgba(255, 87, 34, 0.3);
 }
 
 .opt-text {
@@ -517,8 +533,8 @@ select:focus-visible {
 }
 
 .selected .radio {
-  border-color: #2563EB;
-  background: #2563EB;
+  border-color: #FF5722;
+  background: #FF5722;
 }
 
 .radio i {
@@ -932,7 +948,7 @@ select:focus-visible {
   max-height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #F8FCFA;
+  background-color: #FAF5EE;
   background-image: url('./assets/candidate-bg.svg');
   background-size: cover;
   background-position: center center;
@@ -971,9 +987,9 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #1E40AF;
-  border: 1px solid #BFDBFE;
-  background: #EFF6FF;
+  color: #9A3412;
+  border: 1px solid #FFEDD5;
+  background: #FFF7ED;
   border-radius: 999px;
   padding: 5px 13px;
   font-size: 11px;
@@ -982,7 +998,7 @@ select:focus-visible {
 }
 
 .secure svg {
-  color: #2563EB;
+  color: #FF5722;
 }
 
 .hero {
@@ -998,7 +1014,7 @@ select:focus-visible {
 }
 
 .eyebrow {
-  color: #2563EB;
+  color: #FF5722;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.6px;
@@ -1009,7 +1025,7 @@ select:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #2563EB;
+  color: #FF5722;
   margin-bottom: 6px;
 }
 
@@ -1017,7 +1033,8 @@ select:focus-visible {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #EA580C;
+  background: #FF5722;
+  box-shadow: 0 0 8px rgba(255, 87, 34, 0.6);
 }
 
 .intro h1 {
@@ -1033,7 +1050,7 @@ select:focus-visible {
 .intro h1 em {
   font-style: normal;
   display: block;
-  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 50%, #EA580C 100%);
+  background: linear-gradient(135deg, #0A196F 0%, #1E40AF 35%, #FF5722 75%, #F97316 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -1064,9 +1081,9 @@ select:focus-visible {
   height: 32px;
   display: grid;
   place-items: center;
-  border: 1px solid #BFDBFE;
-  background: #EFF6FF;
-  color: #2563EB;
+  border: 1px solid #FFEDD5;
+  background: #FFF7ED;
+  color: #EA580C;
   border-radius: 8px;
   flex-shrink: 0;
 }
@@ -1203,23 +1220,23 @@ select:focus-visible {
   margin-top: 3px;
 }
 
-/* Talentise Blue information panel */
+/* Talentise Warm Amber information panel */
 .green-info-panel {
-  background: #EFF6FF;
-  border: 1px solid #BFDBFE;
+  background: #FFF7ED;
+  border: 1px solid #FFEDD5;
   border-radius: 8px;
   padding: 8px 11px;
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  color: #1E3A8A;
+  color: #9A3412;
   font-size: 11px;
   line-height: 1.4;
   margin-top: 2px;
 }
 
 .green-info-panel svg {
-  color: #2563EB;
+  color: #EA580C;
   flex-shrink: 0;
   margin-top: 1px;
 }
@@ -1230,22 +1247,22 @@ select:focus-visible {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%);
+  background: linear-gradient(135deg, #FF6B00 0%, #FF5722 50%, #EA580C 100%);
   color: #ffffff;
   border: none;
   border-radius: 8px;
   padding: 10px 15px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.18s ease;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.4);
   margin-top: 2px;
 }
 
 .btn-primary-entry:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 60%, #C2410C 115%);
-  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
+  background: linear-gradient(135deg, #FF7A1A 0%, #F4511E 50%, #D84315 100%);
+  box-shadow: 0 6px 20px rgba(255, 87, 34, 0.55);
   transform: translateY(-1px);
 }
 
@@ -2914,21 +2931,21 @@ select:focus-visible {
 }
 
 .compat-btn-continue {
-  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%);
+  background: linear-gradient(135deg, #FF6B00 0%, #FF5722 50%, #EA580C 100%);
   color: #ffffff;
   border: none;
   padding: 10px 24px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.4);
   transition: all 0.18s ease;
 }
 
 .compat-btn-continue:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1D4ED8 0%, #1E40AF 60%, #C2410C 115%);
-  box-shadow: 0 6px 18px rgba(234, 88, 12, 0.35);
+  background: linear-gradient(135deg, #FF7A1A 0%, #F4511E 50%, #D84315 100%);
+  box-shadow: 0 6px 20px rgba(255, 87, 34, 0.55);
   transform: translateY(-1px);
 }
 
@@ -3029,7 +3046,7 @@ select:focus-visible {
 
 .exam-progress-bar-fill {
   height: 100%;
-  background: #2563EB;
+  background: linear-gradient(90deg, #0A196F 0%, #2563EB 50%, #FF5722 100%);
   border-radius: 9999px;
   transition: width 0.3s ease;
 }
@@ -3303,9 +3320,9 @@ select:focus-visible {
 }
 
 .exam-option-card.selected {
-  border: 1.5px solid #2563EB;
-  background: #EFF6FF;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.15);
+  border: 1.5px solid #FF5722;
+  background: #FFF7ED;
+  box-shadow: 0 0 0 1px rgba(255, 87, 34, 0.2);
 }
 
 .exam-option-left {
@@ -3330,8 +3347,8 @@ select:focus-visible {
 }
 
 .exam-option-letter.selected {
-  background: #DBEAFE;
-  color: #1E40AF;
+  background: #FF5722;
+  color: #ffffff;
 }
 
 .exam-option-text {
@@ -3353,7 +3370,7 @@ select:focus-visible {
 }
 
 .exam-custom-radio.selected {
-  border-color: #2563EB;
+  border-color: #FF5722;
   border-width: 2px;
 }
 
@@ -3361,7 +3378,7 @@ select:focus-visible {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #2563EB;
+  background: #FF5722;
 }
 
 /* Bottom Card Actions: Previous & Next */
@@ -3403,7 +3420,7 @@ select:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #2563EB;
+  background: linear-gradient(135deg, #FF6B00 0%, #FF5722 50%, #EA580C 100%);
   border: none;
   color: #ffffff;
   border-radius: 8px;
@@ -3412,11 +3429,12 @@ select:focus-visible {
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 2px 8px rgba(255, 87, 34, 0.35);
 }
 
 .exam-btn-next:hover:not(:disabled) {
-  background: #1d4ed8;
+  background: linear-gradient(135deg, #FF7A1A 0%, #F4511E 50%, #D84315 100%);
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.5);
 }
 
 .exam-btn-next:disabled {
@@ -3857,16 +3875,16 @@ select:focus-visible {
 }
 
 .qnav-btn.answered {
-  background: #2563EB;
+  background: #0A196F;
   color: #ffffff;
-  border: 1px solid #2563EB;
+  border: 1px solid #0A196F;
 }
 
 .qnav-btn.answered.current-answered {
-  background: #2563EB;
+  background: #0A196F;
   color: #ffffff;
-  border: 1px solid #2563EB;
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px #2563EB;
+  border: 1px solid #0A196F;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px #FF5722;
 }
 
 .qnav-btn.flagged {
@@ -3876,9 +3894,9 @@ select:focus-visible {
 }
 
 .qnav-btn.current {
-  border: 1.5px solid #2563EB;
-  color: #2563EB;
-  background: #ffffff;
+  border: 2px solid #FF5722;
+  color: #FF5722;
+  background: #FFF7ED;
   font-weight: 800;
 }
 
@@ -3889,20 +3907,21 @@ select:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: #2563EB;
+  background: linear-gradient(135deg, #FF6B00 0%, #FF5722 50%, #EA580C 100%);
   color: #ffffff;
   border: none;
   border-radius: 10px;
   padding: 11px 16px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 3px 12px rgba(255, 87, 34, 0.4);
 }
 
 .qnav-submit-btn:hover {
-  background: #1d4ed8;
+  background: linear-gradient(135deg, #FF7A1A 0%, #F4511E 50%, #D84315 100%);
+  box-shadow: 0 5px 18px rgba(255, 87, 34, 0.55);
 }
 
 /* Mobile Drawer & Responsiveness */

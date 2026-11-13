@@ -107,9 +107,10 @@
 
 .admin-nav-link.active {
   color: #ffffff;
-  background: linear-gradient(135deg, #1E40AF 0%, #2563EB 65%, #EA580C 115%);
+  background: linear-gradient(135deg, rgba(255, 87, 34, 0.25) 0%, rgba(30, 64, 175, 0.5) 100%);
+  border: 1px solid rgba(255, 87, 34, 0.45);
   font-weight: 600;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.25);
   position: relative;
 }
 
@@ -121,8 +122,8 @@
   bottom: 8px;
   width: 4px;
   border-radius: 0 4px 4px 0;
-  background: #F97316;
-  box-shadow: 0 0 10px rgba(249, 115, 22, 0.7);
+  background: #FF5722;
+  box-shadow: 0 0 12px rgba(255, 87, 34, 0.9);
 }
 
 .admin-nav-link .badge {
@@ -258,9 +259,9 @@
 }
 
 .api-status-pill.up {
-  background: #ecfdf5;
-  color: #065f46;
-  border-color: #a7f3d0;
+  background: #EFF6FF;
+  color: #1E40AF;
+  border-color: #BFDBFE;
 }
 
 .api-status-pill.auth {
@@ -441,8 +442,8 @@
 }
 
 .backend-banner.success {
-  border-left: 4px solid #10b981;
-  background: #f9fefb;
+  border-left: 4px solid #2563EB;
+  background: #f8fafc;
 }
 
 .banner-header {
@@ -1522,7 +1523,7 @@
 }
 
 .admin-nav-link.active {
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35) !important;
+  box-shadow: 0 4px 12px rgba(255, 87, 34, 0.35) !important;
 }
 
 /* Button Micro-Interactions */
@@ -1536,7 +1537,7 @@ button.danger,
 button.primary:hover, 
 .admin-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 14px rgba(255, 87, 34, 0.4);
 }
 
 button.primary:active, 
