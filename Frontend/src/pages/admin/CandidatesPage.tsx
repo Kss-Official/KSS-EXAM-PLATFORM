@@ -370,25 +370,25 @@ export default function CandidatesPage() {
     } catch {}
     return {
       slot1: {
-        header: "Slot 1 • 10:00 AM",
-        sub: "Entry: 10:00 AM – 12:00 PM IST",
-        btn: "Slot 1 (10:00 AM)",
-        startTime: "10:00 AM",
-        cutoffTime: "12:00 PM"
+        header: "Slot 1 • 2:00 PM",
+        sub: "Entry: 2:00 PM – 2:30 PM IST",
+        btn: "Slot 1 (2:00 PM)",
+        startTime: "2:00 PM",
+        cutoffTime: "2:30 PM"
       },
       slot2: {
-        header: "Slot 2 • 1:00 PM",
-        sub: "Entry: 1:00 PM – 3:00 PM IST",
-        btn: "Slot 2 (1:00 PM)",
-        startTime: "1:00 PM",
-        cutoffTime: "3:00 PM"
+        header: "Slot 2 • 4:00 PM",
+        sub: "Entry: 4:00 PM – 4:30 PM IST",
+        btn: "Slot 2 (4:00 PM)",
+        startTime: "4:00 PM",
+        cutoffTime: "4:30 PM"
       },
       slot3: {
-        header: "Slot 3 • 4:00 PM",
-        sub: "Entry: 4:00 PM – 6:00 PM IST",
-        btn: "Slot 3 (4:00 PM)",
-        startTime: "4:00 PM",
-        cutoffTime: "6:00 PM"
+        header: "Slot 3 • 6:00 PM",
+        sub: "Entry: 6:00 PM – 6:30 PM IST",
+        btn: "Slot 3 (6:00 PM)",
+        startTime: "6:00 PM",
+        cutoffTime: "6:30 PM"
       }
     };
   };
@@ -400,12 +400,12 @@ export default function CandidatesPage() {
   const [editForm, setEditForm] = useState(() => {
     const init = getInitialSlotTimings();
     return {
-      slot1StartTime: init.slot1.startTime || "10:00 AM",
-      slot1CutoffTime: init.slot1.cutoffTime || "12:00 PM",
-      slot2StartTime: init.slot2.startTime || "1:00 PM",
-      slot2CutoffTime: init.slot2.cutoffTime || "3:00 PM",
-      slot3StartTime: init.slot3?.startTime || "4:00 PM",
-      slot3CutoffTime: init.slot3?.cutoffTime || "6:00 PM"
+      slot1StartTime: init.slot1.startTime || "2:00 PM",
+      slot1CutoffTime: init.slot1.cutoffTime || "2:30 PM",
+      slot2StartTime: init.slot2.startTime || "4:00 PM",
+      slot2CutoffTime: init.slot2.cutoffTime || "4:30 PM",
+      slot3StartTime: init.slot3?.startTime || "6:00 PM",
+      slot3CutoffTime: init.slot3?.cutoffTime || "6:30 PM"
     };
   });
   const [savingSlotTimings, setSavingSlotTimings] = useState(false);

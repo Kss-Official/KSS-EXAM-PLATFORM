@@ -302,7 +302,7 @@ class CandidateExamService:
             s3_start_str = s3_info.get("startTime", "6:00 PM")
             s3_cutoff_str = s3_info.get("cutoffTime", "7:30 PM")
 
-            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "11:30", "11:00", "11am", s1_start_str.lower()])
+            is_slot1 = any(w in b_lower for w in ["slot 1", "slot1", "2:00", "2pm", "14:00", s1_start_str.lower()])
             is_slot2 = any(w in b_lower for w in ["slot 2", "slot2", "4:00", "4pm", "16:00", s2_start_str.lower()])
             is_slot3 = any(w in b_lower for w in ["slot 3", "slot3", "6:00", "6pm", "18:00", s3_start_str.lower()])
 

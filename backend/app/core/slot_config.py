@@ -12,31 +12,31 @@ SLOT_SETTING_KEY = "exam_slot_timings"
 
 DEFAULT_SLOT_CONFIG = {
     "slot1": {
-        "header": "Slot 1 • 10:00 AM",
-        "sub": "Entry: 10:00 AM – 12:00 PM IST",
-        "btn": "Slot 1 (10:00 AM)",
-        "startTime": "10:00 AM",
-        "cutoffTime": "12:00 PM",
-        "startMinutes": 600,
-        "cutoffMinutes": 720
+        "header": "Slot 1 • 2:00 PM",
+        "sub": "Entry: 2:00 PM – 2:30 PM IST",
+        "btn": "Slot 1 (2:00 PM)",
+        "startTime": "2:00 PM",
+        "cutoffTime": "2:30 PM",
+        "startMinutes": 840,
+        "cutoffMinutes": 870
     },
     "slot2": {
-        "header": "Slot 2 • 1:00 PM",
-        "sub": "Entry: 1:00 PM – 3:00 PM IST",
-        "btn": "Slot 2 (1:00 PM)",
-        "startTime": "1:00 PM",
-        "cutoffTime": "3:00 PM",
-        "startMinutes": 780,
-        "cutoffMinutes": 900
+        "header": "Slot 2 • 4:00 PM",
+        "sub": "Entry: 4:00 PM – 4:30 PM IST",
+        "btn": "Slot 2 (4:00 PM)",
+        "startTime": "4:00 PM",
+        "cutoffTime": "4:30 PM",
+        "startMinutes": 960,
+        "cutoffMinutes": 990
     },
     "slot3": {
-        "header": "Slot 3 • 4:00 PM",
-        "sub": "Entry: 4:00 PM – 6:00 PM IST",
-        "btn": "Slot 3 (4:00 PM)",
-        "startTime": "4:00 PM",
-        "cutoffTime": "6:00 PM",
-        "startMinutes": 960,
-        "cutoffMinutes": 1080
+        "header": "Slot 3 • 6:00 PM",
+        "sub": "Entry: 6:00 PM – 6:30 PM IST",
+        "btn": "Slot 3 (6:00 PM)",
+        "startTime": "6:00 PM",
+        "cutoffTime": "6:30 PM",
+        "startMinutes": 1080,
+        "cutoffMinutes": 1110
     }
 }
 
