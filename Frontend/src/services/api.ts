@@ -234,6 +234,7 @@ export interface CandidateVerifyResponse {
   candidateName?: string;
   email?: string;
   departmentName?: string;
+  departmentCategory?: "TECHNICAL" | "NON_TECHNICAL" | string;
   collegeName?: string;
   examId?: number;
   assignedExamId?: number;
@@ -1151,6 +1152,7 @@ export interface LiveExamineeDto {
   department?: string;
   college?: string;
   batch?: string;
+  examDate?: string;
   assignedSet?: string;
   attemptId?: number;
   status: string;

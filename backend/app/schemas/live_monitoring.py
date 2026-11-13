@@ -11,6 +11,7 @@ class LiveExamineeDto(BaseModel):
     department: Optional[str] = None
     college: Optional[str] = None
     batch: Optional[str] = None
+    examDate: Optional[str] = None
     assignedSet: Optional[str] = None
     attemptId: Optional[int] = None
     status: str

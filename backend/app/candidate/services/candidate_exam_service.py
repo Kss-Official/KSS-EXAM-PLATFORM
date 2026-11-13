@@ -29,6 +29,13 @@ secure_random = random.SystemRandom()
 _QUESTION_SET_CACHE: Dict[int, Any] = {}
 _QUESTION_SET_CACHE_TTL = 120.0  # seconds
 
+def invalidate_question_set_cache(question_set_id: Optional[int] = None):
+    """Invalidates the in-memory question set cache so changes made in admin portal take effect immediately."""
+    if question_set_id is not None:
+        _QUESTION_SET_CACHE.pop(question_set_id, None)
+    else:
+        _QUESTION_SET_CACHE.clear()
+
 # Authoritative mapping of department categories
 NON_TECHNICAL_CODES = {
     "HR", "MKT", "SALES_MKT", "SALES", "MARKETING", "FIN", "FINANCE", 
@@ -229,6 +236,7 @@ class CandidateExamService:
         resp.candidate_name = candidate.full_name
         resp.email = candidate.email
         resp.department_name = chosen_track
+        resp.department_category = chosen_category
         resp.college_name = candidate.college.name if candidate.college else None
         resp.batch = candidate.batch
 
@@ -495,7 +503,8 @@ class CandidateExamService:
         resp.scheduled_end_time = exam.scheduled_end_time
         resp.set_code = question_set.set_code
         resp.question_set_code = question_set.set_code
-        resp.department_name = candidate.department.name if candidate.department else "General Assessment"
+        resp.department_name = candidate.department.name if candidate.department else chosen_track
+        resp.department_category = chosen_category
         resp.slot_name = f"Slot {slot.slot_number}" if slot else "Slot 1 (Main)"
 
         from app.core.security import create_session_token

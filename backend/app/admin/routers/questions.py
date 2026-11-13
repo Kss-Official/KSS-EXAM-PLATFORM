@@ -244,7 +244,10 @@ def create_question_in_set(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return QuestionService.create_question(db, question_set_id, dto, current_user.email)
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
+    res = QuestionService.create_question(db, question_set_id, dto, current_user.email)
+    invalidate_question_set_cache(question_set_id)
+    return res
 
 # 7. Delete Question
 @router.delete("/questions/{question_id}")
@@ -253,7 +256,9 @@ def delete_question(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
     QuestionService.delete_question(db, question_id, current_user.email)
+    invalidate_question_set_cache()
     return {"success": True, "message": "Question deleted successfully"}
 
 # 8. Text Import
@@ -264,8 +269,11 @@ def import_questions_text(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
     raw_text = payload.get("rawText") or payload.get("raw_text") or ""
-    return QuestionService.import_questions_from_text(db, question_set_id, raw_text, current_user.email)
+    res = QuestionService.import_questions_from_text(db, question_set_id, raw_text, current_user.email)
+    invalidate_question_set_cache(question_set_id)
+    return res
 
 # 9. Apply Answer Key
 @router.post("/sets/{question_set_id}/answer-key")
@@ -275,8 +283,11 @@ def apply_answer_key(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
     key_text = payload.get("answerKeyText") or payload.get("answer_key_text") or ""
-    return QuestionService.apply_answer_key(db, question_set_id, key_text, current_user.email)
+    res = QuestionService.apply_answer_key(db, question_set_id, key_text, current_user.email)
+    invalidate_question_set_cache(question_set_id)
+    return res
 
 # 10. Bulk Update
 @router.put("/sets/{question_set_id}/bulk", response_model=List[QuestionDto])
@@ -286,7 +297,10 @@ def bulk_update_questions(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return QuestionService.bulk_update_questions(db, question_set_id, questions, current_user.email)
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
+    res = QuestionService.bulk_update_questions(db, question_set_id, questions, current_user.email)
+    invalidate_question_set_cache(question_set_id)
+    return res
 
 # 11. Clear Questions in Set
 @router.delete("/sets/{question_set_id}/questions")
@@ -295,7 +309,9 @@ def delete_all_questions_in_set(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
     QuestionService.delete_all_questions_in_set(db, question_set_id, current_user.email)
+    invalidate_question_set_cache(question_set_id)
     return {"success": True, "message": "All questions deleted successfully"}
 
 # 12. Delete Question Set
@@ -305,7 +321,9 @@ def delete_question_set(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
+    from app.candidate.services.candidate_exam_service import invalidate_question_set_cache
     QuestionService.delete_question_set(db, question_set_id, current_user.email)
+    invalidate_question_set_cache(question_set_id)
     return {"success": True, "message": "Question Set deleted successfully"}
 
 # 13. Upload Documents

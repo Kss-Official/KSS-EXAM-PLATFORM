@@ -32,7 +32,66 @@ import {
   type ProctorAlertDto 
 } from "../../services/api";
 
+const getTodayIstString = (): string => {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+};
+
+const getYesterdayIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() - 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const getTomorrowIstString = (todayStr: string): string => {
+  try {
+    const [y, m, d] = todayStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + 1);
+    return dt.toISOString().slice(0, 10);
+  } catch {
+    return "";
+  }
+};
+
+const formatDateShort = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    const [y, m, d] = dStr.split("-").map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
+  } catch {
+    return dStr;
+  }
+};
+
+const formatDateYear = (dStr: string): string => {
+  if (!dStr || dStr === "ALL") return "";
+  try {
+    return dStr.slice(0, 4);
+  } catch {
+    return "";
+  }
+};
+
 export default function LiveMonitoringPage() {
+  const todayIst = useMemo(() => getTodayIstString(), []);
+  const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
+  const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
+
   const [activeTab, setActiveTab] = useState<"examinees" | "alerts">("examinees");
   const [examinees, setExaminees] = useState<LiveExamineeDto[]>([]);
   const [alerts, setAlerts] = useState<ProctorAlertDto[]>([]);
@@ -40,6 +99,8 @@ export default function LiveMonitoringPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedSlot, setSelectedSlot] = useState<string>("ALL");
+  const [selectedDate, setSelectedDate] = useState<string>("ALL");
+  const [customDatePicker, setCustomDatePicker] = useState<string>("");
   const [selectedSeverity, setSelectedSeverity] = useState<string>("ALL");
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
@@ -161,25 +222,22 @@ export default function LiveMonitoringPage() {
     }
   };
 
-  // Metrics Calculation
-  const activeExamineesCount = useMemo(() => {
-    return examinees.filter(e => e.status === "IN_PROGRESS").length;
-  }, [examinees]);
-
-  const totalAlertsCount = useMemo(() => alerts.length, [alerts]);
-  const newAlertsCount = useMemo(() => alerts.filter(a => a.status === "NEW").length, [alerts]);
-
-  const extraTimeCount = useMemo(() => {
-    return examinees.filter(e => e.extraTimeMinutes > 0).length;
-  }, [examinees]);
-
-  const stoppedCount = useMemo(() => {
-    return examinees.filter(e => e.status === "DISCARDED" || e.status === "STOPPED").length;
-  }, [examinees]);
+  // Date Counts
+  const dateCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const cand of examinees) {
+      const d = cand.examDate || todayIst;
+      counts[d] = (counts[d] || 0) + 1;
+    }
+    return counts;
+  }, [examinees, todayIst]);
 
   // Filtered examinees
   const filteredExaminees = useMemo(() => {
     return examinees.filter(cand => {
+      const candDate = cand.examDate || todayIst;
+      const matchDate = selectedDate === "ALL" || candDate === selectedDate;
+
       const matchSearch = !search.trim() || 
         cand.fullName.toLowerCase().includes(search.toLowerCase()) ||
         cand.registrationNumber.toLowerCase().includes(search.toLowerCase()) ||
@@ -189,9 +247,25 @@ export default function LiveMonitoringPage() {
       const matchSlot = selectedSlot === "ALL" || 
         (cand.batch && cand.batch.toLowerCase().includes(selectedSlot.toLowerCase()));
 
-      return matchSearch && matchSlot;
+      return matchDate && matchSearch && matchSlot;
     });
-  }, [examinees, search, selectedSlot]);
+  }, [examinees, search, selectedSlot, selectedDate, todayIst]);
+
+  // Metrics Calculation
+  const activeExamineesCount = useMemo(() => {
+    return filteredExaminees.filter(e => e.status === "IN_PROGRESS").length;
+  }, [filteredExaminees]);
+
+  const totalAlertsCount = useMemo(() => alerts.length, [alerts]);
+  const newAlertsCount = useMemo(() => alerts.filter(a => a.status === "NEW").length, [alerts]);
+
+  const extraTimeCount = useMemo(() => {
+    return filteredExaminees.filter(e => e.extraTimeMinutes > 0).length;
+  }, [filteredExaminees]);
+
+  const stoppedCount = useMemo(() => {
+    return filteredExaminees.filter(e => e.status === "DISCARDED" || e.status === "STOPPED").length;
+  }, [filteredExaminees]);
 
   // Filtered alerts
   const filteredAlerts = useMemo(() => {
@@ -464,6 +538,217 @@ export default function LiveMonitoringPage() {
         </div>
       </div>
 
+      {/* Date Filter Bar */}
+      <div
+        style={{
+          background: "#ffffff",
+          borderRadius: "12px",
+          border: "1px solid #e2e8f0",
+          padding: "12px 18px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: "12px",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.02)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginRight: "4px" }}>
+            <Calendar size={16} color="#017846" />
+            <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Exam Date:
+            </span>
+          </div>
+
+          {/* Today Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(todayIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === todayIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === todayIst ? "#017846" : "#f8fafc",
+              color: selectedDate === todayIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Today ({formatDateShort(todayIst)} {formatDateYear(todayIst)})</span>
+            <span style={{
+              background: selectedDate === todayIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === todayIst ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[todayIst] || 0}
+            </span>
+          </button>
+
+          {/* Yesterday Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(yesterdayIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === yesterdayIst ? "2px solid #0284c7" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === yesterdayIst ? "#0284c7" : "#f8fafc",
+              color: selectedDate === yesterdayIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Yesterday ({formatDateShort(yesterdayIst)} {formatDateYear(yesterdayIst)})</span>
+            <span style={{
+              background: selectedDate === yesterdayIst ? "rgba(255,255,255,0.25)" : "#e0f2fe",
+              color: selectedDate === yesterdayIst ? "#fff" : "#0369a1",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[yesterdayIst] || 0}
+            </span>
+          </button>
+
+          {/* Tomorrow Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate(tomorrowIst); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === tomorrowIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === tomorrowIst ? "#017846" : "#f8fafc",
+              color: selectedDate === tomorrowIst ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>Tomorrow ({formatDateShort(tomorrowIst)} {formatDateYear(tomorrowIst)})</span>
+            <span style={{
+              background: selectedDate === tomorrowIst ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === tomorrowIst ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {dateCounts[tomorrowIst] || 0}
+            </span>
+          </button>
+
+          {/* All Dates Combined Button */}
+          <button
+            type="button"
+            onClick={() => { setSelectedDate("ALL"); setCustomDatePicker(""); }}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: selectedDate === "ALL" ? "2px solid #0f172a" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === "ALL" ? "#0f172a" : "#f8fafc",
+              color: selectedDate === "ALL" ? "#ffffff" : "#334155",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <span>All Dates Combined</span>
+            <span style={{
+              background: selectedDate === "ALL" ? "rgba(255,255,255,0.25)" : "#e2e8f0",
+              color: selectedDate === "ALL" ? "#fff" : "#475569",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {examinees.length}
+            </span>
+          </button>
+
+          {/* Pick Date */}
+          <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+            <input
+              type="date"
+              value={customDatePicker}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomDatePicker(val);
+                if (val) {
+                  setSelectedDate(val);
+                }
+              }}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "8px",
+                border: selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst && selectedDate !== "ALL"
+                  ? "2px solid #017846"
+                  : "1px solid #cbd5e1",
+                backgroundColor: selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst && selectedDate !== "ALL"
+                  ? "#ecfdf5"
+                  : "#ffffff",
+                fontSize: "12.5px",
+                fontWeight: 600,
+                color: "#334155",
+                cursor: "pointer"
+              }}
+              title="Pick a specific examination date"
+            />
+          </div>
+        </div>
+
+        {/* Right Active Date Badge Indicator */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <span style={{ fontSize: "12px", color: "#64748b" }}>Active Date:</span>
+          <span style={{
+            fontSize: "12px",
+            fontWeight: 700,
+            padding: "4px 10px",
+            borderRadius: "6px",
+            background: selectedDate === todayIst ? "#ecfdf5" : (selectedDate === "ALL" ? "#f1f5f9" : "#eff6ff"),
+            color: selectedDate === todayIst ? "#017846" : (selectedDate === "ALL" ? "#0f172a" : "#1d4ed8"),
+            border: selectedDate === todayIst ? "1px solid #a7f3d0" : (selectedDate === "ALL" ? "1px solid #cbd5e1" : "1px solid #bfdbfe"),
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "5px"
+          }}>
+            <Calendar size={13} />
+            {selectedDate === todayIst 
+              ? `Today (${formatDateShort(todayIst)} ${formatDateYear(todayIst)})` 
+              : selectedDate === yesterdayIst 
+              ? `Yesterday (${formatDateShort(yesterdayIst)})` 
+              : selectedDate === tomorrowIst 
+              ? `Tomorrow (${formatDateShort(tomorrowIst)})` 
+              : selectedDate === "ALL" 
+              ? "All Dates Combined" 
+              : formatDateShort(selectedDate) + " " + formatDateYear(selectedDate)}
+          </span>
+        </div>
+      </div>
+
       {/* Tabs and Filters Bar */}
       <div style={{
         background: "#ffffff",
@@ -619,7 +904,7 @@ export default function LiveMonitoringPage() {
                 <tr style={{ background: "#f8fafc", borderBottom: "1px solid #e2e8f0", color: "#475569", fontWeight: 700, fontSize: "12px" }}>
                   <th style={{ padding: "14px 18px" }}>CANDIDATE & REG NO.</th>
                   <th style={{ padding: "14px 18px" }}>TRACK / DEPARTMENT</th>
-                  <th style={{ padding: "14px 18px" }}>SLOT & SET</th>
+                  <th style={{ padding: "14px 18px" }}>EXAM DATE, SLOT & SET</th>
                   <th style={{ padding: "14px 18px" }}>LIVE STATUS</th>
                   <th style={{ padding: "14px 18px" }}>REMAINING TIME</th>
                   <th style={{ padding: "14px 18px" }}>CHEATING ALERTS</th>
@@ -675,31 +960,49 @@ export default function LiveMonitoringPage() {
                           </div>
                         </td>
 
-                        {/* Slot & Set */}
+                        {/* Exam Date, Slot & Set */}
                         <td style={{ padding: "14px 18px" }}>
-                          <span style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: "4px",
-                            background: "#f1f5f9",
-                            color: "#334155",
-                            fontWeight: 600,
-                            fontSize: "11.5px",
-                            marginRight: "6px"
-                          }}>
-                            {cand.batch}
-                          </span>
-                          <span style={{
-                            display: "inline-block",
-                            padding: "2px 8px",
-                            borderRadius: "4px",
-                            background: "#e0e7ff",
-                            color: "#3730a3",
-                            fontWeight: 700,
-                            fontSize: "11.5px"
-                          }}>
-                            {cand.assignedSet}
-                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "5px" }}>
+                            <span style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              background: (cand.examDate || todayIst) === todayIst ? "#ecfdf5" : "#f1f5f9",
+                              color: (cand.examDate || todayIst) === todayIst ? "#017846" : "#475569",
+                              border: (cand.examDate || todayIst) === todayIst ? "1px solid #a7f3d0" : "1px solid #e2e8f0",
+                              fontWeight: 700,
+                              fontSize: "11px"
+                            }}>
+                              <Calendar size={11} />
+                              {cand.examDate ? ((cand.examDate === todayIst) ? `Today (${formatDateShort(cand.examDate)})` : formatDateShort(cand.examDate)) : `Today (${formatDateShort(todayIst)})`}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              background: "#f1f5f9",
+                              color: "#334155",
+                              fontWeight: 600,
+                              fontSize: "11.5px"
+                            }}>
+                              {cand.batch}
+                            </span>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              background: "#e0e7ff",
+                              color: "#3730a3",
+                              fontWeight: 700,
+                              fontSize: "11.5px"
+                            }}>
+                              {cand.assignedSet}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Live Status */}

@@ -3,7 +3,7 @@ import { getCandidateDepartments, type DepartmentDto } from "../../services/api"
 
 interface DepartmentSelectorProps {
   value: string;
-  onChange: (deptName: string, deptId?: number) => void;
+  onChange: (deptName: string, deptId?: number, category?: "TECHNICAL" | "NON_TECHNICAL") => void;
   error?: string;
   disabled?: boolean;
 }
@@ -51,7 +51,10 @@ export default function DepartmentSelector({
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedName = e.target.value;
     const matched = departments.find(d => d.name === selectedName);
-    onChange(selectedName, matched ? matched.id : undefined);
+    const cat = matched 
+      ? ((matched.category || "").toUpperCase() === "NON_TECHNICAL" ? "NON_TECHNICAL" : "TECHNICAL") 
+      : undefined;
+    onChange(selectedName, matched ? matched.id : undefined, cat);
   };
 
   const technicalDepts = departments.filter(d => (d.category || "").toUpperCase() !== "NON_TECHNICAL");

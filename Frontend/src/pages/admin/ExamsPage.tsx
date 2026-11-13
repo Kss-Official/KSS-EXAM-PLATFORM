@@ -469,54 +469,213 @@ export default function ExamsPage() {
 
       {/* Exam Details Modal */}
       {selectedExam && (
-        <div className="admin-modal-backdrop" onClick={() => setSelectedExam(null)}>
-          <div className="admin-modal-box" onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "16px" }}>
-              <div>
-                <span className={`status-pill ${selectedExam.status.toLowerCase()}`} style={{ marginBottom: "6px" }}>
-                  {selectedExam.status}
-                </span>
-                <h2 style={{ margin: "4px 0 0 0", fontSize: "18px", color: "#0f172a" }}>
-                  {selectedExam.title}
-                </h2>
-                <small style={{ color: "#64748b" }}>PostgreSQL Database ID: #{selectedExam.id}</small>
+        <div 
+          className="admin-modal-backdrop" 
+          onClick={() => setSelectedExam(null)}
+        >
+          <div 
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              width: "100%",
+              maxWidth: "600px",
+              maxHeight: "90vh",
+              overflowY: "auto",
+              boxShadow: "0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.08)",
+              display: "flex",
+              flexDirection: "column",
+              animation: "adminModalScaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards"
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: "20px 24px",
+              borderBottom: "1px solid #f1f5f9",
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: "16px"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+                <div style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  background: "#EAF6EF",
+                  border: "1px solid #d1fae5",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#017846",
+                  flexShrink: 0
+                }}>
+                  <BookOpen size={22} />
+                </div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                    <span 
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                        padding: "2px 8px",
+                        borderRadius: "999px",
+                        background: selectedExam.status === "PUBLISHED" ? "#ecfdf5" : "#fef3c7",
+                        color: selectedExam.status === "PUBLISHED" ? "#047857" : "#b45309",
+                        border: selectedExam.status === "PUBLISHED" ? "1px solid #a7f3d0" : "1px solid #fde68a"
+                      }}
+                    >
+                      {selectedExam.status}
+                    </span>
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>•</span>
+                    <code style={{
+                      fontSize: "11.5px",
+                      background: "#f1f5f9",
+                      padding: "1px 6px",
+                      borderRadius: "4px",
+                      color: "#475569",
+                      fontFamily: "ui-monospace, monospace"
+                    }}>
+                      ID #{selectedExam.id}
+                    </code>
+                  </div>
+                  <h2 style={{ margin: 0, fontSize: "18px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.01em" }}>
+                    {selectedExam.title}
+                  </h2>
+                </div>
               </div>
+
               <button 
                 type="button" 
-                className="secondary" 
-                style={{ padding: "5px 7px" }} 
                 onClick={() => setSelectedExam(null)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#94a3b8",
+                  cursor: "pointer",
+                  padding: "6px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "all 0.15s ease"
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+                onMouseLeave={e => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+                title="Close"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </div>
 
-            <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.5 }}>
-              {selectedExam.description || "No description provided."}
-            </p>
+            {/* Modal Body */}
+            <div style={{ padding: "20px 24px" }}>
+              {/* Description Box */}
+              {selectedExam.description && (
+                <div style={{
+                  background: "#f8fafc",
+                  borderRadius: "10px",
+                  border: "1px solid #e2e8f0",
+                  padding: "12px 16px",
+                  marginBottom: "18px"
+                }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.04em", marginBottom: "4px" }}>
+                    Overview & Syllabus Notes
+                  </div>
+                  <p style={{ margin: 0, fontSize: "13px", color: "#334155", lineHeight: 1.5 }}>
+                    {selectedExam.description}
+                  </p>
+                </div>
+              )}
 
-            <div style={{ 
-              display: "grid", 
-              gridTemplateColumns: "repeat(2, 1fr)", 
-              gap: "12px", 
-              background: "#f8fafc", 
-              padding: "14px", 
-              borderRadius: "8px", 
-              margin: "16px 0",
-              fontSize: "12px"
-            }}>
-              <div><span style={{ color: "#64748b" }}>Timing Mode:</span> <b>{selectedExam.timingMode}</b></div>
-              <div><span style={{ color: "#64748b" }}>Duration:</span> <b>{selectedExam.durationMinutes} Minutes</b></div>
-              <div><span style={{ color: "#64748b" }}>Questions:</span> <b>{selectedExam.totalQuestions} MCQs</b></div>
-              <div><span style={{ color: "#64748b" }}>Total Marks:</span> <b>{selectedExam.totalMarks}</b></div>
-              <div><span style={{ color: "#64748b" }}>Marks per Correct:</span> <b>+{selectedExam.marksPerQuestion}</b></div>
-              <div><span style={{ color: "#64748b" }}>Negative Marks:</span> <b>{selectedExam.negativeMarks}</b></div>
-              <div><span style={{ color: "#64748b" }}>Pass Policy:</span> <b>{selectedExam.qualificationThreshold} {selectedExam.qualificationMode === "PERCENTAGE" ? "%" : "marks"}</b></div>
-              <div><span style={{ color: "#64748b" }}>Results Published:</span> <b>{selectedExam.resultsPublished ? "Yes" : "No"}</b></div>
+              {/* Specifications Grid */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "12px",
+                marginBottom: "10px"
+              }}>
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
+                    Timing Mode
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                    {selectedExam.timingMode === "DURATION_FROM_START" ? "Duration from Start (On-Demand)" : selectedExam.timingMode}
+                  </div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
+                    Exam Duration
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#017846", display: "flex", alignItems: "center", gap: "5px" }}>
+                    <Clock size={14} /> {selectedExam.durationMinutes} Minutes
+                  </div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
+                    Total Questions
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                    {selectedExam.totalQuestions} MCQs
+                  </div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
+                    Total Marks
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                    {selectedExam.totalMarks} Marks
+                  </div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
+                    Scoring Rule
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                    +{selectedExam.marksPerQuestion} Correct / -{selectedExam.negativeMarks} Wrong
+                  </div>
+                </div>
+
+                <div style={{ background: "#ffffff", border: "1px solid #e2e8f0", borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: "#64748b", letterSpacing: "0.03em", marginBottom: "3px" }}>
+                    Qualifying Pass Policy
+                  </div>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: "#166534" }}>
+                    {selectedExam.qualificationThreshold} {selectedExam.qualificationMode === "PERCENTAGE" ? "%" : "marks"} required
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "16px" }}>
-              <button className="primary" onClick={() => setSelectedExam(null)}>
+            {/* Modal Footer */}
+            <div style={{
+              padding: "16px 24px",
+              background: "#f8fafc",
+              borderTop: "1px solid #f1f5f9",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center"
+            }}>
+              <span style={{ fontSize: "12px", color: "#64748b" }}>
+                Results Published: <b style={{ color: selectedExam.resultsPublished ? "#017846" : "#64748b" }}>{selectedExam.resultsPublished ? "Yes" : "No"}</b>
+              </span>
+              <button 
+                type="button"
+                className="primary" 
+                onClick={() => setSelectedExam(null)}
+                style={{
+                  padding: "8px 20px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  borderRadius: "8px"
+                }}
+              >
                 Close
               </button>
             </div>

@@ -726,24 +726,26 @@
 .admin-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
-  backdrop-filter: blur(2px);
-  z-index: 100;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: 24px;
 }
 
 .admin-modal-box {
   background: #ffffff;
-  border-radius: 14px;
+  border-radius: 16px;
   width: 100%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25), 0 0 0 1px rgba(15, 23, 42, 0.08);
   padding: 24px;
+  position: relative;
 }
 
 /* Responsive Media Queries */
@@ -1494,21 +1496,19 @@
 
 /* Page Transition Enter Animation */
 .admin-page-transition-wrap {
-  animation: adminPageFadeSlide 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: opacity, transform;
+  animation: adminPageFadeIn 0.18s ease-out forwards;
+  will-change: opacity;
   display: flex;
   flex-direction: column;
   width: 100%;
 }
 
-@keyframes adminPageFadeSlide {
+@keyframes adminPageFadeIn {
   0% {
     opacity: 0;
-    transform: translateY(6px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 

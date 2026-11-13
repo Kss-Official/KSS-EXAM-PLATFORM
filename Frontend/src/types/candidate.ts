@@ -10,6 +10,7 @@ export interface CandidateProfile {
   email: string;
   department: Department;
   departmentId?: number;
+  departmentCategory?: "TECHNICAL" | "NON_TECHNICAL";
   collegeName?: string;
   collegeId?: number;
   candidateId?: string;

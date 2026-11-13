@@ -730,7 +730,7 @@ export default function CandidateExamPage({
           />
           <div className="exam-dept-pill">
             <BookOpen size={13} />
-            <span>{session.profile.department || "Development"} — Assessment</span>
+            <span>{session.profile.examTitle || (session.profile.department ? `${session.profile.department} — Assessment` : "Assessment")}</span>
           </div>
         </div>
 

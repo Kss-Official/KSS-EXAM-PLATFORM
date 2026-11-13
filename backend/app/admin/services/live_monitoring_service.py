@@ -37,11 +37,12 @@ class LiveMonitoringService:
             joinedload(ExamAttempt.exam)
         )
 
-        # Focus on active/recent sessions: IN_PROGRESS, ASSIGNED, STOPPED, DISCARDED, and today's SUBMITTED/EXPIRED
+        # Focus on active/recent sessions: IN_PROGRESS, ASSIGNED, STOPPED, DISCARDED, and recent SUBMITTED/EXPIRED (last 7 days)
         query = query.filter(
             or_(
                 ExamAttempt.status.in_(["IN_PROGRESS", "ASSIGNED", "STOPPED", "DISCARDED"]),
-                ExamAttempt.submitted_at >= now - timedelta(hours=12)
+                ExamAttempt.submitted_at >= now - timedelta(days=7),
+                ExamAttempt.submitted_at.is_(None)
             )
         )
 
@@ -83,11 +84,13 @@ class LiveMonitoringService:
             if not cand:
                 continue
 
+            # Date resolution
+            cand_date = str(cand.exam_date or "").strip()
+            if not cand_date and cand.created_at:
+                cand_date = cand.created_at.astimezone(IST).strftime("%Y-%m-%d")
+
             # Optional date / slot filtering
             if date and date != "ALL":
-                cand_date = str(cand.exam_date or "").strip()
-                if not cand_date and cand.created_at:
-                    cand_date = cand.created_at.astimezone(IST).strftime("%Y-%m-%d")
                 if cand_date != date:
                     continue
 
@@ -125,6 +128,7 @@ class LiveMonitoringService:
                     department=cand.department.name if cand.department else "Unassigned",
                     college=cand.college.name if cand.college else "-",
                     batch=cand.batch or "Slot 1",
+                    examDate=cand_date,
                     assignedSet=cand.assigned_set or (a.question_set.set_code if a.question_set else "Set A"),
                     attemptId=a.id,
                     status=a.status,

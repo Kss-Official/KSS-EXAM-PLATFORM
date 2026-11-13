@@ -28,6 +28,7 @@ export default function CandidateEntryPage({
   const [name, setName] = useState("");
   const [department, setDepartment] = useState<Department | "">("");
   const [departmentId, setDepartmentId] = useState<number | undefined>(undefined);
+  const [departmentCategory, setDepartmentCategory] = useState<"TECHNICAL" | "NON_TECHNICAL" | undefined>(undefined);
   const [email, setEmail] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -126,6 +127,7 @@ export default function CandidateEntryPage({
         email: verifyRes.email || email.trim().toLowerCase(),
         department: (department as Department),
         departmentId: departmentId,
+        departmentCategory: (verifyRes.departmentCategory as ("TECHNICAL" | "NON_TECHNICAL")) || departmentCategory,
         collegeName: verifyRes.collegeName,
         candidateId: verifyRes.registrationNumber || "CAND-001",
         dbCandidateId: verifyRes.candidateId,
@@ -332,9 +334,10 @@ export default function CandidateEntryPage({
               </label>
               <DepartmentSelector
                 value={department}
-                onChange={(dept, id) => {
+                onChange={(dept, id, cat) => {
                   setDepartment(dept);
                   setDepartmentId(id);
+                  setDepartmentCategory(cat);
                   setTouched((prev) => ({ ...prev, department: true }));
                   setErrors((prev) => ({ ...prev, department: "" }));
                   setServerError(null);

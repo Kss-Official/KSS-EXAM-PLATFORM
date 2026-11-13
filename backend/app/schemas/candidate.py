@@ -73,6 +73,7 @@ class CandidateVerifyResponse(CamelModel):
     candidate_name: Optional[str] = None
     email: Optional[str] = None
     department_name: Optional[str] = None
+    department_category: Optional[str] = None
     college_name: Optional[str] = None
     batch: Optional[str] = None
     exam_id: Optional[int] = None

@@ -264,6 +264,7 @@ export default function CandidatesPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newBatch, setNewBatch] = useState("Slot 1");
   const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
+  const [newCollegeName, setNewCollegeName] = useState("");
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
 
   // CSV Import Modal
@@ -707,6 +708,7 @@ export default function CandidatesPage() {
         email: newEmail.trim().toLowerCase(),
         batch: newBatch || undefined,
         collegeId: newCollegeId,
+        collegeName: newCollegeName.trim() || undefined,
         departmentId: newDeptId
       });
 
@@ -726,6 +728,7 @@ export default function CandidatesPage() {
       setNewEmail("");
       setNewBatch("Slot 1");
       setNewCollegeId(undefined);
+      setNewCollegeName("");
       setNewDeptId(undefined);
     }
   };
@@ -2385,13 +2388,33 @@ export default function CandidatesPage() {
                 <input type="email" placeholder="e.g. aarav@campus.edu" value={newEmail} onChange={e => setNewEmail(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
               </div>
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600 }}>Affiliated College *</label>
-                <select value={newCollegeId || ""} onChange={e => setNewCollegeId(e.target.value ? Number(e.target.value) : undefined)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
-                  <option value="">-- Select College --</option>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Affiliated College</label>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>Optional</span>
+                </div>
+                <input 
+                  type="text" 
+                  list="colleges-datalist"
+                  placeholder="Type college name or select from list..." 
+                  value={newCollegeName} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setNewCollegeName(val);
+                    const matched = colleges.find(c => 
+                      c.name.toLowerCase() === val.trim().toLowerCase() || 
+                      (c.code && c.code.toLowerCase() === val.trim().toLowerCase())
+                    );
+                    setNewCollegeId(matched ? matched.id : undefined);
+                  }} 
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px" }} 
+                />
+                <datalist id="colleges-datalist">
                   {colleges.map(c => (
-                    <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ""}{c.name}</option>
+                    <option key={c.id} value={c.name}>
+                      {c.code ? `[${c.code}] ` : ""}{c.name}
+                    </option>
                   ))}
-                </select>
+                </datalist>
               </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Academic Department / Specialization Track</label>

@@ -467,9 +467,23 @@ class CandidateService:
         college = None
         if dto.college_id:
             college = db.query(College).filter(College.id == dto.college_id).first()
-        elif dto.college_name:
+        elif dto.college_name and dto.college_name.strip():
             cname = dto.college_name.strip()
             college = db.query(College).filter(func.lower(College.name) == cname.lower()).first()
+            if not college:
+                code_parts = [p for p in cname.split() if p]
+                if len(code_parts) == 1:
+                    code_cand = code_parts[0][:8].upper()
+                else:
+                    code_cand = "".join(p[0] for p in code_parts)[:8].upper()
+                code_cand = "".join(ch for ch in code_cand if ch.isalnum() or ch == "_")
+                if not code_cand:
+                    code_cand = "CLG"
+                if db.query(College).filter(College.code == code_cand).first():
+                    code_cand = f"{code_cand[:5]}_{abs(hash(cname)) % 1000}"
+                college = College(name=cname, code=code_cand, active=True, created_at=datetime.now(timezone.utc))
+                db.add(college)
+                db.flush()
 
         IST = timezone(timedelta(hours=5, minutes=30))
         today_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
