@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional, Union
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, UploadFile, File, Body, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -79,10 +80,11 @@ def create_candidate(
 @router.post("/batch")
 def import_candidates_batch(
     file: UploadFile = File(...),
+    exam_date: Optional[str] = Query(None, description="Target exam date (YYYY-MM-DD)"),
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return CandidateService.import_candidates_csv_sync(db, file, current_user.email)
+    return CandidateService.import_candidates_csv_sync(db, file, current_user.email, exam_date=exam_date)
 
 @router.post("/{candidate_id}/assign")
 def assign_candidate(
@@ -268,6 +270,33 @@ def update_candidate(
 ):
     """Update candidate profile, department, batch slot, and scheduled exam date."""
     return CandidateService.update_candidate(db, candidate_id, dto, current_user.email)
+
+
+class BatchDeleteCandidatesRequest(BaseModel):
+    candidate_ids: List[int]
+
+
+@router.delete("/{candidate_id}")
+def delete_candidate(
+    candidate_id: int,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a single candidate and all associated records."""
+    CandidateService.delete_candidate(db, candidate_id, current_user.email)
+    return {"success": True, "message": "Candidate deleted successfully"}
+
+
+@router.post("/batch-delete")
+def batch_delete_candidates(
+    req: BatchDeleteCandidatesRequest,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete multiple candidates in batch."""
+    result = CandidateService.batch_delete_candidates(db, req.candidate_ids, current_user.email)
+    return {"success": True, **result}
+
 
 
 

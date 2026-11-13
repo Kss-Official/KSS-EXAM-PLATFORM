@@ -25,7 +25,8 @@ import {
   CalendarDays,
   Edit2,
   Save,
-  X
+  X,
+  Trash2
 } from "lucide-react";
 import { useRouter } from "../../router";
 import { 
@@ -42,6 +43,8 @@ import {
   getCandidateSlotCounts,
   getSlotTimings,
   updateSlotTimings,
+  deleteCandidate,
+  batchDeleteCandidates,
   type SlotTimingsConfig,
   type CandidateDto, 
   type DepartmentDto,
@@ -262,6 +265,7 @@ export default function CandidatesPage() {
   const [newRegNum, setNewRegNum] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newExamDate, setNewExamDate] = useState<string>(todayIst);
   const [newBatch, setNewBatch] = useState("Slot 1");
   const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
   const [newCollegeName, setNewCollegeName] = useState("");
@@ -269,6 +273,7 @@ export default function CandidatesPage() {
 
   // CSV Import Modal
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [csvExamDate, setCsvExamDate] = useState<string>(todayIst);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadingCsv, setUploadingCsv] = useState(false);
 
@@ -304,6 +309,55 @@ export default function CandidatesPage() {
     reason: "",
     loading: false
   });
+
+  // Single Candidate Delete state
+  const [candidateToDelete, setCandidateToDelete] = useState<CandidateDto | null>(null);
+  const [isDeletingSingle, setIsDeletingSingle] = useState(false);
+
+  // Batch Candidates Delete state
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+
+  const handleConfirmSingleDelete = async () => {
+    if (!candidateToDelete) return;
+    try {
+      setIsDeletingSingle(true);
+      await deleteCandidate(candidateToDelete.id);
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(candidateToDelete.id);
+        return next;
+      });
+      setCandidateToDelete(null);
+      setNotice({ text: `Successfully deleted candidate ${candidateToDelete.fullName}.`, type: "success" });
+      fetchPage1();
+      loadAvailableDates();
+      refreshSlotCounts(selectedDate);
+    } catch (err: any) {
+      setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to delete candidate", type: "error" });
+    } finally {
+      setIsDeletingSingle(false);
+    }
+  };
+
+  const handleConfirmBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      setIsDeletingBatch(true);
+      const ids = Array.from(selectedIds);
+      const res = await batchDeleteCandidates(ids);
+      setShowBatchDeleteModal(false);
+      setSelectedIds(new Set());
+      setNotice({ text: `Successfully deleted ${res.deleted || ids.length} candidate(s).`, type: "success" });
+      fetchPage1();
+      loadAvailableDates();
+      refreshSlotCounts(selectedDate);
+    } catch (err: any) {
+      setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to delete selected candidates", type: "error" });
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
 
   // Helper to load cached or persistent slot timings
   const getInitialSlotTimings = (): SlotTimingsConfig => {
@@ -717,6 +771,7 @@ export default function CandidatesPage() {
     const regUpper = newRegNum.trim() ? newRegNum.trim().toUpperCase() : `CAND-${Date.now().toString().slice(-6)}`;
 
     try {
+      const targetDate = newExamDate.trim() || todayIst;
       const created = await createCandidate({
         registrationNumber: regUpper,
         fullName: newName.trim(),
@@ -724,15 +779,19 @@ export default function CandidatesPage() {
         batch: newBatch || undefined,
         collegeId: newCollegeId,
         collegeName: newCollegeName.trim() || undefined,
-        departmentId: newDeptId
+        departmentId: newDeptId,
+        examDate: targetDate
       });
 
       setCandidates(prev => [created, ...prev]);
       setTotalCandidates(prev => prev + 1);
       setNotice({
-        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL under ${newBatch || "Unassigned"}.`,
+        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully for ${targetDate} under ${newBatch || "Unassigned"}.`,
         type: "success"
       });
+      fetchPage1();
+      loadAvailableDates();
+      refreshSlotCounts(selectedDate);
     } catch (err: unknown) {
       const errorObj = err as Error;
       setNotice({ text: "Candidate registration failed: " + errorObj.message, type: "error" });
@@ -753,9 +812,10 @@ export default function CandidatesPage() {
     if (!csvFile) return;
     setUploadingCsv(true);
     try {
-      const res = await uploadCandidatesCsv(csvFile);
+      const targetDate = csvExamDate.trim() || todayIst;
+      const res = await uploadCandidatesCsv(csvFile, targetDate);
       setNotice({
-        text: `Roster processed successfully. Imported ${res.totalImported} candidates.`,
+        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate}.`,
         type: "success"
       });
       setIsCsvModalOpen(false);
@@ -948,7 +1008,10 @@ export default function CandidatesPage() {
           <button 
             type="button" 
             className="secondary" 
-            onClick={() => setIsCsvModalOpen(true)}
+            onClick={() => {
+              setCsvExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setIsCsvModalOpen(true);
+            }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <FileText size={15} color="#2563EB" /> Add Document
@@ -956,7 +1019,10 @@ export default function CandidatesPage() {
           <button 
             type="button" 
             className="primary" 
-            onClick={() => setIsNewModalOpen(true)}
+            onClick={() => {
+              setNewExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setIsNewModalOpen(true);
+            }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <PlusCircle size={15} /> Add Candidate
@@ -1908,6 +1974,27 @@ export default function CandidatesPage() {
 
             <button
               type="button"
+              onClick={() => setShowBatchDeleteModal(true)}
+              style={{
+                backgroundColor: "#dc2626",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 4px rgba(220, 38, 38, 0.25)"
+              }}
+            >
+              <Trash2 size={14} /> Delete Selected ({selectedIds.size})
+            </button>
+
+            <button
+              type="button"
               onClick={() => setSelectedIds(new Set())}
               style={{
                 background: "#ffffff",
@@ -2058,6 +2145,7 @@ export default function CandidatesPage() {
                   </div>
                 </th>
                 <th>Account Status</th>
+                <th style={{ width: "90px", textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2073,11 +2161,12 @@ export default function CandidatesPage() {
                     <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
                     <td style={{ width: "220px" }}><div className="skeleton-cell" style={{ width: "180px" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
+                    <td style={{ width: "90px", textAlign: "center" }}><div className="skeleton-cell" style={{ width: "32px", margin: "0 auto" }} /></td>
                   </tr>
                 ))
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
@@ -2334,6 +2423,35 @@ export default function CandidatesPage() {
                           {formatStatus(cand.status)}
                         </span>
                       </td>
+                      <td style={{ textAlign: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setCandidateToDelete(cand)}
+                          title="Delete Candidate"
+                          style={{
+                            backgroundColor: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: "6px",
+                            padding: "6px 9px",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.15s ease"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#dc2626";
+                            e.currentTarget.style.color = "#ffffff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "#fee2e2";
+                            e.currentTarget.style.color = "#dc2626";
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -2441,6 +2559,19 @@ export default function CandidatesPage() {
                 </select>
               </div>
               <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Scheduled Exam Date *</label>
+                <input 
+                  type="date" 
+                  value={newExamDate} 
+                  onChange={e => setNewExamDate(e.target.value)} 
+                  required 
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
+                />
+                <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
+                  Candidate will be enrolled for: <strong>{formatDateShort(newExamDate)} {formatDateYear(newExamDate)}</strong>
+                </small>
+              </div>
+              <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Exam Slot / Batch *</label>
                 <select 
                   value={newBatch} 
@@ -2477,6 +2608,21 @@ export default function CandidatesPage() {
             <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 14px 0" }}>
               Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode]</code>
             </p>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Scheduled Exam Date for Imported Candidates *
+              </label>
+              <input 
+                type="date" 
+                value={csvExamDate} 
+                onChange={e => setCsvExamDate(e.target.value)} 
+                required 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff" }} 
+              />
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                All imported examinees in this document will be scheduled for <strong>{formatDateShort(csvExamDate)} {formatDateYear(csvExamDate)}</strong>
+              </small>
+            </div>
             <input 
               type="file" 
               accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
@@ -2796,6 +2942,142 @@ export default function CandidatesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Single Candidate Delete Confirmation Modal */}
+      {candidateToDelete && (
+        <div className="admin-modal-backdrop" onClick={() => !isDeletingSingle && setCandidateToDelete(null)}>
+          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "460px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Trash2 size={18} /> Delete Candidate
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => !isDeletingSingle && setCandidateToDelete(null)} 
+                disabled={isDeletingSingle}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px", marginBottom: "16px" }}>
+              <p style={{ margin: "0 0 8px 0", fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>
+                Are you sure you want to permanently delete this candidate?
+              </p>
+              <div style={{ fontSize: "12.5px", color: "#7f1d1d", lineHeight: "1.6" }}>
+                <div><strong>Name:</strong> {candidateToDelete.fullName}</div>
+                <div><strong>Email:</strong> {candidateToDelete.email}</div>
+                <div><strong>Reg No:</strong> {candidateToDelete.registrationNumber || "N/A"}</div>
+                <div><strong>Slot:</strong> {candidateToDelete.batch || "Slot 1"}</div>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 18px 0", lineHeight: "1.5" }}>
+              This will permanently delete the candidate and purge all associated exam attempts, answer submissions, access codes, and proctoring alerts from the database. This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setCandidateToDelete(null)}
+                disabled={isDeletingSingle}
+                style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSingleDelete}
+                disabled={isDeletingSingle}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "8px 18px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: isDeletingSingle ? "not-allowed" : "pointer"
+                }}
+              >
+                {isDeletingSingle ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeletingSingle ? "Deleting..." : "Yes, Delete Candidate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Modal */}
+      {showBatchDeleteModal && (
+        <div className="admin-modal-backdrop" onClick={() => !isDeletingBatch && setShowBatchDeleteModal(false)}>
+          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "480px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Trash2 size={18} /> Delete Selected Candidates
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => !isDeletingBatch && setShowBatchDeleteModal(false)} 
+                disabled={isDeletingBatch}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "14px", marginBottom: "16px" }}>
+              <p style={{ margin: "0 0 6px 0", fontSize: "13.5px", fontWeight: 700, color: "#991b1b" }}>
+                Permanently delete {selectedIds.size} selected candidate(s)?
+              </p>
+              <p style={{ margin: 0, fontSize: "12.5px", color: "#7f1d1d" }}>
+                You have selected <strong>{selectedIds.size} candidates</strong> for batch deletion.
+              </p>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 18px 0", lineHeight: "1.5" }}>
+              All selected examinees, along with their exam attempts, recorded answers, access credentials, and proctoring logs, will be permanently removed from the cloud database. This action cannot be reversed.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowBatchDeleteModal(false)}
+                disabled={isDeletingBatch}
+                style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchDelete}
+                disabled={isDeletingBatch}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "8px 18px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: isDeletingBatch ? "not-allowed" : "pointer"
+                }}
+              >
+                {isDeletingBatch ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeletingBatch ? `Deleting ${selectedIds.size}...` : `Yes, Delete ${selectedIds.size} Candidates`}
+              </button>
+            </div>
           </div>
         </div>
       )}

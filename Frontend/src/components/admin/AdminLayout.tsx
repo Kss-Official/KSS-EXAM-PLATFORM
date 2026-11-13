@@ -175,24 +175,20 @@ export default function AdminLayout({
             onClick={() => setMobileMenuOpen(false)}
             style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", textDecoration: "none", width: "100%" }}
           >
-            {/* Crisp High-Res Brand Card */}
+            {/* Direct High-Res Brand Logo matching 3rd image */}
             <div style={{
-              background: "#ffffff",
-              borderRadius: "10px",
-              padding: "7px 12px",
-              width: "100%",
-              boxSizing: "border-box",
-              boxShadow: "0 4px 14px rgba(0, 0, 0, 0.28)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              border: "1px solid rgba(255, 255, 255, 0.15)"
+              width: "100%",
+              padding: "4px 0"
             }}>
               <img 
                 src={talentiseLogo} 
                 alt="Talentise Global" 
                 style={{ 
-                  height: "36px", 
+                  height: "46px", 
+                  width: "auto",
                   maxWidth: "100%", 
                   objectFit: "contain",
                   display: "block" 

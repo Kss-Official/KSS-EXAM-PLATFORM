@@ -203,27 +203,13 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
       >
         {/* Brand & Platform Header */}
         <div style={{ textAlign: "center", marginBottom: "24px" }}>
-          <div 
-            style={{
-              width: "64px",
-              height: "64px",
-              borderRadius: "18px",
-              background: "#ffffff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 14px",
-              boxShadow: "0 10px 25px rgba(37, 99, 235, 0.35)",
-              border: "1px solid rgba(255, 255, 255, 0.2)",
-              padding: "6px"
-            }}
-          >
-            <img src={talentiseLogo} alt="Talentise Global" style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "14px" }}>
+            <img 
+              src={talentiseLogo} 
+              alt="Talentise Global" 
+              style={{ height: "64px", maxWidth: "260px", objectFit: "contain", display: "block" }} 
+            />
           </div>
-
-          <h1 style={{ margin: "0 0 6px 0", fontSize: "24px", fontWeight: 800, color: "#ffffff", letterSpacing: "0.2px" }}>
-            TALENTISE <span style={{ color: "#FF5722" }}>GLOBAL</span>
-          </h1>
           <p style={{ margin: 0, fontSize: "12.5px", color: "#94a3b8" }}>
             Examination Administration Console · Super Administrator Access
           </p>

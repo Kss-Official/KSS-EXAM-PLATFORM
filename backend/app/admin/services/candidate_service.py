@@ -550,7 +550,49 @@ class CandidateService:
         return cls._to_dto(cand)
 
     @classmethod
-    def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str) -> Dict[str, Any]:
+    def delete_candidate(cls, db: Session, candidate_id: int, performed_by: str) -> bool:
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+        reg = cand.registration_number
+        name = cand.full_name
+        db.delete(cand)
+        db.add(AuditLog(
+            action="DELETE_CANDIDATE",
+            entity_type="Candidate",
+            entity_id=str(candidate_id),
+            performed_by=performed_by,
+            details=f"Deleted candidate: {name} ({reg})"
+        ))
+        db.commit()
+        return True
+
+    @classmethod
+    def batch_delete_candidates(cls, db: Session, candidate_ids: List[int], performed_by: str) -> Dict[str, Any]:
+        if not candidate_ids:
+            return {"deleted": 0, "message": "No candidates specified for deletion"}
+
+        candidates = db.query(Candidate).filter(Candidate.id.in_(candidate_ids)).all()
+        count = len(candidates)
+        if count == 0:
+            return {"deleted": 0, "message": "No matching candidates found"}
+
+        for cand in candidates:
+            db.delete(cand)
+
+        db.add(AuditLog(
+            action="BATCH_DELETE_CANDIDATES",
+            entity_type="Candidate",
+            entity_id=f"count:{count}",
+            performed_by=performed_by,
+            details=f"Batch deleted {count} candidates"
+        ))
+        db.commit()
+        return {"deleted": count, "message": f"Successfully deleted {count} candidates"}
+
+    @classmethod
+    def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str, exam_date: Optional[str] = None) -> Dict[str, Any]:
         """
         Imports candidates in bulk from uploaded PDF, Excel (.xlsx/.xls), Word (.docx), or CSV file.
         Dynamically resolves column mappings (RegNumber/Sl.No, FullName, Email, College/Department),
@@ -845,13 +887,14 @@ class CandidateService:
                         dept_map[new_dept.code.upper()] = dept_id
 
             today_str = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+            cand_exam_date = (exam_date or "").strip() or today_str
             c = Candidate(
                 registration_number=reg_num,
                 full_name=full_name,
                 email=email,
                 department_id=dept_id,
                 batch="Slot 1",
-                exam_date=today_str,
+                exam_date=cand_exam_date,
                 status="ACTIVE",
                 created_at=datetime.now(timezone.utc)
             )

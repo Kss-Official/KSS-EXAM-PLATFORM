@@ -951,7 +951,7 @@ export async function assignCandidateBatch(
   });
 }
 
-export async function uploadCandidatesCsv(file: File): Promise<{
+export async function uploadCandidatesCsv(file: File, examDate?: string): Promise<{
   success: boolean;
   totalImported: number;
   errorsCount: number;
@@ -961,7 +961,8 @@ export async function uploadCandidatesCsv(file: File): Promise<{
   const formData = new FormData();
   formData.append("file", file);
 
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch`;
+  const query = examDate ? `?exam_date=${encodeURIComponent(examDate)}` : "";
+  const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch${query}`;
   const headers = new Headers();
   const token = localStorage.getItem("examsecure_auth_token");
   if (token) {
@@ -1109,6 +1110,20 @@ export async function batchRescheduleCandidateSlot(
       })
     }
   );
+}
+
+export async function deleteCandidate(candidateId: number): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>(`admin/candidates/${candidateId}`, {
+    method: "DELETE"
+  });
+}
+
+export async function batchDeleteCandidates(candidateIds: number[]): Promise<{ success: boolean; deleted: number; message: string }> {
+  return request<{ success: boolean; deleted: number; message: string }>("admin/candidates/batch-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidate_ids: candidateIds })
+  });
 }
 
 export interface SlotInfo {
