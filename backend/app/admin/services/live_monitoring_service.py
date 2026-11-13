@@ -282,11 +282,11 @@ class LiveMonitoringService:
         message: str,
         severity: str = "MEDIUM"
     ) -> ProctorAlert:
-        # Check for duplicate alerts within last 5 seconds to avoid flooding
+        # Check for duplicate identical alerts within last 2 seconds to avoid network jitter flooding
         recent = db.query(ProctorAlert).filter(
             ProctorAlert.candidate_id == candidate_id,
-            ProctorAlert.alert_type == alert_type,
-            ProctorAlert.created_at >= datetime.now(timezone.utc) - timedelta(seconds=5)
+            ProctorAlert.alert_type == alert_type.upper(),
+            ProctorAlert.created_at >= datetime.now(timezone.utc) - timedelta(seconds=2)
         ).first()
 
         if recent:

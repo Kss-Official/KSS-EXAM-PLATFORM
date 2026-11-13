@@ -283,7 +283,7 @@ class CandidateExamService:
 
             # 2. Strict Slot Validation for Today's Exam:
             from app.core.slot_config import get_slot_timings_config
-            slot_cfg = get_slot_timings_config()
+            slot_cfg = get_slot_timings_config(db)
             s1_info = slot_cfg.get("slot1", {})
             s2_info = slot_cfg.get("slot2", {})
             s3_info = slot_cfg.get("slot3", {})
@@ -680,7 +680,7 @@ class CandidateExamService:
                         )
 
                     from app.core.slot_config import get_slot_timings_config
-                    slot_cfg = get_slot_timings_config()
+                    slot_cfg = get_slot_timings_config(db)
                     s1_info = slot_cfg.get("slot1", {})
                     s2_info = slot_cfg.get("slot2", {})
                     s3_info = slot_cfg.get("slot3", {})

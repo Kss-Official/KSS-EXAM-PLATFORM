@@ -182,7 +182,16 @@ export default function ResultsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [attemptToReset, setAttemptToReset] = useState<ExamResultDto | null>(null);
   const [isResetting, setIsResetting] = useState(false);
-  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig | null>(null);
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig | null>(() => {
+    try {
+      const cached = localStorage.getItem("examsecure_slot_timings_v1");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.slot1 && parsed?.slot2) return parsed;
+      }
+    } catch {}
+    return null;
+  });
 
   const fetchExams = async () => {
     try {

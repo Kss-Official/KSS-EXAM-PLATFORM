@@ -208,10 +208,10 @@ def batch_reschedule_candidate_slot(
     )
 
 @router.get("/slot-timings")
-def get_slot_timings():
-    """Retrieve the current examination slot timings and display metadata."""
+def get_slot_timings(db: Session = Depends(get_db)):
+    """Retrieve the current examination slot timings and display metadata directly from PostgreSQL."""
     from app.core.slot_config import get_slot_timings_config
-    return get_slot_timings_config()
+    return get_slot_timings_config(db=db)
 
 @router.put("/slot-timings")
 def update_slot_timings(
@@ -219,9 +219,9 @@ def update_slot_timings(
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    """Update examination slot timings (startTime, cutoffTime, custom labels) in both persistent configuration and PostgreSQL DB."""
+    """Update examination slot timings in PostgreSQL system_settings and synchronize exam_slots table."""
     from app.core.slot_config import update_slot_timings_config
-    cfg = update_slot_timings_config(payload)
+    cfg = update_slot_timings_config(payload, db=db)
 
     # Synchronize PostgreSQL exam_slots table for active examinations
     try:

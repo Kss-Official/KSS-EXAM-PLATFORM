@@ -14,6 +14,7 @@ from app.models.proctor import ProctorAlert
 from app.models.coding import (
     CodingExam, CodingQuestion, CodingTestCase, CodingAttempt, CodingSubmission
 )
+from app.models.setting import SystemSetting
 
 __all__ = [
     "Base",
@@ -40,4 +41,5 @@ __all__ = [
     "CodingTestCase",
     "CodingAttempt",
     "CodingSubmission",
+    "SystemSetting",
 ]

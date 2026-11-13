@@ -305,54 +305,69 @@ export default function CandidatesPage() {
     loading: false
   });
 
+  // Helper to load cached or persistent slot timings
+  const getInitialSlotTimings = (): SlotTimingsConfig => {
+    try {
+      const cached = localStorage.getItem("examsecure_slot_timings_v1");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.slot1 && parsed?.slot2) return parsed;
+      }
+    } catch {}
+    return {
+      slot1: {
+        header: "Slot 1 • 10:00 AM",
+        sub: "Entry: 10:00 AM – 12:00 PM IST",
+        btn: "Slot 1 (10:00 AM)",
+        startTime: "10:00 AM",
+        cutoffTime: "12:00 PM"
+      },
+      slot2: {
+        header: "Slot 2 • 1:00 PM",
+        sub: "Entry: 1:00 PM – 3:00 PM IST",
+        btn: "Slot 2 (1:00 PM)",
+        startTime: "1:00 PM",
+        cutoffTime: "3:00 PM"
+      },
+      slot3: {
+        header: "Slot 3 • 4:00 PM",
+        sub: "Entry: 4:00 PM – 6:00 PM IST",
+        btn: "Slot 3 (4:00 PM)",
+        startTime: "4:00 PM",
+        cutoffTime: "6:00 PM"
+      }
+    };
+  };
+
   // Slot Timings Configuration State
-  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig>({
-    slot1: {
-      header: "Slot 1 • 11:30 AM",
-      sub: "Entry: 11:30 AM – 1:30 PM IST",
-      btn: "Slot 1 (11:30 AM)",
-      startTime: "11:30 AM",
-      cutoffTime: "1:30 PM"
-    },
-    slot2: {
-      header: "Slot 2 • 4:00 PM",
-      sub: "Entry: 4:00 – 4:30 PM IST",
-      btn: "Slot 2 (4:00 PM)",
-      startTime: "4:00 PM",
-      cutoffTime: "4:30 PM"
-    },
-    slot3: {
-      header: "Slot 3 • 6:00 PM",
-      sub: "Entry: 6:00 – 7:30 PM IST",
-      btn: "Slot 3 (6:00 PM)",
-      startTime: "6:00 PM",
-      cutoffTime: "7:30 PM"
-    }
-  });
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig>(getInitialSlotTimings);
 
   const [isEditSlotModalOpen, setIsEditSlotModalOpen] = useState(false);
-  const [editForm, setEditForm] = useState({
-    slot1StartTime: "11:30 AM",
-    slot1CutoffTime: "1:30 PM",
-    slot2StartTime: "4:00 PM",
-    slot2CutoffTime: "4:30 PM",
-    slot3StartTime: "6:00 PM",
-    slot3CutoffTime: "7:30 PM"
+  const [editForm, setEditForm] = useState(() => {
+    const init = getInitialSlotTimings();
+    return {
+      slot1StartTime: init.slot1.startTime || "10:00 AM",
+      slot1CutoffTime: init.slot1.cutoffTime || "12:00 PM",
+      slot2StartTime: init.slot2.startTime || "1:00 PM",
+      slot2CutoffTime: init.slot2.cutoffTime || "3:00 PM",
+      slot3StartTime: init.slot3?.startTime || "4:00 PM",
+      slot3CutoffTime: init.slot3?.cutoffTime || "6:00 PM"
+    };
   });
   const [savingSlotTimings, setSavingSlotTimings] = useState(false);
 
-  // Load slot timings configuration on mount
+  // Load slot timings configuration on mount directly from backend (PostgreSQL)
   useEffect(() => {
     getSlotTimings().then(cfg => {
       if (cfg && cfg.slot1 && cfg.slot2) {
         setSlotTimings(cfg);
         setEditForm({
-          slot1StartTime: cfg.slot1.startTime || "11:30 AM",
-          slot1CutoffTime: cfg.slot1.cutoffTime || "1:30 PM",
-          slot2StartTime: cfg.slot2.startTime || "4:00 PM",
-          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM",
-          slot3StartTime: cfg.slot3?.startTime || "6:00 PM",
-          slot3CutoffTime: cfg.slot3?.cutoffTime || "7:30 PM"
+          slot1StartTime: cfg.slot1.startTime || "10:00 AM",
+          slot1CutoffTime: cfg.slot1.cutoffTime || "12:00 PM",
+          slot2StartTime: cfg.slot2.startTime || "1:00 PM",
+          slot2CutoffTime: cfg.slot2.cutoffTime || "3:00 PM",
+          slot3StartTime: cfg.slot3?.startTime || "4:00 PM",
+          slot3CutoffTime: cfg.slot3?.cutoffTime || "6:00 PM"
         });
       }
     }).catch(() => {});
@@ -758,12 +773,12 @@ export default function CandidatesPage() {
 
   const openEditSlotModal = () => {
     setEditForm({
-      slot1StartTime: slotTimings.slot1.startTime || "11:30 AM",
-      slot1CutoffTime: slotTimings.slot1.cutoffTime || "1:30 PM",
-      slot2StartTime: slotTimings.slot2.startTime || "4:00 PM",
-      slot2CutoffTime: slotTimings.slot2.cutoffTime || "4:30 PM",
-      slot3StartTime: slotTimings.slot3?.startTime || "6:00 PM",
-      slot3CutoffTime: slotTimings.slot3?.cutoffTime || "7:30 PM"
+      slot1StartTime: slotTimings.slot1.startTime || "10:00 AM",
+      slot1CutoffTime: slotTimings.slot1.cutoffTime || "12:00 PM",
+      slot2StartTime: slotTimings.slot2.startTime || "1:00 PM",
+      slot2CutoffTime: slotTimings.slot2.cutoffTime || "3:00 PM",
+      slot3StartTime: slotTimings.slot3?.startTime || "4:00 PM",
+      slot3CutoffTime: slotTimings.slot3?.cutoffTime || "6:00 PM"
     });
     setIsEditSlotModalOpen(true);
   };
@@ -843,20 +858,20 @@ export default function CandidatesPage() {
   };
 
   // Dynamic slot titles and timings directly derived from persistent slot configuration
-  const s1ActiveStart = slotTimings.slot1.startTime || "11:30 AM";
-  const s1ActiveCutoff = slotTimings.slot1.cutoffTime || "1:30 PM";
+  const s1ActiveStart = slotTimings.slot1.startTime || "10:00 AM";
+  const s1ActiveCutoff = slotTimings.slot1.cutoffTime || "12:00 PM";
   const slot1Header = `Slot 1 • ${s1ActiveStart}`;
   const slot1Sub = `Entry: ${s1ActiveStart} – ${s1ActiveCutoff} IST`;
   const slot1Btn = `Slot 1 (${s1ActiveStart})`;
 
-  const s2ActiveStart = slotTimings.slot2.startTime || "4:00 PM";
-  const s2ActiveCutoff = slotTimings.slot2.cutoffTime || "4:30 PM";
+  const s2ActiveStart = slotTimings.slot2.startTime || "1:00 PM";
+  const s2ActiveCutoff = slotTimings.slot2.cutoffTime || "3:00 PM";
   const slot2Header = `Slot 2 • ${s2ActiveStart}`;
   const slot2Sub = `Entry: ${s2ActiveStart} – ${s2ActiveCutoff} IST`;
   const slot2Btn = `Slot 2 (${s2ActiveStart})`;
 
-  const s3ActiveStart = slotTimings.slot3?.startTime || "6:00 PM";
-  const s3ActiveCutoff = slotTimings.slot3?.cutoffTime || "7:30 PM";
+  const s3ActiveStart = slotTimings.slot3?.startTime || "4:00 PM";
+  const s3ActiveCutoff = slotTimings.slot3?.cutoffTime || "6:00 PM";
   const slot3Header = `Slot 3 • ${s3ActiveStart}`;
   const slot3Sub = `Entry: ${s3ActiveStart} – ${s3ActiveCutoff} IST`;
   const slot3Btn = `Slot 3 (${s3ActiveStart})`;

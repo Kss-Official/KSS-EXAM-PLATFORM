@@ -155,12 +155,12 @@ export default function LiveMonitoringPage() {
     fetchData();
   }, [fetchData]);
 
-  // Reactive polling loop (every 3.5 seconds) for real-time synchronization
+  // Reactive polling loop (every 1.8 seconds) for true real-time synchronization
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       fetchData(true);
-    }, 3500);
+    }, 1800);
     return () => clearInterval(interval);
   }, [autoRefresh, fetchData]);
 

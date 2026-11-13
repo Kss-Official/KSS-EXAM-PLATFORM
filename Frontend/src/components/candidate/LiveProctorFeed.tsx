@@ -36,13 +36,18 @@ export default function LiveProctorFeed() {
   useEffect(() => {
     if (severity === "red" || (severity === "amber" && hasNoPerson)) {
       const now = Date.now();
-      if (now - lastProctorReportRef.current > 15000) {
+      // Responsive 7-second cooldown between consecutive webcam alerts
+      if (now - lastProctorReportRef.current > 7000) {
         lastProctorReportRef.current = now;
         try {
-          const raw = sessionStorage.getItem("examsecure_candidate_session") || localStorage.getItem("examsecure_candidate_session");
+          // Check versioned storage key and legacy fallback
+          const raw = localStorage.getItem("secureexam:candidate-session:v1") || 
+                      sessionStorage.getItem("secureexam:candidate-session:v1") || 
+                      sessionStorage.getItem("examsecure_candidate_session") || 
+                      localStorage.getItem("examsecure_candidate_session");
           if (raw) {
             const s = JSON.parse(raw);
-            const cid = s.profile?.dbCandidateId;
+            const cid = s.profile?.dbCandidateId || (s.profile?.candidateId && !isNaN(Number(s.profile.candidateId)) ? Number(s.profile.candidateId) : undefined);
             const aid = s.backendAttemptId;
             if (cid) {
               const alertType = hasSecondPerson ? "MULTI_FACE" : (hasNoPerson ? "NO_FACE" : "PROCTOR_MOVEMENT");

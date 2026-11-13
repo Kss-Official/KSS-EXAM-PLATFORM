@@ -412,11 +412,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     adminGetCache.clear();
   }
 
-  // Fast Memory SWR Cache for Admin GET calls (maxAge 15s for standard pages, 2s for live monitoring)
-  if (!isCandidateRoute && isGetMethod && options.cache !== "no-store") {
+  // Fast Memory SWR Cache for Admin GET calls (maxAge 15s for standard pages). Never cache live-monitoring routes so proctor alerts and timers are always real-time!
+  if (!isCandidateRoute && isGetMethod && !isLiveMonitoring && options.cache !== "no-store") {
     const cached = adminGetCache.get(cleanEndpoint);
-    const ttl = isLiveMonitoring ? 2000 : 15000;
-    if (cached && (Date.now() - cached.timestamp < ttl)) {
+    if (cached && (Date.now() - cached.timestamp < 15000)) {
       return Promise.resolve(cached.data as T);
     }
 
@@ -1129,15 +1128,28 @@ export interface SlotTimingsConfig {
 }
 
 export async function getSlotTimings(): Promise<SlotTimingsConfig> {
-  return request<SlotTimingsConfig>("admin/candidates/slot-timings");
+  const result = await request<SlotTimingsConfig>("admin/candidates/slot-timings", { cache: "no-store" });
+  if (result && result.slot1) {
+    try {
+      localStorage.setItem("examsecure_slot_timings_v1", JSON.stringify(result));
+    } catch {}
+  }
+  return result;
 }
 
 export async function updateSlotTimings(data: Partial<SlotTimingsConfig>): Promise<SlotTimingsConfig> {
-  return request<SlotTimingsConfig>("admin/candidates/slot-timings", {
+  const result = await request<SlotTimingsConfig>("admin/candidates/slot-timings", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data)
   });
+  adminGetCache.delete("admin/candidates/slot-timings");
+  if (result && result.slot1) {
+    try {
+      localStorage.setItem("examsecure_slot_timings_v1", JSON.stringify(result));
+    } catch {}
+  }
+  return result;
 }
 
 /* =========================================================================

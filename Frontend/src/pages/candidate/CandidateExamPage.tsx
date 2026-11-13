@@ -268,17 +268,18 @@ export default function CandidateExamPage({
     };
   }, [session?.profile?.dbCandidateId, backendAttemptId, session?.backendAttemptId, session?.deadline, examTerminated]);
 
-  // Real-time Cheating Detection: tab switches, SEB exit, fullscreen exits, suspicious key combinations
+  // Real-time Cheating Detection: tab switches, window blur, clipboard copy/paste, fullscreen exits, suspicious key combinations
   const lastAlertTimeRef = useRef<Record<string, number>>({});
   const reportCheatingAlert = useCallback(async (alertType: string, message: string, severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "HIGH") => {
-    const cid = session?.profile?.dbCandidateId;
+    const cid = session?.profile?.dbCandidateId || 
+      (session?.profile?.candidateId && !isNaN(Number(session.profile.candidateId)) ? Number(session.profile.candidateId) : undefined);
     const aid = backendAttemptId || session?.backendAttemptId;
     if (!cid) return;
 
     const now = Date.now();
     const lastTime = lastAlertTimeRef.current[alertType] || 0;
-    // Rate limit same alert type to once every 7 seconds
-    if (now - lastTime < 7000) return;
+    // Responsive 3-second cooldown per alert type to capture distinct incidents without flooding
+    if (now - lastTime < 3000) return;
     lastAlertTimeRef.current[alertType] = now;
 
     try {
@@ -292,7 +293,7 @@ export default function CandidateExamPage({
     } catch (e) {
       console.warn("[Proctor] Alert report notice:", e);
     }
-  }, [session?.profile?.dbCandidateId, backendAttemptId, session?.backendAttemptId]);
+  }, [session?.profile?.dbCandidateId, session?.profile?.candidateId, backendAttemptId, session?.backendAttemptId]);
 
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -302,13 +303,28 @@ export default function CandidateExamPage({
     };
 
     const handleWindowBlur = () => {
-      reportCheatingAlert("TAB_SWITCH", "Candidate moved window focus away from examination screen", "MEDIUM");
+      reportCheatingAlert("WINDOW_BLUR", "Candidate moved window focus away from examination screen to another app", "MEDIUM");
     };
 
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
         reportCheatingAlert("FULLSCREEN_EXIT", "Candidate exited fullscreen exam environment", "HIGH");
       }
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      reportCheatingAlert("CLIPBOARD_COPY", "Candidate attempted to copy question text to clipboard", "HIGH");
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      reportCheatingAlert("CLIPBOARD_PASTE", "Candidate attempted to paste content into examination environment", "HIGH");
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      reportCheatingAlert("RIGHT_CLICK", "Candidate attempted to open right-click context menu", "LOW");
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -328,12 +344,18 @@ export default function CandidateExamPage({
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("blur", handleWindowBlur);
     document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("contextmenu", handleContextMenu);
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleWindowBlur);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("contextmenu", handleContextMenu);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [reportCheatingAlert]);
