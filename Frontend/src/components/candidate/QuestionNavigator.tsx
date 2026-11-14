@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { X, Send, ChevronDown, ChevronRight } from "lucide-react";
 import LiveProctorFeed from "./LiveProctorFeed";
 
@@ -13,7 +13,7 @@ interface QuestionNavigatorProps {
   onRequestSubmit: () => void;
 }
 
-export default function QuestionNavigator({
+function QuestionNavigatorComponent({
   total = 0,
   currentIndex,
   answers,
@@ -197,3 +197,5 @@ export default function QuestionNavigator({
     </aside>
   );
 }
+
+export default React.memo(QuestionNavigatorComponent);

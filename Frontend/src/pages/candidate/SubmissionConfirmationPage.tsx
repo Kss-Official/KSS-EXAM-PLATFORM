@@ -113,7 +113,8 @@ export default function SubmissionConfirmationPage({
   const candidateId = receipt?.candidateId || "CAND-001";
   const department = receipt?.department || "Developer";
   const submissionStatus = getReasonLabel(receipt?.submissionReason);
-  const questionsAnswered = `${receipt?.answeredCount ?? 0} of ${receipt?.totalQuestions ?? 60}`;
+  const totalQuestionsCount = receipt?.totalQuestions ?? (receipt as any)?.total ?? 40;
+  const questionsAnswered = `${receipt?.answeredCount ?? 0} of ${totalQuestionsCount}`;
   const timeTaken = formatTimeTaken();
   const submittedAt = formatSubmittedDate(receipt?.submittedAt);
 

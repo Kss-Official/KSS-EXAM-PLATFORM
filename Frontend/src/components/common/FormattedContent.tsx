@@ -9,7 +9,7 @@ interface FormattedContentProps {
   imageUrl?: string;
 }
 
-export default function FormattedContent({ content, className = "", imageUrl }: FormattedContentProps) {
+function FormattedContentComponent({ content, className = "", imageUrl }: FormattedContentProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
 
@@ -386,4 +386,6 @@ export default function FormattedContent({ content, className = "", imageUrl }: 
     </div>
   );
 }
+
+export default React.memo(FormattedContentComponent);
 

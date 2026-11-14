@@ -36,7 +36,9 @@ export default function CandidatePortal() {
   const buildReceiptFromSession = useCallback((sess: NonNullable<ReturnType<typeof loadCandidateSession>>): SubmissionReceipt => {
     const answeredCount = Object.keys(sess?.answers || {}).length;
     const isBackend = typeof sess?.receiptId === "string" && (sess.receiptId.startsWith("SEB-") || sess.backendAttemptId !== undefined);
-    const totalQ = isBackend ? 60 : DEMO_TOTAL_QUESTIONS;
+    const totalQ = (sess?.questions && sess.questions.length > 0)
+      ? sess.questions.length
+      : ((sess as any)?.totalQuestions || 40);
     const timeTakenSeconds = sess?.timeTakenSeconds ?? 
       (sess?.submittedAt && sess?.startTime 
         ? Math.max(0, Math.round((sess.submittedAt - sess.startTime) / 1000)) 
@@ -215,6 +217,7 @@ export default function CandidatePortal() {
     if (result) {
       if (backendResult) {
         result.session.receiptId = backendResult.receiptId;
+        (result.session as any).totalQuestions = backendResult.totalQuestions || result.session.questions?.length || 40;
         result.session.score = backendResult.score;
         result.session.totalMarks = backendResult.totalMarks;
         result.session.percentage = backendResult.percentage;

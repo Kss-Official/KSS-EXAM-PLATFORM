@@ -3309,7 +3309,7 @@ select:focus-visible {
   border-radius: 12px;
   cursor: pointer;
   text-align: left;
-  transition: all 0.15s ease;
+  transition: border-color 0.1s ease, background-color 0.1s ease, box-shadow 0.1s ease;
   outline: none;
   box-sizing: border-box;
 }

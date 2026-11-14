@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Mic,
   MicOff,
@@ -11,14 +11,14 @@ import {
 } from "lucide-react";
 import { useFaceDetection } from "../../hooks/useFaceDetection";
 
-export default function LiveProctorFeed() {
+function LiveProctorFeedComponent() {
   const [isActive, setIsActive] = useState(false);
   const [hasMic, setHasMic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Intelligent multi-scenario face and room monitoring
+  // Intelligent multi-scenario face and room monitoring (smooth 1200ms cadence)
   const {
     severity,
     badgeLabel,
@@ -28,7 +28,7 @@ export default function LiveProctorFeed() {
     hasNoPerson
   } = useFaceDetection(videoRef, {
     enabled: isActive,
-    intervalMs: 180,
+    intervalMs: 1200,
   });
 
   // Automatically dispatch real-time cheating alerts to proctor admin console when suspicious webcam activity is detected
@@ -306,3 +306,5 @@ export default function LiveProctorFeed() {
     </div>
   );
 }
+
+export default React.memo(LiveProctorFeedComponent);

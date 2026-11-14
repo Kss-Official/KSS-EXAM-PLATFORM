@@ -117,6 +117,8 @@ export default function CandidateExamPage({
   // Debounce refs to prevent high-frequency request storm on rapid option clicking
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<{ aid: number; qNum: number; qId: number; optId: number; cid?: number | null } | null>(null);
+  const pendingQueueRef = useRef(pendingQueue);
+  pendingQueueRef.current = pendingQueue;
 
   // Flush any pending debounced save immediately to avoid lost answers on navigate/submit
   const flushDebouncedSave = useCallback(async () => {
@@ -156,10 +158,11 @@ export default function CandidateExamPage({
     const flushPendingQueue = async () => {
       const aid = backendAttemptId || session?.backendAttemptId;
       const cid = session?.profile?.dbCandidateId;
-      if (!aid || pendingQueue.length === 0) return;
+      const currentQueue = pendingQueueRef.current;
+      if (!aid || currentQueue.length === 0) return;
 
-      const itemsToSync = [...pendingQueue];
-      const remaining: typeof pendingQueue = [];
+      const itemsToSync = [...currentQueue];
+      const remaining: typeof currentQueue = [];
 
       for (const item of itemsToSync) {
         try {
@@ -197,7 +200,7 @@ export default function CandidateExamPage({
     window.addEventListener("offline", handleOffline);
 
     const intervalId = setInterval(async () => {
-      if (pendingQueue.length > 0) {
+      if (pendingQueueRef.current.length > 0) {
         try {
           await fetch("/api/health", { method: "HEAD", cache: "no-store" });
           setIsOnline(true);
@@ -207,7 +210,7 @@ export default function CandidateExamPage({
           setAutosaveStatus("offline");
         }
       }
-    }, 4000);
+    }, 5000);
 
     return () => {
       active = false;
@@ -215,7 +218,7 @@ export default function CandidateExamPage({
       window.removeEventListener("offline", handleOffline);
       clearInterval(intervalId);
     };
-  }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId, pendingQueue]);
+  }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId]);
 
   // Real-time Candidate Exam Heartbeat: Extra Time (+10 Mins) and Admin Stop/Discard detection
   useEffect(() => {
@@ -595,12 +598,14 @@ export default function CandidateExamPage({
 
     setAnswers(prevAnswers => {
       const updatedAnswers = { ...prevAnswers, [questionNum]: optionIndex };
-      saveCandidateSession({
-        ...session,
-        backendAttemptId: activeAid,
-        answers: updatedAnswers,
-        flags,
-        currentQuestionIndex: idx
+      queueMicrotask(() => {
+        saveCandidateSession({
+          ...session,
+          backendAttemptId: activeAid,
+          answers: updatedAnswers,
+          flags,
+          currentQuestionIndex: idx
+        });
       });
       return updatedAnswers;
     });
@@ -699,7 +704,7 @@ export default function CandidateExamPage({
   }, [idx, session, backendAttemptId]);
 
   const handleNavigateQuestion = useCallback(async (targetIndex: number) => {
-    const maxAllowed = Math.max(total, questions.length, 60);
+    const maxAllowed = total > 0 ? total : (questions.length > 0 ? questions.length : 40);
     if (targetIndex >= 0 && targetIndex < maxAllowed) {
       await flushDebouncedSave();
       setIdx(targetIndex);
