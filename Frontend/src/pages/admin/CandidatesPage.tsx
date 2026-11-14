@@ -933,20 +933,20 @@ export default function CandidatesPage() {
   };
 
   // Dynamic slot titles and timings directly derived from persistent slot configuration
-  const s1ActiveStart = slotTimings.slot1.startTime || "10:00 AM";
-  const s1ActiveCutoff = slotTimings.slot1.cutoffTime || "12:00 PM";
+  const s1ActiveStart = slotTimings.slot1.startTime || "2:00 PM";
+  const s1ActiveCutoff = slotTimings.slot1.cutoffTime || "3:30 PM";
   const slot1Header = `Slot 1 • ${s1ActiveStart}`;
   const slot1Sub = `Entry: ${s1ActiveStart} – ${s1ActiveCutoff} IST`;
   const slot1Btn = `Slot 1 (${s1ActiveStart})`;
 
-  const s2ActiveStart = slotTimings.slot2.startTime || "1:00 PM";
-  const s2ActiveCutoff = slotTimings.slot2.cutoffTime || "3:00 PM";
+  const s2ActiveStart = slotTimings.slot2.startTime || "4:00 PM";
+  const s2ActiveCutoff = slotTimings.slot2.cutoffTime || "5:30 PM";
   const slot2Header = `Slot 2 • ${s2ActiveStart}`;
   const slot2Sub = `Entry: ${s2ActiveStart} – ${s2ActiveCutoff} IST`;
   const slot2Btn = `Slot 2 (${s2ActiveStart})`;
 
-  const s3ActiveStart = slotTimings.slot3?.startTime || "4:00 PM";
-  const s3ActiveCutoff = slotTimings.slot3?.cutoffTime || "6:00 PM";
+  const s3ActiveStart = slotTimings.slot3?.startTime || "6:00 PM";
+  const s3ActiveCutoff = slotTimings.slot3?.cutoffTime || "7:30 PM";
   const slot3Header = `Slot 3 • ${s3ActiveStart}`;
   const slot3Sub = `Entry: ${s3ActiveStart} – ${s3ActiveCutoff} IST`;
   const slot3Btn = `Slot 3 (${s3ActiveStart})`;

@@ -113,6 +113,24 @@ export default function SettingsPage() {
   const [savingSlots, setSavingSlots] = useState(false);
   const [slotsSavedNotice, setSlotsSavedNotice] = useState(false);
 
+  const getWindowDurationText = (startM?: number, cutoffM?: number) => {
+    if (typeof startM === "number" && typeof cutoffM === "number" && cutoffM > startM) {
+      const diff = cutoffM - startM;
+      if (diff === 30) return "30 minutes";
+      if (diff % 60 === 0) {
+        const h = diff / 60;
+        return `${diff} minutes (${h} ${h > 1 ? "hours" : "hour"})`;
+      }
+      const h = Math.floor(diff / 60);
+      const m = diff % 60;
+      if (h > 0) {
+        return `${diff} minutes (${h}h ${m}m)`;
+      }
+      return `${diff} minutes`;
+    }
+    return "30 minutes";
+  };
+
   useEffect(() => {
     getSlotTimings()
       .then(cfg => {
@@ -555,7 +573,7 @@ export default function SettingsPage() {
                 <span>Entry Allowed: {slotTimings.slot1.startTime || "2:00 PM"} – {slotTimings.slot1.cutoffTime || "2:30 PM"} IST</span>
               </div>
               <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px" }}>
-                Allowed window: 30 minutes from start.
+                Allowed window: {getWindowDurationText(slotTimings.slot1.startMinutes, slotTimings.slot1.cutoffMinutes)} from start.
               </div>
             </div>
 
@@ -585,7 +603,7 @@ export default function SettingsPage() {
                 <span>Entry Allowed: {slotTimings.slot2.startTime || "4:00 PM"} – {slotTimings.slot2.cutoffTime || "4:30 PM"} IST</span>
               </div>
               <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px" }}>
-                Allowed window: 30 minutes from start.
+                Allowed window: {getWindowDurationText(slotTimings.slot2.startMinutes, slotTimings.slot2.cutoffMinutes)} from start.
               </div>
             </div>
 
@@ -615,7 +633,7 @@ export default function SettingsPage() {
                 <span>Entry Allowed: {slotTimings.slot3?.startTime || "6:00 PM"} – {slotTimings.slot3?.cutoffTime || "6:30 PM"} IST</span>
               </div>
               <div style={{ fontSize: "11px", color: "#64748b", marginTop: "8px" }}>
-                Allowed window: 30 minutes from start.
+                Allowed window: {getWindowDurationText(slotTimings.slot3?.startMinutes, slotTimings.slot3?.cutoffMinutes)} from start.
               </div>
             </div>
 

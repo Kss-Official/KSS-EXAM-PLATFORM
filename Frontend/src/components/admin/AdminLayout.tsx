@@ -84,7 +84,7 @@ export default function AdminLayout({
     if (path.startsWith("/admin/candidates")) return "Candidate Directory";
     if (path.startsWith("/admin/live-monitoring")) return "Live Exam Monitoring & Proctoring";
     if (path.startsWith("/admin/results")) return "Examination Results & Analytics";
-    if (path.startsWith("/admin/settings")) return "Platform & SEB Settings";
+    if (path.startsWith("/admin/settings")) return "Platform & Security Settings";
     return "Campus Placement Dashboard";
   };
 
