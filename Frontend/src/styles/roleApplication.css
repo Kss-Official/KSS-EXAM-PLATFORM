@@ -485,7 +485,7 @@ input.role-app-skills-input:focus-visible,
   width: 100%;
   margin-top: 20px;
   display: flex;
-  justifyContent: flex-end;
+  justify-content: flex-end;
   align-items: center;
   gap: 12px;
   box-sizing: border-box;
