@@ -274,6 +274,7 @@ export default function CandidatesPage() {
   // CSV Import Modal
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [csvExamDate, setCsvExamDate] = useState<string>(todayIst);
+  const [csvBatch, setCsvBatch] = useState<string>("Slot 1");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [uploadingCsv, setUploadingCsv] = useState(false);
 
@@ -814,9 +815,10 @@ export default function CandidatesPage() {
     setUploadingCsv(true);
     try {
       const targetDate = csvExamDate.trim() || todayIst;
-      const res = await uploadCandidatesCsv(csvFile, targetDate);
+      const targetBatch = csvBatch.trim() || "Slot 1";
+      const res = await uploadCandidatesCsv(csvFile, targetDate, targetBatch);
       setNotice({
-        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate}.`,
+        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate} into ${targetBatch}.`,
         type: "success"
       });
       setIsCsvModalOpen(false);
@@ -1025,6 +1027,7 @@ export default function CandidatesPage() {
             className="secondary" 
             onClick={() => {
               setCsvExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setCsvBatch(batchFilter !== "ALL" && batchFilter.startsWith("Slot") ? batchFilter : "Slot 1");
               setIsCsvModalOpen(true);
             }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
@@ -2621,7 +2624,7 @@ export default function CandidatesPage() {
               Supported Formats: PDF, DOCS, Word (.doc, .docx), Spreadsheets (.xlsx, .xls, .csv)
             </p>
             <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 14px 0" }}>
-              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode]</code>
+              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode], [Slot/Batch]</code>
             </p>
             <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
               <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
@@ -2632,10 +2635,28 @@ export default function CandidatesPage() {
                 value={csvExamDate} 
                 onChange={e => setCsvExamDate(e.target.value)} 
                 required 
-                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff" }} 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", boxSizing: "border-box" }} 
               />
               <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
                 All imported examinees in this document will be scheduled for <strong>{formatDateShort(csvExamDate)} {formatDateYear(csvExamDate)}</strong>
+              </small>
+            </div>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Exam Slot / Batch for Imported Candidates *
+              </label>
+              <select 
+                value={csvBatch} 
+                onChange={e => setCsvBatch(e.target.value)} 
+                required 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", fontWeight: 500, boxSizing: "border-box" }}
+              >
+                <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
+                <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Cutoff)</option>
+                <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Cutoff)</option>
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                Candidates will be allocated to <strong>{csvBatch}</strong> (or to their row-level Slot column if specified)
               </small>
             </div>
             <input 

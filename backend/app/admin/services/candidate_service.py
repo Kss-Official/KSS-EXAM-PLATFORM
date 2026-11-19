@@ -592,10 +592,10 @@ class CandidateService:
         return {"deleted": count, "message": f"Successfully deleted {count} candidates"}
 
     @classmethod
-    def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str, exam_date: Optional[str] = None) -> Dict[str, Any]:
+    def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str, exam_date: Optional[str] = None, batch: Optional[str] = None) -> Dict[str, Any]:
         """
         Imports candidates in bulk from uploaded PDF, Excel (.xlsx/.xls), Word (.docx), or CSV file.
-        Dynamically resolves column mappings (RegNumber/Sl.No, FullName, Email, College/Department),
+        Dynamically resolves column mappings (RegNumber/Sl.No, FullName, Email, College/Department, Slot/Batch),
         handles arbitrary column arrangements, and applies cell-level regex detection.
         """
         content = file.file.read()
@@ -729,8 +729,10 @@ class CandidateService:
         existing_emails = {e[0].lower() for e in db.query(Candidate.email).all() if e[0]}
         dept_map = {d.code.upper(): d.id for d in db.query(Department).all() if d.code}
 
+        default_batch = (batch or "").strip() or "Slot 1"
+
         # Detect Header Row in top 15 rows
-        reg_idx, name_idx, email_idx, college_idx = None, None, None, None
+        reg_idx, name_idx, email_idx, college_idx, slot_idx = None, None, None, None, None
         header_row_idx = -1
 
         for idx, r in enumerate(rows[:15]):
@@ -752,6 +754,8 @@ class CandidateService:
                         reg_idx = c_idx
                     elif ("institute" in cell or "college" in cell or "dept" in cell or "department" in cell or "branch" in cell) and college_idx is None:
                         college_idx = c_idx
+                    elif ("slot" in cell or "batch" in cell or "shift" in cell) and slot_idx is None:
+                        slot_idx = c_idx
                 if email_idx is not None:
                     break
 
@@ -794,6 +798,17 @@ class CandidateService:
                 else:
                     full_name = email.split('@')[0].replace('.', ' ').title()
                     reg_num = str(len(new_candidates) + 1)
+
+                # Check if line explicitly mentions a Slot
+                line_lower = line.lower()
+                if "slot 1" in line_lower or "slot-1" in line_lower:
+                    row_slot = "Slot 1"
+                elif "slot 2" in line_lower or "slot-2" in line_lower:
+                    row_slot = "Slot 2"
+                elif "slot 3" in line_lower or "slot-3" in line_lower:
+                    row_slot = "Slot 3"
+                else:
+                    row_slot = default_batch
 
             # Case B: Multi-column row (from Excel, CSV, or PDF table)
             else:
@@ -855,6 +870,36 @@ class CandidateService:
                             college_or_dept = c_clean
                             break
 
+                # Extract Slot / Batch if present in row
+                row_slot = None
+                if slot_idx is not None and slot_idx < len(r) and r[slot_idx]:
+                    val = r[slot_idx].strip()
+                    v_low = val.lower()
+                    if "slot 1" in v_low or v_low == "slot1":
+                        row_slot = "Slot 1"
+                    elif "slot 2" in v_low or v_low == "slot2":
+                        row_slot = "Slot 2"
+                    elif "slot 3" in v_low or v_low == "slot3":
+                        row_slot = "Slot 3"
+                    elif val:
+                        row_slot = val
+
+                if not row_slot:
+                    for cell in r:
+                        c_low = cell.strip().lower()
+                        if c_low in ("slot 1", "slot-1", "slot1"):
+                            row_slot = "Slot 1"
+                            break
+                        elif c_low in ("slot 2", "slot-2", "slot2"):
+                            row_slot = "Slot 2"
+                            break
+                        elif c_low in ("slot 3", "slot-3", "slot3"):
+                            row_slot = "Slot 3"
+                            break
+
+                if not row_slot:
+                    row_slot = default_batch
+
             if reg_num in existing_regs:
                 errors.append(f"Line {line_num}: Registration number '{reg_num}' is already in use.")
                 continue
@@ -865,15 +910,34 @@ class CandidateService:
 
             # Resolve Department or College Name
             dept_id = None
+            college_id = None
             if college_or_dept:
                 clean_cd = college_or_dept.strip()
+                # Check College table
+                existing_college = db.query(College).filter(func.lower(College.name) == clean_cd.lower()).first()
+                if not existing_college:
+                    existing_college = db.query(College).filter(func.lower(College.code) == clean_cd.lower()).first()
+                if existing_college:
+                    college_id = existing_college.id
+                elif any(kw in clean_cd.upper() for kw in college_keywords):
+                    code_cand = "".join(p[0] for p in clean_cd.split())[:8].upper()
+                    code_cand = "".join(ch for ch in code_cand if ch.isalnum() or ch == "_") or "CLG"
+                    if db.query(College).filter(College.code == code_cand).first():
+                        code_cand = f"{code_cand[:5]}_{abs(hash(clean_cd)) % 1000}"
+                    new_col = College(name=clean_cd, code=code_cand, active=True, created_at=datetime.now(timezone.utc))
+                    db.add(new_col)
+                    db.commit()
+                    db.refresh(new_col)
+                    college_id = new_col.id
+
+                # Resolve Department
                 if clean_cd.upper() in dept_map:
                     dept_id = dept_map[clean_cd.upper()]
                 else:
                     existing_dept = db.query(Department).filter(func.lower(Department.name) == clean_cd.lower()).first()
                     if existing_dept:
                         dept_id = existing_dept.id
-                    else:
+                    elif not college_id:
                         new_dept = Department(
                             name=clean_cd,
                             code=re.sub(r'[^A-Z0-9]', '', clean_cd.upper())[:10] or "COLLEGE",
@@ -893,7 +957,8 @@ class CandidateService:
                 full_name=full_name,
                 email=email,
                 department_id=dept_id,
-                batch="Slot 1",
+                college_id=college_id,
+                batch=row_slot,
                 exam_date=cand_exam_date,
                 status="ACTIVE",
                 created_at=datetime.now(timezone.utc)
@@ -914,7 +979,7 @@ class CandidateService:
                 entity_type="Candidate",
                 entity_id="BATCH",
                 performed_by=performed_by,
-                details=f"Batch imported {len(new_candidates)} candidates via CSV"
+                details=f"Batch imported {len(new_candidates)} candidates via document (Slot: {default_batch}, Date: {cand_exam_date})"
             ))
             db.commit()
 

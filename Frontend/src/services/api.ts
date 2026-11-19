@@ -951,7 +951,7 @@ export async function assignCandidateBatch(
   });
 }
 
-export async function uploadCandidatesCsv(file: File, examDate?: string): Promise<{
+export async function uploadCandidatesCsv(file: File, examDate?: string, batch?: string): Promise<{
   success: boolean;
   totalImported: number;
   errorsCount: number;
@@ -961,7 +961,10 @@ export async function uploadCandidatesCsv(file: File, examDate?: string): Promis
   const formData = new FormData();
   formData.append("file", file);
 
-  const query = examDate ? `?exam_date=${encodeURIComponent(examDate)}` : "";
+  const params = new URLSearchParams();
+  if (examDate) params.append("exam_date", examDate);
+  if (batch) params.append("batch", batch);
+  const query = params.toString() ? `?${params.toString()}` : "";
   const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch${query}`;
   const headers = new Headers();
   const token = localStorage.getItem("examsecure_auth_token");
@@ -978,7 +981,7 @@ export async function uploadCandidatesCsv(file: File, examDate?: string): Promis
 
   if (!response.ok) {
     const text = await response.text();
-    throw new ApiError(`Batch CSV upload failed: ${text}`, response.status);
+    throw new ApiError(`Batch document upload failed: ${text}`, response.status);
   }
   return response.json();
 }
