@@ -83,12 +83,14 @@ def create_candidate(
 def import_candidates_batch(
     file: UploadFile = File(...),
     exam_date: Optional[str] = Query(None, description="Target exam date (YYYY-MM-DD)"),
-    exam_id: Optional[int] = Query(None, alias="examId", description="Target examination ID"),
+    exam_id: Optional[int] = Query(None, description="Target examination ID (snake_case)"),
+    examId: Optional[int] = Query(None, description="Target examination ID (camelCase)"),
     batch: Optional[str] = Query(None, description="Target exam slot / batch (e.g. Slot 1, Slot 2, Slot 3)"),
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return CandidateService.import_candidates_csv_sync(db, file, current_user.email, exam_date=exam_date, exam_id=exam_id, batch=batch)
+    target_exam_id = exam_id if exam_id is not None else examId
+    return CandidateService.import_candidates_csv_sync(db, file, current_user.email, exam_date=exam_date, exam_id=target_exam_id, batch=batch)
 
 @router.post("/{candidate_id}/assign")
 def assign_candidate(

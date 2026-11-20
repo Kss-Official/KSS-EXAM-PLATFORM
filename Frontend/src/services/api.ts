@@ -982,7 +982,10 @@ export async function uploadCandidatesCsv(file: File, examDate?: string, examId?
 
   const params = new URLSearchParams();
   if (examDate) params.set("exam_date", examDate);
-  if (examId) params.set("exam_id", String(examId));
+  if (examId !== undefined && examId !== null) {
+    params.set("exam_id", String(examId));
+    params.set("examId", String(examId));
+  }
   if (batch) params.set("batch", batch);
   const query = params.toString() ? `?${params.toString()}` : "";
   const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch${query}`;

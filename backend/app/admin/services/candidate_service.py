@@ -965,7 +965,31 @@ class CandidateService:
                         dept_map[new_dept.code.upper()] = dept_id
 
             today_str = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
-            cand_exam_date = (exam_date or "").strip() or today_str
+            raw_date = (exam_date or "").strip()
+            if raw_date:
+                # Robustly normalize any date format (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY) to YYYY-MM-DD
+                if re.match(r'^\d{4}-\d{2}-\d{2}$', raw_date):
+                    cand_exam_date = raw_date
+                else:
+                    d_parts = re.split(r'[/.-]', raw_date)
+                    if len(d_parts) == 3:
+                        try:
+                            if len(d_parts[0]) == 4:
+                                cand_exam_date = f"{int(d_parts[0]):04d}-{int(d_parts[1]):02d}-{int(d_parts[2]):02d}"
+                            elif len(d_parts[2]) == 4:
+                                p0, p1, y = int(d_parts[0]), int(d_parts[1]), int(d_parts[2])
+                                if p0 > 12:
+                                    cand_exam_date = f"{y:04d}-{p1:02d}-{p0:02d}"
+                                else:
+                                    cand_exam_date = f"{y:04d}-{p0:02d}-{p1:02d}"
+                            else:
+                                cand_exam_date = raw_date
+                        except Exception:
+                            cand_exam_date = raw_date
+                    else:
+                        cand_exam_date = raw_date
+            else:
+                cand_exam_date = today_str
             c = Candidate(
                 registration_number=reg_num,
                 full_name=full_name,
