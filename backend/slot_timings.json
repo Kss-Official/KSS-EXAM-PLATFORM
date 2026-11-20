@@ -1,12 +1,12 @@
 {
   "slot1": {
-    "header": "Slot 1 • 2:00 PM",
-    "sub": "Entry: 2:00 PM – 3:30 PM IST",
-    "btn": "Slot 1 (2:00 PM)",
-    "startTime": "2:00 PM",
-    "cutoffTime": "3:30 PM",
-    "startMinutes": 840,
-    "cutoffMinutes": 930
+    "header": "Slot 1 • 12:00 PM",
+    "sub": "Entry: 12:00 PM – 5:00 PM IST",
+    "btn": "Slot 1 (12:00 PM)",
+    "startTime": "12:00 PM",
+    "cutoffTime": "5:00 PM",
+    "startMinutes": 720,
+    "cutoffMinutes": 1020
   },
   "slot2": {
     "header": "Slot 2 • 4:00 PM",
