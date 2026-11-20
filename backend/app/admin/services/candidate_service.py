@@ -531,9 +531,13 @@ class CandidateService:
 
         # 2. Automatically assign to currently active exam if one exists
         try:
-            active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.id.desc()).first()
-            if active_exam:
-                cls.assign_candidate_to_exam(db, c.id, active_exam.id, slot_id=None, set_code="A", performed_by=performed_by)
+            target_exam_id = c.assigned_exam_id
+            if not target_exam_id:
+                active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.id.desc()).first()
+                if active_exam:
+                    target_exam_id = active_exam.id
+            if target_exam_id:
+                cls.assign_candidate_to_exam(db, c.id, target_exam_id, slot_id=None, set_code="A", performed_by=performed_by)
         except Exception:
             pass
 
