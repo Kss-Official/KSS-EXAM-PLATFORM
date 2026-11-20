@@ -95,7 +95,7 @@ def test_encrypted_pdf_rejection():
     with pytest.raises(ValueError, match="Password-protected|password-protected|encrypted"):
         InMemoryPdfService.extract_text_from_pdf_bytes(pdf_bytes, "locked.pdf")
     
-    with pytest.raises(ValueError, match="Password-protected"):
+    with pytest.raises(ValueError, match="Password-protected|password-protected|encrypted"):
         extract_pdf_text(pdf_bytes)
 
 

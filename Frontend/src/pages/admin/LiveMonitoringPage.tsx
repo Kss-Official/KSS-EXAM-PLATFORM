@@ -253,9 +253,6 @@ export default function LiveMonitoringPage() {
     return filteredExaminees.filter(e => e.status === "IN_PROGRESS").length;
   }, [filteredExaminees]);
 
-  const totalAlertsCount = useMemo(() => alerts.length, [alerts]);
-  const newAlertsCount = useMemo(() => alerts.filter(a => a.status === "NEW").length, [alerts]);
-
   const extraTimeCount = useMemo(() => {
     return filteredExaminees.filter(e => e.extraTimeMinutes > 0).length;
   }, [filteredExaminees]);
@@ -264,8 +261,13 @@ export default function LiveMonitoringPage() {
     return filteredExaminees.filter(e => e.status === "DISCARDED" || e.status === "STOPPED").length;
   }, [filteredExaminees]);
 
-  // Filtered alerts
+  // Filtered alerts: Respects selected severity, search query, selected date, and selected slot
   const filteredAlerts = useMemo(() => {
+    const candMap = new Map<number, LiveExamineeDto>();
+    for (const e of examinees) {
+      candMap.set(e.candidateId, e);
+    }
+
     return alerts.filter(al => {
       const matchSeverity = selectedSeverity === "ALL" || al.severity === selectedSeverity;
       const matchSearch = !search.trim() ||
@@ -273,9 +275,18 @@ export default function LiveMonitoringPage() {
         al.registrationNumber.toLowerCase().includes(search.toLowerCase()) ||
         al.alertType.toLowerCase().includes(search.toLowerCase()) ||
         al.message.toLowerCase().includes(search.toLowerCase());
-      return matchSeverity && matchSearch;
+
+      const cand = candMap.get(al.candidateId);
+      const candDate = cand?.examDate || todayIst;
+      const matchDate = selectedDate === "ALL" || candDate === selectedDate;
+      const matchSlot = selectedSlot === "ALL" || (cand?.batch && cand.batch.toLowerCase().includes(selectedSlot.toLowerCase()));
+
+      return matchSeverity && matchSearch && matchDate && matchSlot;
     });
-  }, [alerts, selectedSeverity, search]);
+  }, [alerts, examinees, selectedSeverity, search, selectedDate, selectedSlot, todayIst]);
+
+  const totalAlertsCount = useMemo(() => filteredAlerts.length, [filteredAlerts]);
+  const newAlertsCount = useMemo(() => filteredAlerts.filter(a => a.status === "NEW").length, [filteredAlerts]);
 
   const formatIST = (isoString?: string) => {
     if (!isoString) return "-";
@@ -799,7 +810,7 @@ export default function LiveMonitoringPage() {
             }}
           >
             <ShieldAlert size={15} />
-            Cheating Alerts Feed ({alerts.length})
+            Cheating Alerts Feed ({filteredAlerts.length})
             {newAlertsCount > 0 && (
               <span style={{
                 background: activeTab === "alerts" ? "#ffffff" : "#fee2e2",

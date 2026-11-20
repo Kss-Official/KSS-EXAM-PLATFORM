@@ -123,6 +123,38 @@ def _get_cached_question_metadata(db: Session, question_set_id: int) -> Dict[str
     _QUESTION_SET_CACHE[question_set_id] = {"time": now_t, "data": data}
     return data
 
+def check_is_test_candidate(candidate) -> bool:
+    """Helper to detect test/preview accounts, supporting institutional accounts and environment overrides."""
+    if not candidate:
+        return False
+    b_lower = (candidate.batch or "").strip().lower()
+    e_lower = (candidate.email or "").strip().lower()
+    name_lower = (candidate.full_name or "").strip().lower()
+    reg_lower = (candidate.registration_number or "").strip().lower()
+    test_emails = {
+        "test.candidate@talentise.com",
+        "d.koushik@kalpanaaasoftwaresolutions.in",
+        "test@kalpanaaasoftwaresolutions.in",
+        "test.candidate@kalpanaaasoftwaresolutions.in",
+    }
+    env_emails = os.getenv("TEST_CANDIDATE_EMAILS", "")
+    if env_emails:
+        for em in env_emails.split(","):
+            if em.strip():
+                test_emails.add(em.strip().lower())
+
+    if e_lower in test_emails:
+        return True
+    if reg_lower.startswith("test") or "testcampus.edu" in e_lower or "example.com" in e_lower:
+        return True
+    if any(b in b_lower for b in ["demo test slot", "demo slot", "test slot", "preview", "demo"]):
+        return True
+    if name_lower in ("test candidate", "demo candidate"):
+        return True
+    if e_lower.startswith("test.") or e_lower.startswith("test_") or "candidate@test" in e_lower:
+        return True
+    return False
+
 def validate_candidate_slot_access(
     db: Session,
     candidate: Candidate,
@@ -132,10 +164,8 @@ def validate_candidate_slot_access(
     Authoritative server-side validation of scheduled examination date and assigned slot window.
     Strictly enforces:
     1. Candidate must be registered for today's date (Asia/Kolkata timezone).
-    2. Candidate must enter strictly during their designated 30-minute entry window:
-       - Slot 1: 2:00 PM – 2:30 PM IST (840 – 870 mins)
-       - Slot 2: 4:00 PM – 4:30 PM IST (960 – 990 mins)
-       - Slot 3: 6:00 PM – 6:30 PM IST (1080 – 1110 mins)
+    2. Candidate must enter strictly during their designated entry window:
+       - Slot 1, Slot 2, Slot 3 from system slot configuration or custom batch entry window
     3. In-flight attempts (IN_PROGRESS) can resume if within their duration (expires_at).
     4. Candidates cannot access exams via other slots, before window opens, or after window closes.
     """
@@ -146,19 +176,12 @@ def validate_candidate_slot_access(
     if str(raw_gate).lower() != "true":
         return True, None
 
-    # Check if there is an active in-flight attempt
-    now_utc = datetime.now(timezone.utc)
-    b_lower = (candidate.batch or "").strip().lower()
-    e_lower = (candidate.email or "").strip().lower()
-    name_lower = (candidate.full_name or "").strip().lower()
-    is_test_candidate = (
-        b_lower == "demo test slot" or
-        e_lower == "test.candidate@talentise.com" or
-        name_lower == "test candidate"
-    )
-    if is_test_candidate:
+    # Check if this is a recognized test account
+    if check_is_test_candidate(candidate):
         return True, None
 
+    # Check if there is an active in-flight attempt
+    now_utc = datetime.now(timezone.utc)
     if existing_attempt and existing_attempt.status == "IN_PROGRESS":
         exp = _ensure_utc(existing_attempt.expires_at)
         if exp and exp <= now_utc:
@@ -188,6 +211,21 @@ def validate_candidate_slot_access(
             return False, f"Access Denied: Your scheduled examination date was {cand_date}. Entry is not permitted on this date."
         else:
             return False, "Access Denied: No scheduled examination date found for your account. Please contact your administrator."
+
+    # 1.5 Check if candidate batch explicitly specifies a dynamic entry window
+    time_match = re.search(r'(\d{1,2}:\d{2}\s*(?:AM|PM))\s*(?:[-–to]+)\s*(\d{1,2}:\d{2}\s*(?:AM|PM))', candidate.batch or "", re.IGNORECASE)
+    if time_match:
+        from app.core.slot_config import parse_time_to_minutes
+        custom_start_str = time_match.group(1).strip()
+        custom_cutoff_str = time_match.group(2).strip()
+        custom_start = parse_time_to_minutes(custom_start_str)
+        custom_cutoff = parse_time_to_minutes(custom_cutoff_str)
+        if custom_start > 0 and custom_cutoff > custom_start:
+            if cur_mins < custom_start:
+                return False, f"Access Denied: Your assigned entry window opens at {custom_start_str} IST. Please return and enter between {custom_start_str} and {custom_cutoff_str} IST."
+            elif cur_mins > custom_cutoff:
+                return False, f"Entry Closed: The entry window for your examination closed at {custom_cutoff_str} IST. Candidates are not permitted to enter after {custom_cutoff_str}."
+            return True, None
 
     # 2. Strict Slot Window Validation
     from app.core.slot_config import get_slot_timings_config
@@ -283,7 +321,7 @@ class CandidateExamService:
         if not candidate:
             resp.eligible = False
             resp.message = (
-                f"Access Denied: The email address '{input_email}' is not registered in our candidate records. "
+                f"Access Denied: No candidate record found. The email address '{input_email}' is not registered in our candidate records. "
                 "Both your registered Full Name and Email Address must match institutional records."
             )
             return resp
@@ -302,7 +340,7 @@ class CandidateExamService:
         if not check_name_match(input_name, candidate.full_name):
             resp.eligible = False
             resp.message = (
-                f"Access Denied: The entered Full Name '{input_name}' does not match the name "
+                f"Access Denied: Full Name mismatch. The entered Full Name '{input_name}' does not match the name "
                 f"registered with email '{input_email}'. Both your Full Name and Email Address must match institutional records."
             )
             return resp
@@ -356,7 +394,7 @@ class CandidateExamService:
         resp.full_name = candidate.full_name
         resp.candidate_name = candidate.full_name
         resp.email = candidate.email
-        resp.department_name = chosen_track
+        resp.department_name = candidate.department.name if candidate.department else chosen_track
         resp.department_category = chosen_category
         resp.college_name = candidate.college.name if candidate.college else None
         resp.batch = candidate.batch
@@ -524,15 +562,7 @@ class CandidateExamService:
 
             if prior_attempt:
                 if prior_attempt.status in ("SUBMITTED", "EXPIRED", "COMPLETED"):
-                    b_check = (candidate.batch or "").strip().lower()
-                    e_check = (candidate.email or "").strip().lower()
-                    name_check = (candidate.full_name or "").strip().lower()
-                    is_test_account = (
-                        b_check == "demo test slot" or
-                        e_check == "test.candidate@talentise.com" or
-                        name_check == "test candidate"
-                    )
-                    if is_test_account:
+                    if check_is_test_candidate(candidate):
                         db.delete(prior_attempt)
                         db.commit()
                         prior_attempt = None
