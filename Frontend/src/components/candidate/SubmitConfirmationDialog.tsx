@@ -267,7 +267,7 @@ export default function SubmitConfirmationDialog({
               alignItems: "center", 
               justifyContent: "center", 
               gap: "6px",
-              background: "linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%)"
+              background: "linear-gradient(135deg, #017846, #01663C)"
             }}
           >
             Confirm & Submit <ChevronRight size={16} />

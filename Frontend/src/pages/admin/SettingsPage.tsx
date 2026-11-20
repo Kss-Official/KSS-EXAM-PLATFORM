@@ -52,7 +52,7 @@ export default function SettingsPage() {
   // 1. Proctoring & Security Toggles
   const [proctoring, setProctoring] = useState<ProctoringSettings>(() => {
     try {
-      const saved = localStorage.getItem("talentise_exam_proctoring_settings");
+      const saved = localStorage.getItem("kalpanaa_exam_proctoring_settings") || localStorage.getItem("talentise_exam_proctoring_settings");
       if (saved) return { ...DEFAULT_PROCTORING, ...JSON.parse(saved) };
     } catch {}
     return DEFAULT_PROCTORING;
@@ -64,7 +64,7 @@ export default function SettingsPage() {
     setProctoring(prev => {
       const updated = { ...prev, [key]: !prev[key] };
       try {
-        localStorage.setItem("talentise_exam_proctoring_settings", JSON.stringify(updated));
+        localStorage.setItem("kalpanaa_exam_proctoring_settings", JSON.stringify(updated));
       } catch {}
       setProctoringSavedNotice(true);
       setTimeout(() => setProctoringSavedNotice(false), 2500);
@@ -270,12 +270,12 @@ export default function SettingsPage() {
             alignItems: "center", 
             gap: "6px", 
             padding: "6px 12px", 
-            background: "#eff6ff", 
+            background: "#eaf6ef", 
             border: "1px solid #bfdbfe", 
             borderRadius: "20px", 
             fontSize: "12px", 
             fontWeight: 600, 
-            color: "#1d4ed8" 
+            color: "#01663c" 
           }}>
             <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3b82f6", display: "inline-block" }}></span>
             FastAPI Backend: Online
@@ -346,7 +346,7 @@ export default function SettingsPage() {
                 Azentio Software MCQ
               </div>
               <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "2px" }}>
-                Organization: Talentise Global
+                Organization: Kalpanaaa Software Solutions
               </div>
             </div>
 
@@ -397,7 +397,7 @@ export default function SettingsPage() {
       <div className="panel-card" style={{ border: "1px solid #e2e8f0", borderRadius: "12px", overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}>
         <div className="panel-card-header" style={{ background: "#ffffff", padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#eaf6ef", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Clock size={16} color="#0284c7" />
             </div>
             <div>

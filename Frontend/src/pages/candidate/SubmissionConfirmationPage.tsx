@@ -12,7 +12,7 @@ import {
   Lock 
 } from "lucide-react";
 import type { SubmissionReceipt } from "../../types/candidate";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 interface SubmissionConfirmationPageProps {
   receipt: SubmissionReceipt;
@@ -158,8 +158,8 @@ export default function SubmissionConfirmationPage({
           }}
         >
           <img 
-            src={talentiseLogo} 
-            alt="Talentise Global" 
+            src={kalpanaaLogo} 
+            alt="Kalpanaaa Software Solutions" 
             style={{ height: "clamp(26px, 3.4vh, 32px)", objectFit: "contain" }} 
           />
 
@@ -168,16 +168,16 @@ export default function SubmissionConfirmationPage({
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              background: "#EFF6FF",
-              border: "1px solid #BFDBFE",
-              color: "#2563EB",
+              background: "#eaf6ef",
+              border: "1px solid #bbf7d0",
+              color: "#017846",
               borderRadius: "999px",
               padding: "4px 12px",
               fontSize: "11.5px",
               fontWeight: 700
             }}
           >
-            <CheckCircle2 size={13} color="#2563EB" />
+            <CheckCircle2 size={13} color="#017846" />
             <span>Assessment complete</span>
           </div>
         </header>
@@ -204,7 +204,7 @@ export default function SubmissionConfirmationPage({
                 width: "clamp(46px, 5.6vh, 54px)",
                 height: "clamp(46px, 5.6vh, 54px)",
                 borderRadius: "50%",
-                background: "#EFF6FF",
+                background: "#eaf6ef",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -216,13 +216,13 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "50%",
-                  border: "2px solid #2563EB",
+                  border: "2px solid #017846",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center"
                 }}
               >
-                <Check size={19} color="#2563EB" strokeWidth={3} />
+                <Check size={19} color="#017846" strokeWidth={3} />
               </div>
             </div>
 
@@ -249,7 +249,7 @@ export default function SubmissionConfirmationPage({
                 letterSpacing: "-0.4px"
               }}
             >
-              Assessment <span style={{ color: "#2563EB" }}>Submitted</span>
+              Assessment <span style={{ color: "#017846" }}>Submitted</span>
             </h1>
 
             <p 
@@ -292,11 +292,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -330,11 +330,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -368,11 +368,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -406,11 +406,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -444,11 +444,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -482,11 +482,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -521,11 +521,11 @@ export default function SubmissionConfirmationPage({
                   width: "clamp(32px, 3.8vh, 36px)",
                   height: "clamp(32px, 3.8vh, 36px)",
                   borderRadius: "8px",
-                  background: "#EFF6FF",
+                  background: "#eaf6ef",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#2563EB",
+                  color: "#017846",
                   flexShrink: 0
                 }}
               >
@@ -545,8 +545,8 @@ export default function SubmissionConfirmationPage({
           {/* Notice Banner: Responses Locked */}
           <div 
             style={{
-              background: "#EFF6FF",
-              border: "1px solid #BFDBFE",
+              background: "#eaf6ef",
+              border: "1px solid #bbf7d0",
               borderRadius: "10px",
               padding: "clamp(7px, 1vh, 10px) 12px",
               display: "flex",
@@ -559,7 +559,7 @@ export default function SubmissionConfirmationPage({
                 width: "28px",
                 height: "28px",
                 borderRadius: "7px",
-                background: "#2563EB",
+                background: "#017846",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -569,10 +569,10 @@ export default function SubmissionConfirmationPage({
               <Lock size={14} color="#ffffff" />
             </div>
             <div>
-              <strong style={{ display: "block", fontSize: "clamp(12px, 1.5vh, 13px)", color: "#1E40AF", fontWeight: 700 }}>
+              <strong style={{ display: "block", fontSize: "clamp(12px, 1.5vh, 13px)", color: "#014d32", fontWeight: 700 }}>
                 Your responses are now locked.
               </strong>
-              <span style={{ fontSize: "clamp(11px, 1.35vh, 12px)", color: "#1D4ED8", display: "block", marginTop: "1px" }}>
+              <span style={{ fontSize: "clamp(11px, 1.35vh, 12px)", color: "#01663c", display: "block", marginTop: "1px" }}>
                 You can no longer edit or change answers for this attempt.
               </span>
             </div>

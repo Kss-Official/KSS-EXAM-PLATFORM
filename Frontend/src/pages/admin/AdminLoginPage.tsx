@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import { 
   ShieldCheck, 
   Lock, 
@@ -145,8 +145,8 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           gap: "12px"
         }}
       >
-        <div style={{ width: "32px", height: "32px", border: "3px solid #2563EB", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        <span style={{ fontSize: "13px" }}>Talentise Global: Verifying administrator session...</span>
+        <div style={{ width: "32px", height: "32px", border: "3px solid #017846", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        <span style={{ fontSize: "13px" }}>Kalpanaaa Software Solutions: Verifying administrator session...</span>
       </div>
     );
   }
@@ -175,7 +175,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           left: "20%",
           width: "350px",
           height: "350px",
-          background: "radial-gradient(circle, rgba(54, 95, 229, 0.15) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(1, 120, 70, 0.15) 0%, transparent 70%)",
           filter: "blur(50px)",
           pointerEvents: "none"
         }} 
@@ -187,7 +187,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           right: "20%",
           width: "400px",
           height: "400px",
-          background: "radial-gradient(circle, rgba(234, 88, 12, 0.12) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%)",
           filter: "blur(60px)",
           pointerEvents: "none"
         }} 
@@ -205,9 +205,9 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         <div style={{ textAlign: "center", marginBottom: "24px" }}>
           <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "14px" }}>
             <img 
-              src={talentiseLogo} 
-              alt="Talentise Global" 
-              style={{ height: "64px", maxWidth: "260px", objectFit: "contain", display: "block" }} 
+              src={kalpanaaLogo} 
+              alt="Kalpanaaa Software Solutions" 
+              style={{ height: "64px", maxWidth: "280px", objectFit: "contain", display: "block" }} 
             />
           </div>
           <p style={{ margin: 0, fontSize: "12.5px", color: "#94a3b8" }}>
@@ -228,7 +228,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         >
           <div style={{ marginBottom: "20px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
-              <UserCheck size={16} color="#2563EB" />
+              <UserCheck size={16} color="#017846" />
               <h2 style={{ margin: 0, fontSize: "16px", fontWeight: 700, color: "#0f172a" }}>
                 Super Administrator Sign In
               </h2>
@@ -390,11 +390,11 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
                 fontSize: "13px",
                 fontWeight: 700,
                 color: "#ffffff",
-                background: "linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%)",
+                background: "linear-gradient(135deg, #017846, #01663C)",
                 border: "none",
                 borderRadius: "8px",
                 cursor: loading ? "not-allowed" : "pointer",
-                boxShadow: "0 4px 14px rgba(37, 99, 235, 0.4)",
+                boxShadow: "0 4px 12px rgba(1, 120, 70, 0.3)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",

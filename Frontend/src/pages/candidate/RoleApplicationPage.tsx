@@ -12,7 +12,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import "../../styles/roleApplication.css";
 
 interface RoleApplicationPageProps {
@@ -174,8 +174,8 @@ export default function RoleApplicationPage({
         {/* Top Header Logo */}
         <header className="role-app-header">
           <img 
-            src={talentiseLogo} 
-            alt="Talentise Global" 
+            src={kalpanaaLogo} 
+            alt="Kalpanaaa Software Solutions" 
             className="role-app-logo"
           />
         </header>

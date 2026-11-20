@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import { 
   ShieldCheck, 
   LayoutDashboard, 
@@ -175,7 +175,7 @@ export default function AdminLayout({
             onClick={() => setMobileMenuOpen(false)}
             style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", textDecoration: "none", width: "100%" }}
           >
-            {/* Direct High-Res Brand Logo matching 3rd image */}
+            {/* Direct High-Res Brand Logo */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -184,10 +184,10 @@ export default function AdminLayout({
               padding: "4px 0"
             }}>
               <img 
-                src={talentiseLogo} 
-                alt="Talentise Global" 
+                src={kalpanaaLogo} 
+                alt="Kalpanaaa Software Solutions" 
                 style={{ 
-                  height: "46px", 
+                  height: "44px", 
                   width: "auto",
                   maxWidth: "100%", 
                   objectFit: "contain",
@@ -215,11 +215,11 @@ export default function AdminLayout({
               <span style={{ 
                 fontSize: "9px", 
                 fontWeight: 800, 
-                background: "rgba(255, 87, 34, 0.15)", 
-                color: "#FF5722", 
+                background: "rgba(1, 120, 70, 0.2)", 
+                color: "#34d399", 
                 padding: "1px 6px", 
                 borderRadius: "4px",
-                border: "1px solid rgba(255, 87, 34, 0.35)",
+                border: "1px solid rgba(52, 211, 153, 0.4)",
                 letterSpacing: "0.5px"
               }}>
                 SEB PROCTOR
@@ -360,9 +360,9 @@ export default function AdminLayout({
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 style={{
                   cursor: "pointer",
-                  border: userMenuOpen ? "1.5px solid #2563EB" : "1px solid #e2e8f0",
+                  border: userMenuOpen ? "1.5px solid #017846" : "1px solid #e2e8f0",
                   background: userMenuOpen ? "#f8fafc" : "#ffffff",
-                  boxShadow: userMenuOpen ? "0 0 0 3px rgba(37, 99, 235, 0.12)" : "none",
+                  boxShadow: userMenuOpen ? "0 0 0 3px rgba(1, 120, 70, 0.12)" : "none",
                   paddingRight: "8px",
                   transition: "all 0.15s ease",
                   display: "flex",
@@ -415,10 +415,10 @@ export default function AdminLayout({
                         fontSize: "10px",
                         fontWeight: 600,
                         padding: "2px 6px",
-                        background: "#EFF6FF",
-                        color: "#1E40AF",
+                        background: "#EAF6EF",
+                        color: "#017846",
                         borderRadius: "4px",
-                        border: "1px solid #BFDBFE"
+                        border: "1px solid #D9E6DF"
                       }}
                     >
                       {adminRoleDisplay}
@@ -452,7 +452,7 @@ export default function AdminLayout({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
-                      <User size={15} color="#2563EB" />
+                      <User size={15} color="#017846" />
                       <span>Profile</span>
                     </button>
 
@@ -481,7 +481,7 @@ export default function AdminLayout({
                       onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                     >
-                      <Settings size={15} color="#2563EB" />
+                      <Settings size={15} color="#017846" />
                       <span>Settings</span>
                     </button>
 
@@ -569,7 +569,7 @@ export default function AdminLayout({
               {/* Profile Details Grid */}
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "20px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <User size={16} color="#2563EB" style={{ flexShrink: 0 }} />
+                  <User size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Full Name</div>
                     <strong style={{ color: "#0f172a" }}>{adminFullName}</strong>
@@ -577,7 +577,7 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Mail size={16} color="#2563EB" style={{ flexShrink: 0 }} />
+                  <Mail size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Email Address</div>
                     <strong style={{ color: "#0f172a", wordBreak: "break-all" }}>{adminEmail}</strong>
@@ -585,7 +585,7 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Briefcase size={16} color="#2563EB" style={{ flexShrink: 0 }} />
+                  <Briefcase size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Department & Role</div>
                     <strong style={{ color: "#0f172a" }}>Examination Controller · Head Administrator</strong>
@@ -593,10 +593,10 @@ export default function AdminLayout({
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Shield size={16} color="#2563EB" style={{ flexShrink: 0 }} />
+                  <Shield size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Access Permissions</div>
-                    <span style={{ fontSize: "11.5px", color: "#1E40AF", fontWeight: 600 }}>
+                    <span style={{ fontSize: "11.5px", color: "#166534", fontWeight: 600 }}>
                       ROLE_SUPER_ADMIN · Safe Exam Browser Controller
                     </span>
                   </div>

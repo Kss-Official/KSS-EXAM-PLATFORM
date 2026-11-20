@@ -56,7 +56,7 @@ export default function BackendStatusBanner({
 
   if (loading) {
     return (
-      <div className="backend-banner" style={{ background: "#f8fafc", borderLeft: "4px solid #2563EB" }}>
+      <div className="backend-banner" style={{ background: "#f8fafc", borderLeft: "4px solid #017846" }}>
         <div className="banner-header">
           <div className="banner-title">
             <Server size={18} className="animate-spin" />
@@ -76,8 +76,8 @@ export default function BackendStatusBanner({
     return (
       <div className="backend-banner success">
         <div className="banner-header">
-          <div className="banner-title" style={{ color: "#0A196F" }}>
-            <CheckCircle size={18} color="#2563EB" />
+          <div className="banner-title" style={{ color: "#014D32" }}>
+            <CheckCircle size={18} color="#017846" />
             <span>Backend Connected: {data.application} ({data.status})</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

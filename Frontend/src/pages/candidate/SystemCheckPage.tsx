@@ -23,7 +23,7 @@ import {
   Loader2
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import { useFaceDetection } from "../../hooks/useFaceDetection";
 
 interface SystemCheckPageProps {
@@ -246,8 +246,8 @@ export default function SystemCheckPage({
       <nav className="nav">
         <div className="brand">
           <img 
-            src={talentiseLogo} 
-            alt="Talentise Global" 
+            src={kalpanaaLogo} 
+            alt="Kalpanaaa Software Solutions" 
             className="candidate-portal-logo" 
           />
         </div>
@@ -349,7 +349,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Monitor size={20} color="#2563EB" />
+                      <Monitor size={20} color="#017846" />
                     </div>
                     <strong className="compat-box-name">Operating System</strong>
                     <p className="compat-box-desc">Check if your device OS is supported.</p>
@@ -365,7 +365,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Globe size={20} color="#2563EB" />
+                      <Globe size={20} color="#017846" />
                     </div>
                     <strong className="compat-box-name">Web Browser</strong>
                     <p className="compat-box-desc">Check if your browser version is supported.</p>
@@ -456,7 +456,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Menu size={20} color="#2563EB" />
+                      <Menu size={20} color="#017846" />
                     </div>
                     <strong className="compat-box-name">Screen Resolution</strong>
                     <p className="compat-box-desc">Ensure minimum resolution is met.</p>
@@ -472,7 +472,7 @@ export default function SystemCheckPage({
                 <div className="compat-system-box">
                   <div>
                     <div className="compat-box-top-icon">
-                      <Wifi size={20} color="#2563EB" />
+                      <Wifi size={20} color="#017846" />
                     </div>
                     <strong className="compat-box-name">Network & Internet</strong>
                     <p className="compat-box-desc">Check your internet connection stability.</p>
