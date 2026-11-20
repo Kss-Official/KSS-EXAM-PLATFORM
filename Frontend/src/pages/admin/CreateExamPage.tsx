@@ -323,6 +323,7 @@ export default function CreateExamPage() {
       const resp = await parsePdfInMemory(formData);
 
       if (resp.questions && resp.questions.length > 0) {
+        setServerError(null);
         const generatedSets = generateShuffledSets(resp.questions, currentBank.randomizeQuestions);
 
         setter(prev => ({
@@ -348,7 +349,10 @@ export default function CreateExamPage() {
           return String(Math.max(cur, qCount * mpq));
         });
       } else {
-        console.warn(`Extraction returned 0 questions for ${category} document.`);
+        const errDetail = resp.errors && resp.errors.length > 0 
+          ? resp.errors.join("; ") 
+          : "Document parsed but 0 questions were recognized. Please ensure questions are numbered (e.g., 1., 2.) with options (A., B., C., D.).";
+        setServerError(`Question extraction (${category}): ${errDetail}`);
       }
     } catch (err: unknown) {
       console.warn(`Extraction failed for ${category} Question Paper:`, err);

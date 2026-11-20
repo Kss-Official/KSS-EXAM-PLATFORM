@@ -122,12 +122,17 @@ class InMemoryPdfService:
         fname = (filename or "").lower()
 
         # Word document
-        if fname.endswith(".docx"):
+        if fname.endswith((".docx", ".doc")):
             if docx is None:
                 raise ValueError("Processing Word documents (.docx) requires the 'python-docx' package.")
             try:
                 doc = docx.Document(io.BytesIO(pdf_bytes))
                 paras = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+                for t in doc.tables:
+                    for row in t.rows:
+                        row_cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                        if row_cells:
+                            paras.append(" \t ".join(row_cells))
                 return "\n\n".join(paras)
             except Exception as e:
                 raise ValueError(f"Failed to read Word document '{filename}': {e}")
@@ -339,7 +344,7 @@ class InMemoryPdfService:
                 raise ValueError(f"Error extracting questions from CSV file '{filename}': {e}")
 
         # Format 3: Word Document (.docx)
-        if fname.endswith(".docx"):
+        if fname.endswith((".docx", ".doc")):
             if docx is None:
                 raise ValueError("Processing Word documents (.docx) requires the 'python-docx' package.")
             try:
@@ -355,7 +360,14 @@ class InMemoryPdfService:
                     if questions:
                         return questions, ans_keys, False, None
 
-                full_text = "\n\n".join([p.text.strip() for p in doc.paragraphs if p.text.strip()])
+                # Combine paragraphs and table text blocks
+                blocks = [p.text.strip() for p in doc.paragraphs if p.text.strip()]
+                for r in rows:
+                    non_empty = [c for c in r if c]
+                    if non_empty:
+                        blocks.append("\n".join(non_empty))
+
+                full_text = "\n\n".join(blocks)
                 q_list, ans_map = cls._extract_questions(full_text, q_pattern, opt_pattern, ans_pattern, marks, negative_marks)
                 return q_list, ans_map, False, None
             except Exception as e:
@@ -457,6 +469,28 @@ class InMemoryPdfService:
                 pass
             if ans_map:
                 return ans_map
+
+        if fname.endswith((".docx", ".doc")):
+            if docx is not None:
+                try:
+                    doc = docx.Document(io.BytesIO(content))
+                    for t in doc.tables:
+                        for row in t.rows:
+                            cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                            for i in range(len(cells) - 1):
+                                m_q = re.search(r'\b(\d+)\b', cells[i])
+                                m_a = re.search(r'^\s*([A-Da-d])\s*$', cells[i+1]) or re.search(r'\b([A-Da-d])\b', cells[i+1])
+                                if m_q and m_a and not re.search(r'^\s*([A-Da-d])\s*$', cells[i]):
+                                    ans_map[int(m_q.group(1))] = m_a.group(1).upper()
+                    for p in doc.paragraphs:
+                        txt = p.text.strip()
+                        if txt:
+                            m_p = cls._parse_answer_sheet_text(txt, custom_pattern)
+                            ans_map.update(m_p)
+                except Exception:
+                    pass
+                if ans_map:
+                    return ans_map
 
         # Fallback to text regex extraction
         text = ""
@@ -618,7 +652,7 @@ class InMemoryPdfService:
     ) -> Tuple[List[ParsedQuestionDto], Dict[int, str]]:
         question_regex = (
             q_pattern if q_pattern else
-            r"(?i)(?:^|\n)\s*(?:Q(?:uestion)?[\s\.]*(\d+)[\s\.:\)-]+|\b(\d+)[\.\)]\s+)"
+            r"(?i)(?:^|\n)\s*(?:Q(?:uestion)?[\s\.]*(\d+)[\s\.:\)-]*|\b(\d+)[\.\)\:\-]\s+)"
         )
         option_regex = (
             opt_pattern if opt_pattern else
@@ -639,17 +673,16 @@ class InMemoryPdfService:
 
         if not matches:
             # Fallback: split by paragraph blocks
-            blocks = re.split(r"\n\s*\n", text)
+            blocks = re.split(r"\n\s*\n+", text)
             idx = 1
             for block in blocks:
                 block = block.strip()
                 if not block:
                     continue
-                opts = list(compiled_opt.finditer(block))
-                if len(opts) >= 2:
-                    q_dto, ans = InMemoryPdfService._build_question_from_block(
-                        idx, block, compiled_opt, compiled_ans, marks, negative_marks
-                    )
+                q_dto, ans = InMemoryPdfService._build_question_from_block(
+                    idx, block, compiled_opt, compiled_ans, marks, negative_marks
+                )
+                if len(q_dto.options) >= 2:
                     questions.append(q_dto)
                     if ans:
                         extracted_keys[idx] = ans
@@ -685,29 +718,43 @@ class InMemoryPdfService:
         marks: Decimal,
         negative_marks: Decimal
     ) -> Tuple[ParsedQuestionDto, Optional[str]]:
-        opt_matches = list(opt_compiled.finditer(block))
         ans_match = ans_compiled.search(block)
-
         correct_letter = ans_match.group(1).upper() if ans_match else None
 
-        if opt_matches:
-            first_opt_start = opt_matches[0].start()
+        # Check for flexible option tokens: A), (A), [A], A., A:, a) whether multiline or inline
+        inline_regex = re.compile(r'(?:(?<=[\s\t\n])|(?<=^))[\(\[]?([A-Da-d])[\)\]\.\:\-]\s*')
+        inline_matches = list(inline_regex.finditer(block))
+        letters = [m.group(1).upper() for m in inline_matches]
+
+        options: List[ParsedOptionDto] = []
+        q_text = block.strip()
+
+        if len(inline_matches) >= 2 and ('A' in letters and 'B' in letters):
+            first_opt_start = inline_matches[0].start()
             q_text = block[:first_opt_start].strip()
+            for i in range(len(inline_matches)):
+                lbl = inline_matches[i].group(1).upper()
+                start = inline_matches[i].end()
+                end = inline_matches[i+1].start() if i + 1 < len(inline_matches) else len(block)
+                txt = block[start:end].strip()
+                txt = re.sub(r'(?i)(?:Ans(?:wer)?|Correct)[\s\.:\)-]*[A-Da-d].*$', '', txt).strip()
+                is_corr = (lbl == correct_letter) if correct_letter else False
+                options.append(ParsedOptionDto(label=lbl, option_text=txt, correct=is_corr))
         else:
-            q_text = block.strip()
+            opt_matches = list(opt_compiled.finditer(block))
+            if opt_matches:
+                first_opt_start = opt_matches[0].start()
+                q_text = block[:first_opt_start].strip()
+                for m in opt_matches:
+                    lbl = m.group(1).upper()
+                    txt = m.group(2).strip()
+                    txt = re.sub(r"(?i)(?:Ans(?:wer)?|Correct)[\s\.:\)-]*[A-Da-d].*$", "", txt).strip()
+                    is_corr = (lbl == correct_letter) if correct_letter else False
+                    options.append(ParsedOptionDto(label=lbl, option_text=txt, correct=is_corr))
 
         # Clean leading numbers and Question tokens
         q_text = re.sub(r"(?i)^Q(?:uestion)?[\s\.]*\d+[\s\.:\)-]*", "", q_text).strip()
-        q_text = re.sub(r"^\d+[\.\)]\s*", "", q_text).strip()
-
-        options: List[ParsedOptionDto] = []
-        for m in opt_matches:
-            lbl = m.group(1).upper()
-            txt = m.group(2).strip()
-            # Remove answer key line if embedded in option text
-            txt = re.sub(r"(?i)(?:Ans(?:wer)?|Correct)[\s\.:\)-]*[A-Da-d].*$", "", txt).strip()
-            is_corr = (lbl == correct_letter) if correct_letter else False
-            options.append(ParsedOptionDto(label=lbl, option_text=txt, correct=is_corr))
+        q_text = re.sub(r"^\d+[\.\)\:\-]\s*", "", q_text).strip()
 
         # Default correct answer to option A if none specified
         if not correct_letter and options:
