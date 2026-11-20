@@ -29,6 +29,15 @@ def _init_engine():
     is_postgres = db_url.startswith("postgresql")
     is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
+    if "sqlite:///" in db_url:
+        sqlite_file = db_url.replace("sqlite:///", "", 1)
+        if not os.path.isabs(sqlite_file):
+            from pathlib import Path
+            base_backend_dir = Path(__file__).resolve().parent.parent.parent
+            clean_rel = sqlite_file.replace("\\", "/").lstrip("./")
+            abs_path = (base_backend_dir / clean_rel).resolve()
+            db_url = f"sqlite:///{abs_path.as_posix()}"
+
     if is_postgres:
         try:
             if not is_serverless:
@@ -70,8 +79,10 @@ def _init_engine():
                 f"[DATABASE FAILOVER] PostgreSQL unreachable ({exc}). "
                 f"Falling back to local persistent SQLite (examsecure.db) for development resilience."
             )
+            from pathlib import Path
+            abs_db = (Path(__file__).resolve().parent.parent.parent / "examsecure.db").resolve()
             return create_engine(
-                "sqlite:///./examsecure.db",
+                f"sqlite:///{abs_db.as_posix()}",
                 connect_args={"check_same_thread": False},
                 echo=False
             )
