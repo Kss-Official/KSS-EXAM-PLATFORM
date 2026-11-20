@@ -3,17 +3,19 @@ import { Clock3 } from "lucide-react";
 
 interface ExamTimerProps {
   deadline: number;
+  serverOffset?: number;
   isSubmitted: boolean;
   onExpire: () => void;
 }
 
-export default function ExamTimer({ deadline, isSubmitted, onExpire }: ExamTimerProps) {
-  // Compute initial remaining seconds using absolute deadline timestamp
+export default function ExamTimer({ deadline, serverOffset = 0, isSubmitted, onExpire }: ExamTimerProps) {
+  // Compute initial remaining seconds calibrated against server-side source of truth
   const calculateRemainingSeconds = () => {
     if (!deadline || deadline <= 0 || isNaN(deadline)) {
       return null;
     }
-    const diff = Math.floor((deadline - Date.now()) / 1000);
+    const currentCalibratedNow = Date.now() + serverOffset;
+    const diff = Math.floor((deadline - currentCalibratedNow) / 1000);
     return Math.max(0, diff);
   };
 

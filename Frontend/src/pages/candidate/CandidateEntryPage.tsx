@@ -28,6 +28,7 @@ export default function CandidateEntryPage({
   const [name, setName] = useState("");
   const [department, setDepartment] = useState<Department | "">("");
   const [departmentId, setDepartmentId] = useState<number | undefined>(undefined);
+  const [departmentCategory, setDepartmentCategory] = useState<"TECHNICAL" | "NON_TECHNICAL" | undefined>(undefined);
   const [email, setEmail] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -53,17 +54,8 @@ export default function CandidateEntryPage({
       setExistingSession(session);
       setName(session.profile.name || "");
       const savedDept = session.profile.department || "";
-      if (savedDept === "Technical Department" || savedDept === "Non-Technical Department") {
+      if (savedDept) {
         setDepartment(savedDept);
-      } else if (
-        savedDept.toLowerCase().includes("hr") ||
-        savedDept.toLowerCase().includes("human") ||
-        savedDept.toLowerCase().includes("sales") ||
-        savedDept.toLowerCase().includes("market")
-      ) {
-        setDepartment("Non-Technical Department");
-      } else if (savedDept) {
-        setDepartment("Technical Department");
       }
       setDepartmentId(session.profile.departmentId);
       setEmail(session.profile.email || "");
@@ -127,7 +119,7 @@ export default function CandidateEntryPage({
       }
 
       if (verifyRes.token) {
-        localStorage.setItem("examsecure_auth_token", verifyRes.token);
+        localStorage.setItem("examsecure_candidate_token", verifyRes.token);
       }
 
       onContinue({
@@ -135,6 +127,7 @@ export default function CandidateEntryPage({
         email: verifyRes.email || email.trim().toLowerCase(),
         department: (department as Department),
         departmentId: departmentId,
+        departmentCategory: (verifyRes.departmentCategory as ("TECHNICAL" | "NON_TECHNICAL")) || departmentCategory,
         collegeName: verifyRes.collegeName,
         candidateId: verifyRes.registrationNumber || "CAND-001",
         dbCandidateId: verifyRes.candidateId,
@@ -165,13 +158,13 @@ export default function CandidateEntryPage({
     <main className="welcome">
       {/* 
         Candidate Portal Header:
-        Official Kalpanaa Software Solutions logo and Secure Candidate Session indicator.
+        Official Kalpanaaa Software Solutions logo and Secure Candidate Session indicator.
       */}
       <nav className="nav">
         <div className="brand">
           <img 
             src={kalpanaaLogo} 
-            alt="Kalpanaa Software Solutions" 
+            alt="Kalpanaaa Software Solutions" 
             className="candidate-portal-logo" 
           />
         </div>
@@ -186,7 +179,7 @@ export default function CandidateEntryPage({
         {/* Left section: Assessment introduction */}
         <div className="intro">
           <div className="eyebrow">
-            <i /> CAMPUS PLACEMENT & RECRUITMENT ASSESSMENT
+            <i /> KALPANAAA SOFTWARE SOLUTIONS &middot; CANDIDATE ASSESSMENT
           </div>
           <h1>
             Show what<br />
@@ -341,9 +334,10 @@ export default function CandidateEntryPage({
               </label>
               <DepartmentSelector
                 value={department}
-                onChange={(dept, id) => {
+                onChange={(dept, id, cat) => {
                   setDepartment(dept);
                   setDepartmentId(id);
+                  setDepartmentCategory(cat);
                   setTouched((prev) => ({ ...prev, department: true }));
                   setErrors((prev) => ({ ...prev, department: "" }));
                   setServerError(null);
@@ -438,7 +432,7 @@ export default function CandidateEntryPage({
       </section>
 
       <footer className="welcomefoot">
-        &copy; 2026 Kalpanaa Software Solutions &middot; Secure Candidate Examination Portal
+        &copy; 2026 Kalpanaaa Software Solutions &middot; Secure Candidate Examination Portal
         <span>
           <ShieldCheck size={14} /> Safe Exam Browser Verified Flow
         </span>

@@ -980,11 +980,11 @@ export default function DepartmentTrackConfigView({
                       <div 
                         style={{
                           padding: "8px 12px",
-                          background: "#eff6ff",
+                          background: "#eaf6ef",
                           border: "1px solid #bfdbfe",
                           borderRadius: "6px",
                           fontSize: "12px",
-                          color: "#1e40af",
+                          color: "#014d32",
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center"

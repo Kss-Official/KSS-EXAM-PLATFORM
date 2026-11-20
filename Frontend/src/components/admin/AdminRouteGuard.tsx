@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 import { useRouter } from "../../router";
 import { getAuthMe, type AuthUser } from "../../services/api";
@@ -16,6 +16,18 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
   useEffect(() => {
     let isCancelled = false;
 
+    const token = localStorage.getItem("examsecure_auth_token");
+    if (!token) {
+      setLoading(false);
+      navigate("/admin/login");
+      return;
+    }
+
+    // If already verified in this session, do not unmount or show loading on route changes
+    if (currentUser && currentUser.role === "SUPER_ADMIN") {
+      return;
+    }
+
     const verifySession = async () => {
       setLoading(true);
       setForbidden(false);
@@ -32,6 +44,7 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
         }
       } catch {
         if (!isCancelled) {
+          localStorage.removeItem("examsecure_auth_token");
           // Unauthenticated -> redirect to /admin/login
           navigate("/admin/login");
         }
@@ -47,7 +60,7 @@ export default function AdminRouteGuard({ children }: AdminRouteGuardProps) {
     return () => {
       isCancelled = true;
     };
-  }, [path, navigate]);
+  }, [path, navigate, currentUser]);
 
   if (loading) {
     return (

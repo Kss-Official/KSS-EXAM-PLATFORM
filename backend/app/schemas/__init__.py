@@ -11,6 +11,7 @@ from app.schemas.candidate import (
     CandidateDto, CandidateAccessCodeDto, CandidateVerifyRequest, CandidateVerifyResponse,
     CandidateOptionDto, CandidateQuestionDto, CandidateStartAttemptResponse,
     AnswerSaveRequest, CandidateAssignSetRequest, CandidateBatchAssignSetRequest,
+    CandidateBatchAssignBatchRequest, CandidateBatchAssignExamRequest,
     CandidateBatchGenerateSelectedRequest, PaginatedCandidatesResponse
 )
 from app.schemas.result import SubmissionResponse, ExamResultDto
@@ -20,6 +21,10 @@ from app.schemas.coding import (
     CodeRunRequest, CodeRunResponse,
     CodeSubmitRequest, CodeSubmitResponse, TestCaseResultItem,
     BatchEmailDispatchRequest
+)
+from app.schemas.live_monitoring import (
+    LiveExamineeDto, ProctorAlertDto, GiveExtraTimeRequest,
+    StopExamRequest, RecordAlertRequest, ReviewAlertRequest
 )
 
 __all__ = [
@@ -45,6 +50,7 @@ __all__ = [
     "CandidateAccessCodeDto",
     "CandidateVerifyRequest",
     "CandidateVerifyResponse",
+    "CandidateBatchAssignExamRequest",
     "CandidateOptionDto",
     "CandidateQuestionDto",
     "CandidateStartAttemptResponse",
@@ -64,4 +70,10 @@ __all__ = [
     "TestCaseResultItem",
     "BatchEmailDispatchRequest",
     "PaginatedCandidatesResponse",
+    "LiveExamineeDto",
+    "ProctorAlertDto",
+    "GiveExtraTimeRequest",
+    "StopExamRequest",
+    "RecordAlertRequest",
+    "ReviewAlertRequest",
 ]

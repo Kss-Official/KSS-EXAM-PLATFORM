@@ -19,7 +19,8 @@ import {
   Video,
   Menu,
   Mail,
-  UserX
+  UserX,
+  Loader2
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
@@ -28,13 +29,15 @@ import { useFaceDetection } from "../../hooks/useFaceDetection";
 interface SystemCheckPageProps {
   profile: CandidateProfile;
   onBack: () => void;
-  onStartExam: () => void;
+  onStartExam: () => void | Promise<void>;
+  isStartingExam?: boolean;
 }
 
 export default function SystemCheckPage({
   profile,
   onBack,
-  onStartExam
+  onStartExam,
+  isStartingExam = false
 }: SystemCheckPageProps) {
   // System detection states
   const [osName, setOsName] = useState("Windows 11 / 10 (64-bit)");
@@ -244,7 +247,7 @@ export default function SystemCheckPage({
         <div className="brand">
           <img 
             src={kalpanaaLogo} 
-            alt="Kalpanaa Software Solutions" 
+            alt="Kalpanaaa Software Solutions" 
             className="candidate-portal-logo" 
           />
         </div>
@@ -681,11 +684,17 @@ export default function SystemCheckPage({
             <button
               type="button"
               className="compat-btn-continue"
-              disabled={!canContinueToExam}
+              disabled={!canContinueToExam || isStartingExam}
               onClick={onStartExam}
               title={!canContinueToExam ? "Please enable camera, microphone, and agree to instructions to proceed" : "Start your examination"}
             >
-              Continue to Exam
+              {isStartingExam ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                  <Loader2 size={15} className="animate-spin" /> Preparing Assessment...
+                </span>
+              ) : (
+                "Continue to Exam"
+              )}
             </button>
           </div>
         </div>

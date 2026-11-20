@@ -1,0 +1,29 @@
+{
+  "slot1": {
+    "header": "Slot 1 • 12:00 PM",
+    "sub": "Entry: 12:00 PM – 5:00 PM IST",
+    "btn": "Slot 1 (12:00 PM)",
+    "startTime": "12:00 PM",
+    "cutoffTime": "5:00 PM",
+    "startMinutes": 720,
+    "cutoffMinutes": 1020
+  },
+  "slot2": {
+    "header": "Slot 2 • 4:00 PM",
+    "sub": "Entry: 4:00 PM – 5:30 PM IST",
+    "btn": "Slot 2 (4:00 PM)",
+    "startTime": "4:00 PM",
+    "cutoffTime": "5:30 PM",
+    "startMinutes": 960,
+    "cutoffMinutes": 1050
+  },
+  "slot3": {
+    "header": "Slot 3 • 6:00 PM",
+    "sub": "Entry: 6:00 PM – 7:30 PM IST",
+    "btn": "Slot 3 (6:00 PM)",
+    "startTime": "6:00 PM",
+    "cutoffTime": "7:30 PM",
+    "startMinutes": 1080,
+    "cutoffMinutes": 1170
+  }
+}

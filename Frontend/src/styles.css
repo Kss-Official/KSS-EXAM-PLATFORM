@@ -103,7 +103,7 @@ select:focus-visible {
   font-size: 12px;
   font-weight: 700;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: border-color 0.1s ease, background-color 0.1s ease, box-shadow 0.1s ease;
 }
 
 .primary {
@@ -1413,9 +1413,9 @@ select:focus-visible {
 }
 
 .active-session-banner {
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
+  background: #eaf6ef;
+  border: 1px solid #bbf7d0;
+  color: #014d32;
 }
 
 .submitted-session-banner {
@@ -3932,5 +3932,83 @@ select:focus-visible {
   }
 }
 
+/* Live Slot Schedule Banner (Candidate Portal Entry) */
+.live-slot-schedule-banner {
+  margin: 12px 0 20px 0;
+  padding: 10px 14px;
+  background: #f8fcfa;
+  border: 1px solid #d9e6df;
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(1, 120, 70, 0.04);
+}
 
+.live-slot-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #017846;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+}
+
+.live-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #017846;
+  box-shadow: 0 0 0 0 rgba(1, 120, 70, 0.7);
+  animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% {
+    box-shadow: 0 0 0 0 rgba(1, 120, 70, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(1, 120, 70, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(1, 120, 70, 0);
+  }
+}
+
+.live-slot-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+@media (max-width: 480px) {
+  .live-slot-chips {
+    grid-template-columns: 1fr;
+  }
+}
+
+.live-slot-chip {
+  display: flex;
+  flex-direction: column;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #d9e6df;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.slot-badge-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #017846;
+  text-transform: uppercase;
+}
+
+.slot-badge-time {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: #014d32;
+  margin-top: 1px;
+  white-space: nowrap;
+}
 

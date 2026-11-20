@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "../../router";
 import { 
   BarChart3, 
   Award, 
@@ -23,9 +24,12 @@ import {
 import { 
   getAllResults, 
   getAvailableResultDates,
+  getResultDateCounts,
   publishResults, 
   getAllExams, 
   resetCandidateAttempt,
+  getSlotTimings,
+  type SlotTimingsConfig,
   type ExamResultDto, 
   type ExamDto 
 } from "../../services/api";
@@ -114,35 +118,81 @@ const formatDisplayDate = (dStr: string | undefined): string => {
 };
 
 export default function ResultsPage() {
+  const { path, navigate } = useRouter();
+
+  // Helper to extract examId from URL query string
+  const getExamIdFromUrl = (): number | undefined => {
+    try {
+      const searchStr = path.includes("?") 
+        ? path.slice(path.indexOf("?")) 
+        : (typeof window !== "undefined" ? window.location.search : "");
+      const params = new URLSearchParams(searchStr);
+      const e = params.get("examId");
+      return e ? Number(e) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+
+  const initialExamId = useMemo(() => getExamIdFromUrl(), []);
   const todayIst = useMemo(() => getTodayIstString(), []);
   const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
   const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
 
   const [exams, setExams] = useState<ExamDto[]>([]);
-  const [selectedExamId, setSelectedExamId] = useState<number | undefined>(undefined);
+  const [selectedExamId, setSelectedExamId] = useState<number | undefined>(initialExamId);
   const [results, setResults] = useState<ExamResultDto[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Date Filter States
-  const [selectedDate, setSelectedDate] = useState<string>(todayIst); // Default to today's date
+  // Date Filter States: default to ALL dates if filtering a specific exam, otherwise todayIst
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return initialExamId !== undefined ? "ALL" : todayIst;
+  });
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [todayAttemptCount, setTodayAttemptCount] = useState<number | undefined>(undefined);
   const [yesterdayAttemptCount, setYesterdayAttemptCount] = useState<number | undefined>(undefined);
   const [tomorrowAttemptCount, setTomorrowAttemptCount] = useState<number | undefined>(undefined);
   
-  // Slot & Criteria Filter States
-  const [slotFilter, setSlotFilter] = useState<SlotFilterType>("Slot 1"); // Default to Slot 1 as requested
+  // Slot & Criteria Filter States: default to ALL if filtering a specific exam, otherwise Slot 1
+  const [slotFilter, setSlotFilter] = useState<SlotFilterType>(() => {
+    return initialExamId !== undefined ? "ALL" : "Slot 1";
+  });
+
+  // Sync state if URL path/query parameters change
+  useEffect(() => {
+    const eId = getExamIdFromUrl();
+    if (eId !== undefined) {
+      setSelectedExamId(eId);
+      setSelectedDate("ALL");
+      setSlotFilter("ALL");
+    } else {
+      setSelectedExamId(undefined);
+    }
+  }, [path]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [collegeFilter, setCollegeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [scorePreset, setScorePreset] = useState<ScorePresetType>("ALL");
   const [minScore, setMinScore] = useState<string>("");
   const [maxScore, setMaxScore] = useState<string>("");
   const [scoreSort, setScoreSort] = useState<ScoreSortType>("DEFAULT");
   const [exportMode, setExportMode] = useState<"FILTERED" | "QUALIFIED">("FILTERED");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const [notice, setNotice] = useState<string | null>(null);
   const [attemptToReset, setAttemptToReset] = useState<ExamResultDto | null>(null);
   const [isResetting, setIsResetting] = useState(false);
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig | null>(() => {
+    try {
+      const cached = localStorage.getItem("examsecure_slot_timings_v1");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.slot1 && parsed?.slot2) return parsed;
+      }
+    } catch {}
+    return null;
+  });
 
   const fetchExams = async () => {
     try {
@@ -155,12 +205,18 @@ export default function ResultsPage() {
 
   const fetchAvailableDates = async () => {
     try {
-      const dates = await getAvailableResultDates();
+      const [dates, counts] = await Promise.all([
+        getAvailableResultDates().catch(() => [] as string[]),
+        getResultDateCounts().catch(() => ({} as Record<string, number>))
+      ]);
       if (dates && dates.length > 0) {
         setAvailableDates(dates);
       }
-      getAllResults(undefined, yesterdayIst).then(d => setYesterdayAttemptCount(d.length)).catch(() => {});
-      getAllResults(undefined, tomorrowIst).then(d => setTomorrowAttemptCount(d.length)).catch(() => {});
+      setYesterdayAttemptCount(counts[yesterdayIst] || 0);
+      setTomorrowAttemptCount(counts[tomorrowIst] || 0);
+      if (counts[todayIst] !== undefined) {
+        setTodayAttemptCount(counts[todayIst]);
+      }
     } catch (e) {
       console.warn("Could not load available dates:", e);
     }
@@ -185,6 +241,7 @@ export default function ResultsPage() {
   useEffect(() => {
     fetchExams();
     fetchAvailableDates();
+    getSlotTimings().then(data => setSlotTimings(data)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -249,33 +306,39 @@ export default function ResultsPage() {
     const titleLower = (r.examTitle || "").toLowerCase().trim();
     const batchLower = (r.candidateBatch || "").toLowerCase().trim();
 
-    // Explicit Slot 1 check
-    if (
-      r.slotNumber === 1 ||
-      r.examId === 98 ||
-      batchLower.includes("slot 1") ||
-      batchLower.includes("11:00") ||
-      batchLower.includes("10:00") ||
-      titleLower.includes("slot 1") ||
-      (r.examId === 102 && !batchLower.includes("slot 2"))
-    ) {
+    // 1. Candidate's enrolled batch from Candidate Directory is the primary source of truth!
+    if (batchLower.includes("slot 1") || batchLower === "slot1") {
       return "Slot 1";
     }
-
-    // Explicit Slot 2 check
-    if (
-      r.slotNumber === 2 ||
-      r.examId === 99 ||
-      batchLower.includes("slot 2") ||
-      batchLower.includes("4:00") ||
-      batchLower.includes("4pm") ||
-      batchLower.includes("2:00") ||
-      batchLower.includes("2pm") ||
-      titleLower.includes("slot @") ||
-      titleLower.includes("slot 2")
-    ) {
+    if (batchLower.includes("slot 2") || batchLower === "slot2") {
       return "Slot 2";
     }
+    if (batchLower.includes("slot 3") || batchLower === "slot3") {
+      return "Slot 3";
+    }
+
+    // 2. Direct slot number from database
+    if (r.slotNumber === 1) return "Slot 1";
+    if (r.slotNumber === 2) return "Slot 2";
+    if (r.slotNumber === 3) return "Slot 3";
+
+    // 3. Dynamic timing match from slotTimings configuration
+    const s1Start = slotTimings?.slot1?.startTime?.toLowerCase();
+    const s2Start = slotTimings?.slot2?.startTime?.toLowerCase();
+    const s3Start = slotTimings?.slot3?.startTime?.toLowerCase();
+
+    if (s1Start && (batchLower.includes(s1Start) || titleLower.includes(s1Start))) return "Slot 1";
+    if (s2Start && (batchLower.includes(s2Start) || titleLower.includes(s2Start))) return "Slot 2";
+    if (s3Start && (batchLower.includes(s3Start) || titleLower.includes(s3Start))) return "Slot 3";
+
+    // 4. Fallback checks for common time strings
+    if (batchLower.includes("10:00") || batchLower.includes("11:00") || batchLower.includes("11:30")) return "Slot 1";
+    if (batchLower.includes("12:00") || batchLower.includes("1:00") || batchLower.includes("1pm") || batchLower.includes("2:00") || batchLower.includes("2pm") || batchLower.includes("3:00") || batchLower.includes("3pm")) return "Slot 2";
+    if (batchLower.includes("4:00") || batchLower.includes("4pm") || titleLower.includes("4:00") || titleLower.includes("4pm")) return "Slot 3";
+
+    if (r.examId === 98 || titleLower.includes("slot 1")) return "Slot 1";
+    if (r.examId === 99 || titleLower.includes("slot 2") || titleLower.includes("slot @")) return "Slot 2";
+    if (titleLower.includes("slot 3")) return "Slot 3";
 
     // Independent Mock / Demo exams without any slot designation
     if (
@@ -284,19 +347,6 @@ export default function ResultsPage() {
       titleLower.includes("mock")
     ) {
       return "OTHER";
-    }
-
-    // Explicit Slot 3 (4:00 PM) check
-    if (
-      r.slotNumber === 3 ||
-      titleLower.includes("slot 3") ||
-      titleLower.includes("4:00") ||
-      titleLower.includes("4pm") ||
-      batchLower.includes("slot 3") ||
-      batchLower.includes("4:00") ||
-      batchLower.includes("4pm")
-    ) {
-      return "Slot 3";
     }
 
     return "OTHER";
@@ -319,20 +369,37 @@ export default function ResultsPage() {
   const is31Oct = selectedDate === "2026-10-31" || selectedDate.includes("31");
   const is30Oct = selectedDate === "2026-10-30" || selectedDate.includes("30");
 
-  const slot1TabLabel = is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)";
-  const slot2TabLabel = is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)";
+  const s1StartR = slotTimings?.slot1?.startTime;
+  const s1CutoffR = slotTimings?.slot1?.cutoffTime;
+  const slot1TabLabel = s1StartR ? `Slot 1 (${s1StartR})` : (is31Oct ? "Slot 1 (11:30 AM)" : is30Oct ? "Slot 1 (10:00 AM)" : "Slot 1 (Morning)");
 
-  const slot1StatusTitle = is31Oct 
+  const s2StartR = slotTimings?.slot2?.startTime;
+  const s2CutoffR = slotTimings?.slot2?.cutoffTime;
+  const slot2TabLabel = s2StartR ? `Slot 2 (${s2StartR})` : (is31Oct ? "Slot 2 (04:00 PM)" : is30Oct ? "Slot 2 (02:00 PM)" : "Slot 2 (Afternoon)");
+
+  const s3StartR = slotTimings?.slot3?.startTime;
+  const s3CutoffR = slotTimings?.slot3?.cutoffTime;
+  const slot3TabLabel = s3StartR ? `Slot 3 (${s3StartR})` : "Slot 3 (4:00 PM)";
+
+  const slot1StatusTitle = (s1StartR && s1CutoffR) 
+    ? `Slot 1 Exam (Entry: ${s1StartR} – ${s1CutoffR} IST)`
+    : (is31Oct 
     ? "Slot 1 Exam: Scheduled (11:30 AM – 12:30 PM)" 
     : is30Oct 
     ? "Slot 1 Exam: Completed (10:00 AM – 11:00 AM)" 
-    : "Slot 1 Examination";
+    : "Slot 1 Examination");
 
-  const slot2StatusTitle = is31Oct 
+  const slot2StatusTitle = (s2StartR && s2CutoffR) 
+    ? `Slot 2 Exam (Entry: ${s2StartR} – ${s2CutoffR} IST)`
+    : (is31Oct 
     ? "Slot 2 Exam: Scheduled (04:00 PM – 05:00 PM)" 
     : is30Oct 
     ? "Slot 2 Exam: Completed (02:00 PM – 03:00 PM)" 
-    : "Slot 2 Examination";
+    : "Slot 2 Examination");
+
+  const slot3StatusTitle = (s3StartR && s3CutoffR)
+    ? `Slot 3 Exam (Entry: ${s3StartR} – ${s3CutoffR} IST)`
+    : "Slot 3 Examination";
 
   // Compute dynamic pool based on selected slot or selected exam
   const activeSlotPool = useMemo(() => {
@@ -358,6 +425,17 @@ export default function ResultsPage() {
     return Math.max(0, ...activeSlotPool.map(r => r.score || 0));
   }, [activeSlotPool]);
 
+  // List of distinct colleges present in results
+  const availableColleges = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach(r => {
+      if (r.collegeName && r.collegeName.trim()) {
+        set.add(r.collegeName.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [results]);
+
   // Multi-filter evaluation
   const filtered = useMemo(() => {
     return results.filter(r => {
@@ -366,17 +444,23 @@ export default function ResultsPage() {
         if (getCandidateSlot(r) !== slotFilter) return false;
       }
 
-      // 2. Search Query (name, roll no, department, email, exam title)
+      // 2. Search Query (name, roll no, college, department, email, exam title)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = r.candidateName?.toLowerCase().includes(q);
         const matchRoll = r.registrationNumber?.toLowerCase().includes(q);
+        const matchCollege = r.collegeName?.toLowerCase().includes(q);
         const matchDept = r.departmentName?.toLowerCase().includes(q);
         const matchEmail = r.candidateEmail?.toLowerCase().includes(q);
         const matchExam = r.examTitle?.toLowerCase().includes(q);
-        if (!matchName && !matchRoll && !matchDept && !matchEmail && !matchExam) {
+        if (!matchName && !matchRoll && !matchCollege && !matchDept && !matchEmail && !matchExam) {
           return false;
         }
+      }
+
+      // 2b. College Filter
+      if (collegeFilter && (r.collegeName || "").trim().toLowerCase() !== collegeFilter.trim().toLowerCase()) {
+        return false;
       }
 
       // 3. Exam Dropdown
@@ -418,9 +502,9 @@ export default function ResultsPage() {
       }
       return 0; // Default order
     });
-  }, [results, slotFilter, searchQuery, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort]);
+  }, [results, slotFilter, searchQuery, collegeFilter, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort]);
 
-  // Candidates for export
+  // Candidates for export (unpaginated)
   const exportCandidates = useMemo(() => {
     if (exportMode === "QUALIFIED") {
       return filtered.filter(r => r.qualificationStatus === "QUALIFIED");
@@ -428,17 +512,34 @@ export default function ResultsPage() {
     return filtered;
   }, [filtered, exportMode]);
 
-  const hasActiveFilters = slotFilter !== "Slot 1" || searchQuery.trim() !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
+  // Client-side pagination for high-speed table rendering without lag
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedCandidates = useMemo(() => {
+    if (pageSize >= 9999) return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  // Reset to page 1 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [slotFilter, searchQuery, collegeFilter, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort, selectedDate]);
+
+  const hasActiveFilters = slotFilter !== "Slot 1" || searchQuery.trim() !== "" || collegeFilter !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
 
   const resetAllFilters = () => {
     setSlotFilter("Slot 1");
     setSearchQuery("");
+    setCollegeFilter("");
     setStatusFilter("ALL");
     setScorePreset("ALL");
     setMinScore("");
     setMaxScore("");
     setScoreSort("DEFAULT");
     setSelectedExamId(undefined);
+    setSelectedDate(todayIst);
+    setCurrentPage(1);
+    navigate("/admin/results");
   };
 
   const selectedExamObj = exams.find(e => e.id === selectedExamId);
@@ -446,9 +547,9 @@ export default function ResultsPage() {
   // Slot title for exports
   const getSlotExportTitle = () => {
     if (selectedExamObj) return `${selectedExamObj.title} (Exam #${selectedExamObj.id})`;
-    if (slotFilter === "Slot 1") return is31Oct ? "Slot 1 (11:30 AM - 1:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
-    if (slotFilter === "Slot 2") return is31Oct ? "Slot 2 (04:00 PM - 05:00 PM)" : is30Oct ? "Slot 2 (02:00 PM - 03:00 PM)" : "Slot 2 (Afternoon)";
-    if (slotFilter === "Slot 3") return "Slot 3 (04:00 PM - 05:00 PM)";
+    if (slotFilter === "Slot 1") return (s1StartR && s1CutoffR) ? `Slot 1 (${s1StartR} - ${s1CutoffR})` : is31Oct ? "Slot 1 (11:30 AM - 1:30 PM)" : is30Oct ? "Slot 1 (10:00 AM - 11:00 AM)" : "Slot 1 (Morning)";
+    if (slotFilter === "Slot 2") return (s2StartR && s2CutoffR) ? `Slot 2 (${s2StartR} - ${s2CutoffR})` : is31Oct ? "Slot 2 (04:00 PM - 05:00 PM)" : is30Oct ? "Slot 2 (02:00 PM - 03:00 PM)" : "Slot 2 (Afternoon)";
+    if (slotFilter === "Slot 3") return (s3StartR && s3CutoffR) ? `Slot 3 (${s3StartR} - ${s3CutoffR})` : "Slot 3 (04:00 PM - 05:00 PM)";
     if (slotFilter === "OTHER") return "Other & Flexible Exams";
     return "All Slots Combined";
   };
@@ -460,6 +561,7 @@ export default function ResultsPage() {
       "Candidate Name", 
       "Registration Number", 
       "Email Address",
+      "College",
       "Department", 
       "Slot", 
       "Exam Title", 
@@ -479,6 +581,7 @@ export default function ResultsPage() {
       `"${c.candidateName}"`,
       `"${c.registrationNumber}"`,
       `"${c.candidateEmail || "-"}"`,
+      `"${c.collegeName || "-"}"`,
       `"${c.departmentName}"`,
       `"${getCandidateSlot(c)}"`,
       `"${c.examTitle}"`,
@@ -544,6 +647,8 @@ export default function ResultsPage() {
           .slot-pill { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700; }
           .slot-1 { background: #e0f2fe; color: #0369a1; }
           .slot-2 { background: #f3e8ff; color: #6b21a8; }
+          .slot-3 { background: #fef3c7; color: #b45309; }
+          .slot-other { background: #ccfbf1; color: #0f766e; }
           .date-pill { background: #f1f5f9; color: #334155; font-size: 10.5px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
           .footer { margin-top: 32px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 12px; }
           @media print {
@@ -555,7 +660,7 @@ export default function ResultsPage() {
       <body>
         <div class="header">
           <div>
-            <h1 class="title">Kalpanaa Software Solutions &mdash; Official Results Report</h1>
+            <h1 class="title">Kalpanaaa Software Solutions &mdash; Official Results Report</h1>
             <p class="subtitle">Examination: <strong>${examTitle}</strong> &bull; Exam Date: <strong>${examDateLabel}</strong> &bull; Generated: ${dateStr}</p>
           </div>
           <div class="badge-box">
@@ -569,6 +674,7 @@ export default function ResultsPage() {
               <th style="width: 32px;">#</th>
               <th>Exam Date</th>
               <th>Candidate Name & Reg No</th>
+              <th>College</th>
               <th>Department</th>
               <th>Slot & Set</th>
               <th>Ans / Unans</th>
@@ -589,9 +695,10 @@ export default function ResultsPage() {
                     <strong>${c.candidateName}</strong>
                     <div style="font-family: monospace; font-size: 11px; color: #64748b;">${c.registrationNumber}</div>
                   </td>
+                  <td>${c.collegeName || "—"}</td>
                   <td>${c.departmentName}</td>
                   <td>
-                    <span class="slot-pill ${slot === "Slot 1" ? "slot-1" : "slot-2"}">${slot}</span>
+                    <span class="slot-pill ${slot === "Slot 1" ? "slot-1" : slot === "Slot 2" ? "slot-2" : slot === "Slot 3" ? "slot-3" : "slot-other"}">${slot}</span>
                     <span style="font-size: 11px; font-weight: 600; margin-left: 4px;">Set ${c.setCode}</span>
                   </td>
                   <td>${c.answeredCount} / ${c.unansweredCount}</td>
@@ -646,7 +753,7 @@ export default function ResultsPage() {
         </style>
       </head>
       <body>
-        <h2>Kalpanaa Software Solutions &mdash; Official Results Report</h2>
+        <h2>Kalpanaaa Software Solutions &mdash; Official Results Report</h2>
         <p>Examination: <b>${examTitle}</b> | Exam Date: <b>${examDateLabel}</b> | Date Generated: ${dateStr} | Total Candidates: <b>${exportCandidates.length}</b></p>
         <table>
           <thead>
@@ -655,6 +762,7 @@ export default function ResultsPage() {
               <th>Exam Date</th>
               <th>Candidate Name</th>
               <th>Roll / Reg No</th>
+              <th>College</th>
               <th>Department</th>
               <th>Slot</th>
               <th>Set</th>
@@ -671,6 +779,7 @@ export default function ResultsPage() {
                 <td>${c.examDate || getCandidateExamDate(c)}</td>
                 <td><b>${c.candidateName}</b></td>
                 <td>${c.registrationNumber}</td>
+                <td>${c.collegeName || "—"}</td>
                 <td>${c.departmentName}</td>
                 <td>${getCandidateSlot(c)}</td>
                 <td>Set ${c.setCode}</td>
@@ -1054,40 +1163,38 @@ export default function ResultsPage() {
                 </span>
               </button>
 
-              {/* Slot 3 (4:00 PM) Tab - shown if any candidates exist */}
-              {slotCounts.slot3 > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setSlotFilter("Slot 3")}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "7px 16px",
-                    borderRadius: "8px",
-                    fontSize: "13px",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    border: "none",
-                    background: slotFilter === "Slot 3" ? "#d97706" : "transparent",
-                    color: slotFilter === "Slot 3" ? "#ffffff" : "#475569",
-                    boxShadow: slotFilter === "Slot 3" ? "0 2px 6px rgba(217, 119, 6, 0.3)" : "none",
-                    transition: "all 0.15s ease"
-                  }}
-                >
-                  <span>Slot 3 (04:00 PM)</span>
-                  <span style={{
-                    background: slotFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
-                    color: slotFilter === "Slot 3" ? "#ffffff" : "#b45309",
-                    padding: "1px 8px",
-                    borderRadius: "10px",
-                    fontSize: "11.5px",
-                    fontWeight: 800
-                  }}>
-                    {slotCounts.slot3}
-                  </span>
-                </button>
-              )}
+              {/* Slot 3 Tab - unconditionally visible, dynamic label */}
+              <button
+                type="button"
+                onClick={() => setSlotFilter("Slot 3")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "7px 16px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  border: "none",
+                  background: slotFilter === "Slot 3" ? "#d97706" : "transparent",
+                  color: slotFilter === "Slot 3" ? "#ffffff" : "#475569",
+                  boxShadow: slotFilter === "Slot 3" ? "0 2px 6px rgba(217, 119, 6, 0.3)" : "none",
+                  transition: "all 0.15s ease"
+                }}
+              >
+                <span>{slot3TabLabel}</span>
+                <span style={{
+                  background: slotFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
+                  color: slotFilter === "Slot 3" ? "#ffffff" : "#b45309",
+                  padding: "1px 8px",
+                  borderRadius: "10px",
+                  fontSize: "11.5px",
+                  fontWeight: 800
+                }}>
+                  {slotCounts.slot3}
+                </span>
+              </button>
 
               {/* Other / Flexible Exams Tab - shown if any independent exam candidates exist */}
               {slotCounts.other > 0 && (
@@ -1225,8 +1332,8 @@ export default function ResultsPage() {
                 color: "#b45309",
                 fontWeight: 600
               }}>
-                <Clock size={14} color="#d97706" />
-                <span>Slot 3 Exam: <strong>Scheduled (04:00 PM – 05:00 PM)</strong> &bull; {slotCounts.slot3} Candidates</span>
+                <span style={{ display: "inline-block", width: "8px", height: "8px", borderRadius: "50%", background: "#d97706" }} />
+                <span><strong>{slot3StatusTitle}</strong> &bull; {slotCounts.slot3} Attendees</span>
               </div>
             )}
             {!selectedExamObj && slotFilter === "OTHER" && (
@@ -1312,11 +1419,38 @@ export default function ResultsPage() {
           <Search size={16} className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search by candidate name, roll no, department, or email..." 
+            placeholder="Search by candidate name, roll no, college, department, or email..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+
+        {/* College Filter Dropdown */}
+        {availableColleges.length > 0 && (
+          <select
+            value={collegeFilter}
+            onChange={e => {
+              setCollegeFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              height: "42px",
+              padding: "8px 14px",
+              fontSize: "12.5px",
+              borderRadius: "10px",
+              border: "1.5px solid #e2e8f0",
+              background: "#f8fafc",
+              color: "#0f172a",
+              outline: "none",
+              cursor: "pointer"
+            }}
+          >
+            <option value="">All Colleges ({availableColleges.length})</option>
+            {availableColleges.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        )}
 
         {/* Exam Filter Dropdown */}
         <select
@@ -1326,6 +1460,10 @@ export default function ResultsPage() {
             setSelectedExamId(newId);
             if (newId) {
               setSlotFilter("ALL");
+              setSelectedDate("ALL");
+              navigate(`/admin/results?examId=${newId}`);
+            } else {
+              navigate("/admin/results");
             }
           }}
           style={{ height: "42px", padding: "8px 14px", fontSize: "12.5px", borderRadius: "10px", border: "1.5px solid #e2e8f0", background: "#f8fafc", color: "#0f172a", outline: "none" }}
@@ -1668,6 +1806,7 @@ export default function ResultsPage() {
             <thead>
               <tr>
                 <th>Candidate & Slot</th>
+                <th>College</th>
                 <th>Department</th>
                 <th>Examination & Set</th>
                 <th>Answered / Unanswered</th>
@@ -1680,13 +1819,13 @@ export default function ResultsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
                     Loading real attempt results from PostgreSQL...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <BarChart3 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       {results.length === 0 
@@ -1759,7 +1898,7 @@ export default function ResultsPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map(r => {
+                paginatedCandidates.map(r => {
                   const candidateSlot = getCandidateSlot(r);
                   const attemptDate = r.examDate || getCandidateExamDate(r);
                   return (
@@ -1788,7 +1927,7 @@ export default function ResultsPage() {
                               bBg = "#fffbeb";
                               bCol = "#b45309";
                               bBrd = "#fde68a";
-                              bTxt = "Slot 3 (4:00 PM)";
+                              bTxt = "Slot 3";
                             }
 
                             return (
@@ -1811,6 +1950,32 @@ export default function ResultsPage() {
                           <small style={{ display: "block", color: "#475569", fontSize: "11.5px" }}>{r.candidateEmail}</small>
                         )}
                         <small style={{ display: "block", color: "#64748b", fontFamily: "JetBrains Mono, monospace" }}>{r.registrationNumber}</small>
+                      </td>
+                      <td>
+                        {r.collegeName ? (
+                          <span 
+                            className="admin-dept-chip"
+                            style={{
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              border: "1px solid #bfdbfe",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              display: "inline-block",
+                              maxWidth: "200px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}
+                            title={r.collegeName}
+                          >
+                            {r.collegeName}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
+                        )}
                       </td>
                       <td>
                         <span className="admin-dept-chip">
@@ -1903,6 +2068,96 @@ export default function ResultsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Dynamic Pagination Bar */}
+        {filtered.length > 0 && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 18px",
+            borderTop: "1px solid #e2e8f0",
+            background: "#ffffff",
+            borderRadius: "0 0 12px 12px",
+            flexWrap: "wrap",
+            gap: "10px",
+            fontSize: "12.5px",
+            color: "#64748b"
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span>
+                Showing <strong>{filtered.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> – <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> candidates
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>Per page:</span>
+                <select
+                  value={pageSize}
+                  onChange={e => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: "#f8fafc",
+                    fontSize: "12px",
+                    color: "#0f172a",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={99999}>All</option>
+                </select>
+              </div>
+            </div>
+
+            {totalPages > 1 && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <button
+                  type="button"
+                  disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: currentPage <= 1 ? "#f1f5f9" : "#ffffff",
+                    color: currentPage <= 1 ? "#94a3b8" : "#0f172a",
+                    cursor: currentPage <= 1 ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: "12px"
+                  }}
+                >
+                  Previous
+                </button>
+                <span style={{ padding: "0 6px", fontWeight: 600, color: "#0f172a" }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    border: "1px solid #cbd5e1",
+                    background: currentPage >= totalPages ? "#f1f5f9" : "#ffffff",
+                    color: currentPage >= totalPages ? "#94a3b8" : "#0f172a",
+                    cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
+                    fontWeight: 600,
+                    fontSize: "12px"
+                  }}
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Reset Attempt Confirmation Modal */}

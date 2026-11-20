@@ -119,6 +119,18 @@ def run_tests():
         ).first()
         if not sample_cand:
             sample_cand = db.query(Candidate).filter(Candidate.college_id.isnot(None)).first()
+        if not sample_cand:
+            sample_cand = Candidate(
+                full_name="Separation Test Candidate",
+                email="test.separation@kalpanaaasoftwaresolutions.in",
+                registration_number="REG_SEP_01",
+                college_id=sample_col.id,
+                department_id=dev_dept.id,
+                batch="Slot 1"
+            )
+            db.add(sample_cand)
+            db.commit()
+            db.refresh(sample_cand)
 
         assert sample_cand is not None
         v_req = CandidateVerifyRequest(

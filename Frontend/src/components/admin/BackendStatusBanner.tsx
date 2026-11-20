@@ -76,8 +76,8 @@ export default function BackendStatusBanner({
     return (
       <div className="backend-banner success">
         <div className="banner-header">
-          <div className="banner-title" style={{ color: "#065f46" }}>
-            <CheckCircle size={18} color="#10b981" />
+          <div className="banner-title" style={{ color: "#014D32" }}>
+            <CheckCircle size={18} color="#017846" />
             <span>Backend Connected: {data.application} ({data.status})</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

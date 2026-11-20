@@ -1,4 +1,5 @@
 from typing import List, Dict, Any, Optional, Union
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, UploadFile, File, Body, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -19,6 +20,7 @@ def get_candidates(
     status: Optional[str] = Query(None, description="Filter by status (COMPLETED, GOING ON, PENDING, ALL)"),
     batch: Optional[str] = Query(None, description="Filter by batch (Slot 1, Slot 2, UNASSIGNED, ALL)"),
     date: Optional[str] = Query(None, description="Filter by candidate examination date (YYYY-MM-DD or ALL)"),
+    exam_id: Optional[int] = Query(None, alias="examId", description="Filter by assigned exam ID"),
     sort_by: str = Query("registration_number", alias="sortBy", description="Sort field"),
     sort_order: str = Query("asc", alias="sortOrder", description="Sort order (asc or desc)"),
     all: bool = Query(False, description="Return all candidates unpaginated"),
@@ -39,6 +41,7 @@ def get_candidates(
         status=status,
         batch=batch,
         date=date,
+        exam_id=exam_id,
         sort_by=sort_by,
         sort_order=sort_order
     )
@@ -51,6 +54,23 @@ def get_available_candidate_dates(
     """Returns all distinct dates on which candidates are scheduled or registered (YYYY-MM-DD)."""
     return CandidateService.get_available_candidate_dates(db)
 
+@router.get("/date-counts")
+def get_candidate_date_counts(
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Returns candidate counts grouped by scheduled date and total ('ALL') in a single fast query."""
+    return CandidateService.get_candidate_date_counts(db)
+
+@router.get("/slot-counts")
+def get_candidate_slot_counts(
+    date: Optional[str] = Query(None, description="Filter by candidate examination date (YYYY-MM-DD or ALL)"),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Returns candidate counts broken down by exam slot (Slot 1, Slot 2, Total) in a single fast query."""
+    return CandidateService.get_candidate_slot_counts(db, date=date)
+
 @router.post("", response_model=CandidateDto)
 def create_candidate(
     dto: CandidateDto,
@@ -62,10 +82,15 @@ def create_candidate(
 @router.post("/batch")
 def import_candidates_batch(
     file: UploadFile = File(...),
+    exam_date: Optional[str] = Query(None, description="Target exam date (YYYY-MM-DD)"),
+    exam_id: Optional[int] = Query(None, description="Target examination ID (snake_case)"),
+    examId: Optional[int] = Query(None, description="Target examination ID (camelCase)"),
+    batch: Optional[str] = Query(None, description="Target exam slot / batch (e.g. Slot 1, Slot 2, Slot 3)"),
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return CandidateService.import_candidates_csv_sync(db, file, current_user.email)
+    target_exam_id = exam_id if exam_id is not None else examId
+    return CandidateService.import_candidates_csv_sync(db, file, current_user.email, exam_date=exam_date, exam_id=target_exam_id, batch=batch)
 
 @router.post("/{candidate_id}/assign")
 def assign_candidate(
@@ -132,6 +157,20 @@ def batch_assign_candidate_batch(
         db, candidate_ids=candidate_ids, batch=batch, performed_by=current_user.email
     )
 
+@router.post("/batch-assign-exam")
+def batch_assign_candidate_exam(
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Batch assigns an examination to selected candidate IDs."""
+    candidate_ids = payload.get("candidateIds") or payload.get("candidate_ids") or []
+    raw_exam_id = payload.get("examId") if "examId" in payload else payload.get("exam_id")
+    exam_id = int(raw_exam_id) if raw_exam_id is not None and str(raw_exam_id).strip() != "" else None
+    return CandidateService.batch_assign_candidate_exam(
+        db, candidate_ids=candidate_ids, exam_id=exam_id, performed_by=current_user.email
+    )
+
 @router.post("/{candidate_id}/assign-batch")
 def assign_candidate_batch(
     candidate_id: int,
@@ -189,5 +228,95 @@ def batch_reschedule_candidate_slot(
         performed_by=current_user.email,
         reason=reason
     )
+
+@router.get("/slot-timings")
+def get_slot_timings(db: Session = Depends(get_db)):
+    """Retrieve the current examination slot timings and display metadata directly from PostgreSQL."""
+    from app.core.slot_config import get_slot_timings_config
+    return get_slot_timings_config(db=db)
+
+@router.put("/slot-timings")
+def update_slot_timings(
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Update examination slot timings in PostgreSQL system_settings and synchronize exam_slots table."""
+    from app.core.slot_config import update_slot_timings_config
+    cfg = update_slot_timings_config(payload, db=db)
+
+    # Synchronize PostgreSQL exam_slots table for active examinations
+    try:
+        from app.models.exam import Exam, ExamSlot
+        from datetime import datetime, timezone, timedelta
+        IST = timezone(timedelta(hours=5, minutes=30))
+        today = datetime.now(timezone.utc).astimezone(IST).date()
+
+        active_exams = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED", "DRAFT"])).all()
+        for exam in active_exams:
+            for s_num, s_key in [(1, "slot1"), (2, "slot2"), (3, "slot3")]:
+                s_info = cfg.get(s_key, {})
+                s_start_min = s_info.get("startMinutes", 840 if s_num == 1 else (960 if s_num == 2 else 1080))
+                s_cut_min = s_info.get("cutoffMinutes", 870 if s_num == 1 else (990 if s_num == 2 else 1110))
+
+                start_dt = datetime(today.year, today.month, today.day, s_start_min // 60, s_start_min % 60, tzinfo=IST)
+                end_dt = datetime(today.year, today.month, today.day, s_cut_min // 60, s_cut_min % 60, tzinfo=IST)
+
+                slot_row = db.query(ExamSlot).filter(ExamSlot.exam_id == exam.id, ExamSlot.slot_number == s_num).first()
+                if not slot_row:
+                    slot_row = ExamSlot(
+                        exam_id=exam.id,
+                        slot_number=s_num,
+                        starts_at=start_dt,
+                        ends_at=end_dt,
+                        capacity=500
+                    )
+                    db.add(slot_row)
+                else:
+                    slot_row.starts_at = start_dt
+                    slot_row.ends_at = end_dt
+        db.commit()
+    except Exception as e:
+        print(f"[WARN] Could not sync slot timings to exam_slots in DB: {e}")
+
+    return cfg
+
+@router.put("/{candidate_id}", response_model=CandidateDto)
+def update_candidate(
+    candidate_id: int,
+    dto: CandidateDto,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Update candidate profile, department, batch slot, and scheduled exam date."""
+    return CandidateService.update_candidate(db, candidate_id, dto, current_user.email)
+
+
+class BatchDeleteCandidatesRequest(BaseModel):
+    candidate_ids: List[int]
+
+
+@router.delete("/{candidate_id}")
+def delete_candidate(
+    candidate_id: int,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete a single candidate and all associated records."""
+    CandidateService.delete_candidate(db, candidate_id, current_user.email)
+    return {"success": True, "message": "Candidate deleted successfully"}
+
+
+@router.post("/batch-delete")
+def batch_delete_candidates(
+    req: BatchDeleteCandidatesRequest,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete multiple candidates in batch."""
+    result = CandidateService.batch_delete_candidates(db, req.candidate_ids, current_user.email)
+    return {"success": True, **result}
+
+
 
 

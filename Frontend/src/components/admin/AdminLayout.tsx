@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import { 
   ShieldCheck, 
   LayoutDashboard, 
@@ -19,7 +20,8 @@ import {
   Mail,
   Shield,
   Briefcase,
-  Building2
+  Building2,
+  Radio
 } from "lucide-react";
 import { useRouter, Link } from "../../router";
 import type { AdminDashboardResponse } from "../../types";
@@ -49,6 +51,14 @@ export default function AdminLayout({
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLElement | null>(null);
+
+  // Reset scroll to top cleanly whenever the admin page changes
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [path]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -72,8 +82,9 @@ export default function AdminLayout({
     if (path.startsWith("/admin/departments")) return "Academic Departments";
     if (path.startsWith("/admin/questions")) return "Question Bank (MCQs)";
     if (path.startsWith("/admin/candidates")) return "Candidate Directory";
+    if (path.startsWith("/admin/live-monitoring")) return "Live Exam Monitoring & Proctoring";
     if (path.startsWith("/admin/results")) return "Examination Results & Analytics";
-    if (path.startsWith("/admin/settings")) return "Platform & SEB Settings";
+    if (path.startsWith("/admin/settings")) return "Platform & Security Settings";
     return "Campus Placement Dashboard";
   };
 
@@ -121,12 +132,17 @@ export default function AdminLayout({
       return "/admin/results";
     }
 
-    // 7. Settings
+    // 7. Live Monitoring & Proctoring
+    if (normalized === "/admin/live-monitoring" || normalized.startsWith("/admin/live-monitoring/")) {
+      return "/admin/live-monitoring";
+    }
+
+    // 8. Settings
     if (normalized === "/admin/settings" || normalized.startsWith("/admin/settings/")) {
       return "/admin/settings";
     }
 
-    // 8. Overview / Dashboard
+    // 9. Overview / Dashboard
     if (normalized === "/admin/dashboard" || normalized === "/admin" || normalized.startsWith("/admin/dashboard/")) {
       return "/admin/dashboard";
     }
@@ -143,6 +159,7 @@ export default function AdminLayout({
     { label: "Question Bank", to: "/admin/questions", icon: HelpCircle },
     { label: "Departments", to: "/admin/departments", icon: Building2, badge: dashboardData ? String(dashboardData.totalDepartments) : undefined },
     { label: "Candidates", to: "/admin/candidates", icon: Users, badge: dashboardData ? String(dashboardData.totalCandidates) : undefined },
+    { label: "Live Monitoring", to: "/admin/live-monitoring", icon: Radio },
     { label: "Results", to: "/admin/results", icon: BarChart3 },
     { label: "Settings", to: "/admin/settings", icon: Settings },
   ];
@@ -151,20 +168,68 @@ export default function AdminLayout({
     <div className="admin-app">
       {/* Sidebar */}
       <aside className={`admin-sidebar ${mobileMenuOpen ? "open" : ""}`}>
-        <div className="admin-sidebar-header">
-          <Link to="/admin/dashboard" className="admin-sidebar-brand" onClick={() => setMobileMenuOpen(false)}>
-            <div className="admin-sidebar-logo">
-              <ShieldCheck size={22} />
+        <div className="admin-sidebar-header" style={{ padding: "14px 16px 14px", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", position: "relative" }}>
+          <Link 
+            to="/admin/dashboard" 
+            className="admin-sidebar-brand" 
+            onClick={() => setMobileMenuOpen(false)}
+            style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "8px", textDecoration: "none", width: "100%" }}
+          >
+            {/* Direct High-Res Brand Logo */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "100%",
+              padding: "4px 0"
+            }}>
+              <img 
+                src={kalpanaaLogo} 
+                alt="Kalpanaaa Software Solutions" 
+                style={{ 
+                  height: "44px", 
+                  width: "auto",
+                  maxWidth: "100%", 
+                  objectFit: "contain",
+                  display: "block" 
+                }} 
+              />
             </div>
-            <div className="admin-sidebar-brand-text">
-              <b>ExamSecure</b>
-              <small>ADMIN CONSOLE</small>
+            {/* Sub-header Brand Strip */}
+            <div style={{ 
+              display: "flex", 
+              alignItems: "center", 
+              justifyContent: "space-between", 
+              width: "100%", 
+              padding: "0 2px" 
+            }}>
+              <span style={{ 
+                fontSize: "10px", 
+                letterSpacing: "1px", 
+                color: "#94a3b8", 
+                fontWeight: 700, 
+                textTransform: "uppercase" 
+              }}>
+                Exam Admin Console
+              </span>
+              <span style={{ 
+                fontSize: "9px", 
+                fontWeight: 800, 
+                background: "rgba(1, 120, 70, 0.2)", 
+                color: "#34d399", 
+                padding: "1px 6px", 
+                borderRadius: "4px",
+                border: "1px solid rgba(52, 211, 153, 0.4)",
+                letterSpacing: "0.5px"
+              }}>
+                SEB PROCTOR
+              </span>
             </div>
           </Link>
           <button 
             type="button" 
             className="sidebar-toggle-btn"
-            style={{ color: "#ffffff" }}
+            style={{ color: "#ffffff", position: "absolute", top: "14px", right: "12px" }}
             onClick={() => setMobileMenuOpen(false)}
           >
             <X size={18} />
@@ -523,23 +588,23 @@ export default function AdminLayout({
                   <Briefcase size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Department & Role</div>
-                    <strong style={{ color: "#0f172a" }}>Examination Controller ┬╖ Head Administrator</strong>
+                    <strong style={{ color: "#0f172a" }}>Examination Controller · Head Administrator</strong>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "12.5px" }}>
-                  <Shield size={16} color="#16a34a" style={{ flexShrink: 0 }} />
+                  <Shield size={16} color="#017846" style={{ flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "11px", color: "#64748b" }}>Access Permissions</div>
                     <span style={{ fontSize: "11.5px", color: "#166534", fontWeight: 600 }}>
-                      ROLE_SUPER_ADMIN ┬╖ Safe Exam Browser Controller
+                      ROLE_SUPER_ADMIN · Safe Exam Browser Controller
                     </span>
                   </div>
                 </div>
               </div>
 
               <div style={{ background: "#f8fafc", borderRadius: "8px", padding: "10px 12px", marginBottom: "18px", fontSize: "11.5px", color: "#475569", border: "1px solid #e2e8f0" }}>
-                <strong>Assigned Session:</strong> Campus Placement Assessment 2026 (800 Candidates ┬╖ 4 Question Sets AΓÇôD)
+                <strong>Active Database Telemetry:</strong> {dashboardData ? `${dashboardData.totalExams} Examinations • ${dashboardData.totalCandidates} Enrolled Examinees • ${dashboardData.totalDepartments} Academic Departments` : "Database connected"}
               </div>
 
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
@@ -565,7 +630,7 @@ export default function AdminLayout({
           </div>
         )}
 
-        <main className="admin-content">
+        <main className="admin-content" ref={contentRef}>
           {children}
         </main>
       </div>

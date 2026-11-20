@@ -34,6 +34,44 @@ def test_candidate_token_cannot_access_admin_endpoints():
 
 def test_candidate_verify_issues_signed_token():
     """Verify that candidate verification returns a signed token."""
+    from app.core.database import SessionLocal
+    from app.models import Candidate, Department, Exam
+    db = SessionLocal()
+    try:
+        dept = db.query(Department).filter(Department.name == "Developer").first()
+        if not dept:
+            dept = Department(name="Developer", code="DEV", active=True)
+            db.add(dept)
+            db.commit()
+            db.refresh(dept)
+        exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).first()
+        if not exam:
+            exam = Exam(title="Audit Test Exam", status="ACTIVATED", duration_minutes=60, total_questions=10)
+            db.add(exam)
+            db.commit()
+            db.refresh(exam)
+        cand = db.query(Candidate).filter(Candidate.email == "jingyasa.p@campus.edu").first()
+        if not cand:
+            cand = Candidate(
+                registration_number="JING-001",
+                full_name="Jingyasa Priyadarsini",
+                email="jingyasa.p@campus.edu",
+                department_id=dept.id,
+                assigned_exam_id=exam.id,
+                batch="Slot 1 (2:00 PM)",
+                status="ACTIVE"
+            )
+            db.add(cand)
+            db.commit()
+        else:
+            cand.full_name = "Jingyasa Priyadarsini"
+            cand.department_id = dept.id
+            cand.assigned_exam_id = exam.id
+            cand.status = "ACTIVE"
+            db.commit()
+    finally:
+        db.close()
+
     res = client.post("/api/candidate/verify", json={
         "fullName": "Jingyasa Priyadarsini",
         "email": "jingyasa.p@campus.edu",

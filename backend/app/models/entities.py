@@ -20,6 +20,7 @@ from app.models import (
     AttemptAnswer,
     StoredDocument,
     AuditLog,
+    ProctorAlert,
 )
 
 __all__ = [
@@ -40,4 +41,5 @@ __all__ = [
     "AttemptAnswer",
     "StoredDocument",
     "AuditLog",
+    "ProctorAlert",
 ]

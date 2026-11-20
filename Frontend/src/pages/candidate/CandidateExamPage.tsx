@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { 
   BookOpen, 
   ChevronLeft, 
@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   CloudOff,
   AlertCircle,
-  AlertTriangle
+  AlertTriangle,
+  Clock3,
+  ShieldAlert
 } from "lucide-react";
 import type { 
   CandidateSession, 
@@ -24,11 +26,14 @@ import {
   startCandidateAttempt,
   saveCandidateAnswer,
   submitCandidateAttempt,
+  getCandidateHeartbeat,
+  reportProctorAlert,
   type SubmissionResponse
 } from "../../services/api";
 import ExamTimer from "../../components/candidate/ExamTimer";
 import QuestionNavigator from "../../components/candidate/QuestionNavigator";
 import SubmitConfirmationDialog from "../../components/candidate/SubmitConfirmationDialog";
+import FormattedContent from "../../components/common/FormattedContent";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 
@@ -61,15 +66,17 @@ export default function CandidateExamPage({
   const [backendAttemptId, setBackendAttemptId] = useState<number | undefined>(initialSession?.backendAttemptId);
   const [assignedSet, setAssignedSet] = useState<string>(initialSession?.profile?.questionSetCode || "A");
 
-  // Helper to load any cached questions for instant render without 1s flickering
+  // Helper to load questions safely for instant render without flickering
   const getCachedQuestions = (aid?: number | null) => {
     try {
+      if (initialSession?.questions && Array.isArray(initialSession.questions) && initialSession.questions.length > 0) {
+        return initialSession.questions;
+      }
       if (aid) {
         const item = sessionStorage.getItem(`examsecure_questions_${aid}`);
         if (item) return JSON.parse(item);
       }
-      const generic = sessionStorage.getItem("examsecure_last_questions");
-      return generic ? JSON.parse(generic) : [];
+      return [];
     } catch {
       return [];
     }
@@ -85,7 +92,12 @@ export default function CandidateExamPage({
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showNavLockedModal, setShowNavLockedModal] = useState(false);
   const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>("saved");
+  const [isOnline, setIsOnline] = useState<boolean>(typeof navigator !== "undefined" ? navigator.onLine : true);
+  const [reconnectedNotice, setReconnectedNotice] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState(false);
+  const [serverOffset, setServerOffset] = useState<number>(0);
+  const [extraTimeNotice, setExtraTimeNotice] = useState<string | null>(null);
+  const [examTerminated, setExamTerminated] = useState<{ stopped: boolean; reason?: string } | null>(null);
 
   // Attempt-scoped storage key prevents cross-candidate data leakage in shared computer lab terminals
   const getAttemptStorageKey = useCallback((aid?: number | null) => {
@@ -105,6 +117,8 @@ export default function CandidateExamPage({
   // Debounce refs to prevent high-frequency request storm on rapid option clicking
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingSaveRef = useRef<{ aid: number; qNum: number; qId: number; optId: number; cid?: number | null } | null>(null);
+  const pendingQueueRef = useRef(pendingQueue);
+  pendingQueueRef.current = pendingQueue;
 
   // Flush any pending debounced save immediately to avoid lost answers on navigate/submit
   const flushDebouncedSave = useCallback(async () => {
@@ -144,10 +158,11 @@ export default function CandidateExamPage({
     const flushPendingQueue = async () => {
       const aid = backendAttemptId || session?.backendAttemptId;
       const cid = session?.profile?.dbCandidateId;
-      if (!aid || pendingQueue.length === 0) return;
+      const currentQueue = pendingQueueRef.current;
+      if (!aid || currentQueue.length === 0) return;
 
-      const itemsToSync = [...pendingQueue];
-      const remaining: typeof pendingQueue = [];
+      const itemsToSync = [...currentQueue];
+      const remaining: typeof currentQueue = [];
 
       for (const item of itemsToSync) {
         try {
@@ -159,27 +174,196 @@ export default function CandidateExamPage({
 
       if (active) {
         setPendingQueue(remaining);
-        setAutosaveStatus(remaining.length === 0 ? "saved" : "offline");
+        if (remaining.length === 0 && itemsToSync.length > 0) {
+          setAutosaveStatus("saved");
+          setIsOnline(true);
+          setReconnectedNotice(true);
+          setTimeout(() => setReconnectedNotice(false), 5000);
+        } else if (remaining.length > 0) {
+          setAutosaveStatus("offline");
+          setIsOnline(false);
+        }
       }
     };
 
     const handleOnline = () => {
+      setIsOnline(true);
       flushPendingQueue();
     };
 
+    const handleOffline = () => {
+      setIsOnline(false);
+      setAutosaveStatus("offline");
+    };
+
     window.addEventListener("online", handleOnline);
-    const intervalId = setInterval(() => {
-      if (pendingQueue.length > 0 && navigator.onLine) {
-        flushPendingQueue();
+    window.addEventListener("offline", handleOffline);
+
+    const intervalId = setInterval(async () => {
+      if (pendingQueueRef.current.length > 0) {
+        try {
+          await fetch("/api/health", { method: "HEAD", cache: "no-store" });
+          setIsOnline(true);
+          flushPendingQueue();
+        } catch {
+          setIsOnline(false);
+          setAutosaveStatus("offline");
+        }
       }
-    }, 4000);
+    }, 5000);
 
     return () => {
       active = false;
       window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
       clearInterval(intervalId);
     };
-  }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId, pendingQueue]);
+  }, [backendAttemptId, session?.backendAttemptId, session?.profile?.dbCandidateId]);
+
+  // Real-time Candidate Exam Heartbeat: Extra Time (+10 Mins) and Admin Stop/Discard detection
+  useEffect(() => {
+    let isMounted = true;
+    const cid = session?.profile?.dbCandidateId;
+    const aid = backendAttemptId || session?.backendAttemptId;
+    if (!cid || !aid || examTerminated?.stopped) return;
+
+    const pollHeartbeat = async () => {
+      try {
+        const hb = await getCandidateHeartbeat(cid, aid);
+        if (!isMounted) return;
+
+        // If administrator stopped or discarded candidate's live exam
+        if (hb.status === "TERMINATED" || hb.status === "DISCARDED" || hb.status === "STOPPED") {
+          setExamTerminated({
+            stopped: true,
+            reason: hb.terminationReason || "Your ongoing examination has been stopped by the administrator."
+          });
+          try {
+            sessionStorage.clear();
+            localStorage.removeItem("examsecure_candidate_session");
+          } catch {}
+          return;
+        }
+
+        // Check if admin extended examination deadline (+10 mins)
+        if (hb.deadlineMs && session?.deadline && hb.deadlineMs > session.deadline + 5000) {
+          const addedMins = Math.round((hb.deadlineMs - session.deadline) / 60000);
+          setExtraTimeNotice(`+${addedMins > 0 ? addedMins : 10} minutes extra time granted by administrator`);
+          setSession(prev => {
+            const updated = { ...prev, deadline: hb.deadlineMs! };
+            saveCandidateSession(updated);
+            return updated;
+          });
+          setTimeout(() => {
+            if (isMounted) setExtraTimeNotice(null);
+          }, 8000);
+        }
+      } catch (err) {
+        // Transient network notice ignored safely
+      }
+    };
+
+    const initialTimer = setTimeout(pollHeartbeat, 2000);
+    const intervalId = setInterval(pollHeartbeat, 3500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(initialTimer);
+      clearInterval(intervalId);
+    };
+  }, [session?.profile?.dbCandidateId, backendAttemptId, session?.backendAttemptId, session?.deadline, examTerminated]);
+
+  // Real-time Cheating Detection: tab switches, window blur, clipboard copy/paste, fullscreen exits, suspicious key combinations
+  const lastAlertTimeRef = useRef<Record<string, number>>({});
+  const reportCheatingAlert = useCallback(async (alertType: string, message: string, severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" = "HIGH") => {
+    const cid = session?.profile?.dbCandidateId || 
+      (session?.profile?.candidateId && !isNaN(Number(session.profile.candidateId)) ? Number(session.profile.candidateId) : undefined);
+    const aid = backendAttemptId || session?.backendAttemptId;
+    if (!cid) return;
+
+    const now = Date.now();
+    const lastTime = lastAlertTimeRef.current[alertType] || 0;
+    // Responsive 3-second cooldown per alert type to capture distinct incidents without flooding
+    if (now - lastTime < 3000) return;
+    lastAlertTimeRef.current[alertType] = now;
+
+    try {
+      await reportProctorAlert({
+        candidateId: cid,
+        attemptId: aid || undefined,
+        alertType,
+        message,
+        severity
+      });
+    } catch (e) {
+      console.warn("[Proctor] Alert report notice:", e);
+    }
+  }, [session?.profile?.dbCandidateId, session?.profile?.candidateId, backendAttemptId, session?.backendAttemptId]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        reportCheatingAlert("TAB_SWITCH", "Candidate switched away from examination tab or minimized window", "HIGH");
+      }
+    };
+
+    const handleWindowBlur = () => {
+      reportCheatingAlert("WINDOW_BLUR", "Candidate moved window focus away from examination screen to another app", "MEDIUM");
+    };
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        reportCheatingAlert("FULLSCREEN_EXIT", "Candidate exited fullscreen exam environment", "HIGH");
+      }
+    };
+
+    const handleCopy = (e: ClipboardEvent) => {
+      e.preventDefault();
+      reportCheatingAlert("CLIPBOARD_COPY", "Candidate attempted to copy question text to clipboard", "HIGH");
+    };
+
+    const handlePaste = (e: ClipboardEvent) => {
+      e.preventDefault();
+      reportCheatingAlert("CLIPBOARD_PASTE", "Candidate attempted to paste content into examination environment", "HIGH");
+    };
+
+    const handleContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+      reportCheatingAlert("RIGHT_CLICK", "Candidate attempted to open right-click context menu", "LOW");
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prohibit and flag Alt+Tab, Ctrl+C, Ctrl+V, F12, PrintScreen, Meta keys
+      if (
+        (e.altKey && e.key === "Tab") ||
+        (e.ctrlKey && (e.key === "c" || e.key === "v" || e.key === "u")) ||
+        e.key === "F12" ||
+        e.key === "PrintScreen" ||
+        e.key === "Meta"
+      ) {
+        e.preventDefault();
+        reportCheatingAlert("SUSPICIOUS_KEY", `Candidate pressed monitored shortcut key: ${e.key}`, "MEDIUM");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("blur", handleWindowBlur);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("copy", handleCopy);
+    document.addEventListener("paste", handlePaste);
+    document.addEventListener("contextmenu", handleContextMenu);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("blur", handleWindowBlur);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("copy", handleCopy);
+      document.removeEventListener("paste", handlePaste);
+      document.removeEventListener("contextmenu", handleContextMenu);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [reportCheatingAlert]);
 
   // Trap browser 'Back' button (popstate) and refresh/tab close (beforeunload)
   useEffect(() => {
@@ -231,7 +415,7 @@ export default function CandidateExamPage({
           });
           if (verifyRes.eligible && verifyRes.candidateId && (verifyRes.assignedExamId || verifyRes.examId)) {
             if (verifyRes.token) {
-              localStorage.setItem("examsecure_auth_token", verifyRes.token);
+              localStorage.setItem("examsecure_candidate_token", verifyRes.token);
             }
             dbCandId = verifyRes.candidateId;
             assignedExamId = verifyRes.assignedExamId || verifyRes.examId;
@@ -263,10 +447,10 @@ export default function CandidateExamPage({
             setAssignedSet(attemptData.questionSetCode || "A");
 
             let activeQList: any[] = attemptData.questions || [];
-            setQuestions(activeQList);
+            // Preserve existing questions if already hydrated from prefetch to prevent any re-render flicker
+            setQuestions(prev => (prev && prev.length > 0 ? prev : activeQList));
             setLoadingQuestions(false);
             try {
-              sessionStorage.setItem("examsecure_last_questions", JSON.stringify(activeQList));
               if (attemptData.attemptId) {
                 sessionStorage.setItem(`examsecure_questions_${attemptData.attemptId}`, JSON.stringify(activeQList));
               }
@@ -274,6 +458,13 @@ export default function CandidateExamPage({
 
             const deadlineStr = attemptData.deadlineAt || attemptData.expiresAt;
             const serverDeadline = deadlineStr ? new Date(deadlineStr).getTime() : session.deadline;
+
+            const serverTimeStr = attemptData.serverTime;
+            if (serverTimeStr) {
+              const serverMs = new Date(serverTimeStr).getTime();
+              const offset = serverMs - Date.now();
+              setServerOffset(offset);
+            }
 
             setSession(prev => {
               const updated = {
@@ -357,6 +548,21 @@ export default function CandidateExamPage({
   const answeredCount = Object.keys(answers).length;
   const currentQuestion = questions[idx] || null;
 
+  const unansweredQuestions = useMemo(() => {
+    const list: number[] = [];
+    const questionCount = Math.max(total, questions.length);
+    for (let qNum = 1; qNum <= questionCount; qNum++) {
+      if (answers[qNum] === undefined || answers[qNum] === null) {
+        list.push(qNum);
+      }
+    }
+    return list;
+  }, [total, questions.length, answers]);
+
+  const sortedFlaggedQuestions = useMemo(() => {
+    return [...flags].sort((a, b) => a - b);
+  }, [flags]);
+
   // Helper to determine active section info
   const getSectionInfo = (qNum: number) => {
     const q = questions[qNum - 1];
@@ -392,12 +598,14 @@ export default function CandidateExamPage({
 
     setAnswers(prevAnswers => {
       const updatedAnswers = { ...prevAnswers, [questionNum]: optionIndex };
-      saveCandidateSession({
-        ...session,
-        backendAttemptId: activeAid,
-        answers: updatedAnswers,
-        flags,
-        currentQuestionIndex: idx
+      queueMicrotask(() => {
+        saveCandidateSession({
+          ...session,
+          backendAttemptId: activeAid,
+          answers: updatedAnswers,
+          flags,
+          currentQuestionIndex: idx
+        });
       });
       return updatedAnswers;
     });
@@ -496,7 +704,7 @@ export default function CandidateExamPage({
   }, [idx, session, backendAttemptId]);
 
   const handleNavigateQuestion = useCallback(async (targetIndex: number) => {
-    const maxAllowed = Math.max(total, questions.length, 60);
+    const maxAllowed = total > 0 ? total : (questions.length > 0 ? questions.length : 40);
     if (targetIndex >= 0 && targetIndex < maxAllowed) {
       await flushDebouncedSave();
       setIdx(targetIndex);
@@ -518,13 +726,22 @@ export default function CandidateExamPage({
     const aid = backendAttemptId || session?.backendAttemptId;
     const cid = session?.profile?.dbCandidateId;
     if (aid) {
-      try {
-        backendResult = await submitCandidateAttempt(aid, answers, cid);
+      // Retry submission up to 3 times in case of transient network turbulence
+      let attemptsLeft = 3;
+      while (attemptsLeft > 0) {
         try {
-          localStorage.removeItem(getAttemptStorageKey(aid));
-        } catch {}
-      } catch (err) {
-        console.warn("[CandidateExamPage] Live backend submit attempt error:", err);
+          backendResult = await submitCandidateAttempt(aid, answers, cid);
+          try {
+            localStorage.removeItem(getAttemptStorageKey(aid));
+          } catch {}
+          break;
+        } catch (err) {
+          attemptsLeft--;
+          console.warn(`[CandidateExamPage] Live backend submit attempt error (${attemptsLeft} retries remaining):`, err);
+          if (attemptsLeft > 0) {
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
       }
     }
     onFinalize(reason, backendResult);
@@ -537,12 +754,12 @@ export default function CandidateExamPage({
         <div className="exam-nav-left">
           <img 
             src={kalpanaaLogo} 
-            alt="Kalpanaa Software Solutions" 
+            alt="Kalpanaaa Software Solutions" 
             className="exam-nav-logo" 
           />
           <div className="exam-dept-pill">
             <BookOpen size={13} />
-            <span>{session.profile.department || "Development"} — Assessment</span>
+            <span>{session.profile.examTitle || (session.profile.department ? `${session.profile.department} — Assessment` : "Assessment")}</span>
           </div>
         </div>
 
@@ -592,6 +809,7 @@ export default function CandidateExamPage({
         <div className="exam-nav-right">
           <ExamTimer
             deadline={session.deadline}
+            serverOffset={serverOffset}
             isSubmitted={session.isSubmitted}
             onExpire={() => triggerFinalization("timer_expired")}
           />
@@ -608,18 +826,112 @@ export default function CandidateExamPage({
         </div>
       </header>
 
+      {/* Offline Alert Banner */}
+      {(!isOnline || autosaveStatus === "offline") && (
+        <div style={{
+          background: "#fffbeb",
+          borderBottom: "1px solid #fde68a",
+          color: "#92400e",
+          padding: "10px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          fontSize: "13px",
+          fontWeight: 600,
+          zIndex: 90
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <CloudOff size={18} color="#b45309" />
+            <span>
+              <strong>Network Disconnected.</strong> You can continue answering normally — answers are safely stored on this laptop and will automatically upload when your internet reconnects.
+            </span>
+          </div>
+          {pendingQueue.length > 0 && (
+            <span style={{ background: "#fef3c7", color: "#b45309", border: "1px solid #fde68a", padding: "3px 10px", borderRadius: "12px", fontSize: "12px", fontWeight: 700 }}>
+              {pendingQueue.length} answer{pendingQueue.length === 1 ? "" : "s"} buffered locally
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Reconnected Sync Banner */}
+      {reconnectedNotice && (
+        <div style={{
+          background: "#ecfdf5",
+          borderBottom: "1px solid #a7f3d0",
+          color: "#065f46",
+          padding: "10px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          fontSize: "13px",
+          fontWeight: 600,
+          zIndex: 90
+        }}>
+          <CheckCircle2 size={18} color="#059669" />
+          <span>
+            <strong>Connection Restored!</strong> All answers have been successfully synchronized with the examination server.
+          </span>
+        </div>
+      )}
+
+      {/* Extra Time Granted Banner */}
+      {extraTimeNotice && (
+        <div style={{
+          background: "#eaf6ef",
+          borderBottom: "1px solid #bfdbfe",
+          color: "#014d32",
+          padding: "10px 24px",
+          display: "flex",
+          alignItems: "center",
+          gap: "10px",
+          fontSize: "13.5px",
+          fontWeight: 700,
+          zIndex: 95
+        }}>
+          <Clock3 size={18} color="#017846" />
+          <span>
+            <strong>Extra Time Granted!</strong> {extraTimeNotice}. Your timer and deadline have been updated.
+          </span>
+        </div>
+      )}
+
       {/* Main 2-Column Assessment Workspace */}
       <div className="exam-content-grid">
         {/* Left: Question Card */}
         {loadingQuestions && !currentQuestion ? (
-          <article className="exam-question-card" style={{ padding: "64px 24px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "340px" }}>
-            <Loader2 size={38} className="animate-spin" color="#017846" style={{ margin: "0 auto 16px" }} />
-            <h3 style={{ margin: "0 0 8px", fontSize: "16px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-              Loading Examination Questions...
-            </h3>
-            <p style={{ margin: 0, fontSize: "13px", color: "#64748b" }}>
-              Preparing your questions and initializing proctored session. Please wait a moment.
-            </p>
+          <article className="exam-question-card" style={{ padding: "32px 28px", minHeight: "420px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+              <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+                <div style={{ width: "110px", height: "26px", borderRadius: "6px", background: "#f1f5f9" }} />
+                <div style={{ width: "140px", height: "26px", borderRadius: "6px", background: "#f1f5f9" }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#017846", fontSize: "13px", fontWeight: 600 }}>
+                <Loader2 size={16} className="animate-spin" /> Loading questions...
+              </div>
+            </div>
+            <div style={{ width: "90%", height: "20px", borderRadius: "4px", background: "#f1f5f9", marginBottom: "12px" }} />
+            <div style={{ width: "65%", height: "20px", borderRadius: "4px", background: "#f1f5f9", marginBottom: "32px" }} />
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {[1, 2, 3, 4].map((optI) => (
+                <div
+                  key={optI}
+                  style={{
+                    height: "54px",
+                    borderRadius: "8px",
+                    background: "#f8fafc",
+                    border: "1.5px solid #e2e8f0",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 18px",
+                    gap: "14px"
+                  }}
+                >
+                  <div style={{ width: "24px", height: "24px", borderRadius: "50%", background: "#e2e8f0" }} />
+                  <div style={{ width: `${45 + (optI * 12)}%`, height: "16px", borderRadius: "4px", background: "#e2e8f0" }} />
+                </div>
+              ))}
+            </div>
           </article>
         ) : !currentQuestion ? (
           <article className="exam-question-card" style={{ padding: "48px 24px", textAlign: "center" }}>
@@ -652,9 +964,12 @@ export default function CandidateExamPage({
             </div>
 
             <div className="exam-qbody-content">
-              <h2 className="exam-question-heading">
-                {currentQuestion.questionText || currentQuestion.q}
-              </h2>
+              <div className="exam-question-heading" style={{ fontSize: "16px", fontWeight: 600, color: "#0f172a", marginBottom: "12px" }}>
+                <FormattedContent 
+                  content={currentQuestion.questionText || currentQuestion.question_text || currentQuestion.q || ""}
+                  imageUrl={currentQuestion.imageUrl || currentQuestion.image_url}
+                />
+              </div>
               <p className="exam-question-hint">Select one answer from the options below.</p>
 
               {/* Options List */}
@@ -662,7 +977,7 @@ export default function CandidateExamPage({
                 {(currentQuestion.options || []).map((opt: any, i: number) => {
                   const isSelected = answers[idx + 1] === i;
                   const label = opt.displayLabel || opt.label || opt.optionLabel || String.fromCharCode(65 + i);
-                  const text = typeof opt === "string" ? opt : (opt.optionText || opt.text || "");
+                  const text = typeof opt === "string" ? opt : (opt.optionText || opt.option_text || opt.text || "");
 
                   return (
                     <button
@@ -673,14 +988,16 @@ export default function CandidateExamPage({
                       onClick={() => handleSelectAnswer(i)}
                       className={`exam-option-card ${isSelected ? "selected" : ""}`}
                     >
-                      <div className="exam-option-left">
-                        <span className={`exam-option-letter ${isSelected ? "selected" : ""}`}>
+                      <div className="exam-option-left" style={{ width: "100%", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                        <span className={`exam-option-letter ${isSelected ? "selected" : ""}`} style={{ flexShrink: 0, marginTop: "2px" }}>
                           {label}
                         </span>
-                        <span className="exam-option-text">{text}</span>
+                        <div className="exam-option-text" style={{ flex: 1, textAlign: "left" }}>
+                          <FormattedContent content={text} />
+                        </div>
                       </div>
 
-                      <span className={`exam-custom-radio ${isSelected ? "selected" : ""}`}>
+                      <span className={`exam-custom-radio ${isSelected ? "selected" : ""}`} style={{ flexShrink: 0, marginLeft: "10px" }}>
                         {isSelected && <span className="exam-radio-inner-dot" />}
                       </span>
                     </button>
@@ -739,8 +1056,16 @@ export default function CandidateExamPage({
           total={total}
           answeredCount={answeredCount}
           flaggedCount={flags.length}
+          flaggedQuestions={sortedFlaggedQuestions}
+          unansweredQuestions={unansweredQuestions}
+          isOffline={!isOnline}
+          pendingSyncCount={pendingQueue.length}
           onCancel={() => setShowSubmitModal(false)}
           onConfirm={() => triggerFinalization("manual_submit")}
+          onJumpToQuestion={(questionNum) => {
+            setShowSubmitModal(false);
+            handleNavigateQuestion(questionNum - 1);
+          }}
         />
       )}
 
@@ -804,6 +1129,117 @@ export default function CandidateExamPage({
               }}
             >
               Continue Assessment
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Fullscreen Submitting Overlay */}
+      {submitting && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(15, 23, 42, 0.78)",
+          backdropFilter: "blur(5px)",
+          zIndex: 99999,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            padding: "36px 32px",
+            maxWidth: "440px",
+            width: "90%",
+            textAlign: "center",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)"
+          }}>
+            <Loader2 size={42} className="animate-spin" color="#017846" style={{ margin: "0 auto 16px" }} />
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Submitting Assessment...
+            </h3>
+            <p style={{ margin: 0, fontSize: "13.5px", color: "#64748b", lineHeight: 1.5 }}>
+              Your examination answers have been secured. Calculating score and finalizing your submission receipt...
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Examination Stopped / Discarded by Administrator Modal */}
+      {examTerminated?.stopped && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(15, 23, 42, 0.88)",
+          backdropFilter: "blur(8px)",
+          zIndex: 100000,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "20px"
+        }}>
+          <div style={{
+            background: "#ffffff",
+            borderRadius: "16px",
+            maxWidth: "480px",
+            width: "100%",
+            padding: "36px 32px",
+            textAlign: "center",
+            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
+            border: "2px solid #ef4444"
+          }}>
+            <div style={{
+              width: "60px",
+              height: "60px",
+              borderRadius: "50%",
+              background: "#fee2e2",
+              color: "#dc2626",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 16px"
+            }}>
+              <AlertTriangle size={32} />
+            </div>
+            <h2 style={{ margin: "0 0 10px", fontSize: "20px", color: "#991b1b", fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 800 }}>
+              Examination Stopped by Administrator
+            </h2>
+            <p style={{ margin: "0 0 16px", fontSize: "14px", color: "#475569", lineHeight: 1.6 }}>
+              Your active examination session has been terminated by the administrator. You cannot continue answering questions in this session.
+            </p>
+            {examTerminated.reason && (
+              <div style={{
+                background: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                marginBottom: "24px",
+                fontSize: "13px",
+                color: "#991b1b",
+                textAlign: "left"
+              }}>
+                <strong>Reason:</strong> {examTerminated.reason}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = "/candidate/login";
+              }}
+              style={{
+                width: "100%",
+                padding: "12px 24px",
+                fontSize: "14px",
+                fontWeight: 700,
+                background: "#dc2626",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "8px",
+                cursor: "pointer",
+                boxShadow: "0 4px 6px -1px rgba(220, 38, 38, 0.3)"
+              }}
+            >
+              Return to Login Page
             </button>
           </div>
         </div>

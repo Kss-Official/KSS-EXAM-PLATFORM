@@ -96,9 +96,14 @@ DEFAULT_CANDIDATES = [
 
 def init_default_candidates(db: Session) -> None:
     """
-    Candidate provisioning: if candidates are already present, preserve the imported roster
-    and do not re-create legacy demo candidates.
+    Candidate provisioning: only seeds demo candidates if explicitly enabled via SEED_DEMO_CANDIDATES=true.
+    Maintains clean database state when truncated.
     """
+    import os
+    if os.getenv("SEED_DEMO_CANDIDATES", "false").lower() != "true":
+        logger.info("Demo candidate auto-seeding is disabled (SEED_DEMO_CANDIDATES=false). Preserving clean candidate directory.")
+        return
+
     from datetime import datetime, timezone
     from app.models.candidate import Candidate
     from app.models.department import Department

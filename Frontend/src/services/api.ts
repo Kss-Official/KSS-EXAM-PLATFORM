@@ -31,10 +31,12 @@ export interface DepartmentDto {
   id: number;
   name: string;
   code: string;
+  category?: "TECHNICAL" | "NON_TECHNICAL";
   description?: string;
   active: boolean;
   createdAt?: string;
   associatedExamsCount?: number;
+  candidatesCount?: number;
 }
 
 export interface ExamDto {
@@ -173,6 +175,8 @@ export interface CandidateDto {
   collegeName?: string;
   batch?: string;
   examDate?: string;
+  assignedExamId?: number | null;
+  assignedExamTitle?: string | null;
   status: string;
   createdAt?: string;
 }
@@ -202,6 +206,7 @@ export interface CandidateQueryParams {
   search?: string;
   departmentId?: number;
   collegeId?: number;
+  examId?: number;
   batch?: string;
   date?: string;
   status?: string;
@@ -221,6 +226,8 @@ export interface CandidateVerifyRequest {
   collegeName?: string;
   collegeId?: number;
   registrationNumber?: string;
+  examId?: number | null;
+  assignedExamId?: number | null;
 }
 
 export interface CandidateVerifyResponse {
@@ -232,6 +239,7 @@ export interface CandidateVerifyResponse {
   candidateName?: string;
   email?: string;
   departmentName?: string;
+  departmentCategory?: "TECHNICAL" | "NON_TECHNICAL" | string;
   collegeName?: string;
   examId?: number;
   assignedExamId?: number;
@@ -276,6 +284,8 @@ export interface CandidateStartAttemptResponse {
   totalDurationSeconds: number;
   questions: CandidateQuestionDto[];
   answers?: Record<string | number, number>;
+  serverTime?: string;
+  durationMinutes?: number;
 }
 
 export interface SubmissionResponse {
@@ -308,6 +318,8 @@ export interface ExamResultDto {
   candidateName: string;
   registrationNumber: string;
   departmentName: string;
+  collegeId?: number | null;
+  collegeName?: string | null;
   examId: number;
   examTitle: string;
   setCode: string;
@@ -373,88 +385,155 @@ export class ApiError extends Error {
   }
 }
 
+interface AdminCacheItem<T> {
+  data: T;
+  timestamp: number;
+}
+const adminGetCache = new Map<string, AdminCacheItem<any>>();
+const inFlightAdminRequests = new Map<string, Promise<any>>();
+
+export function invalidateAdminCache(prefix?: string): void {
+  if (!prefix) {
+    adminGetCache.clear();
+    return;
+  }
+  for (const k of adminGetCache.keys()) {
+    if (k.startsWith(prefix)) {
+      adminGetCache.delete(k);
+    }
+  }
+}
+
 /**
  * Common fetch wrapper with HttpOnly cookie credentials support
  */
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${endpoint.replace(/^\/+/, "")}`;
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+  const isCandidateRoute = cleanEndpoint.startsWith("candidate/");
+  const method = (options.method || "GET").toUpperCase();
+  const isGetMethod = method === "GET";
+  const isLiveMonitoring = cleanEndpoint.startsWith("admin/live-monitoring");
+
+  // Invalidate admin cache on any mutation (POST, PUT, DELETE)
+  if (!isCandidateRoute && !isGetMethod) {
+    adminGetCache.clear();
+  }
+
+  // Fast Memory SWR Cache for Admin GET calls (maxAge 15s for standard pages). Never cache live-monitoring routes so proctor alerts and timers are always real-time!
+  if (!isCandidateRoute && isGetMethod && !isLiveMonitoring && options.cache !== "no-store") {
+    const cached = adminGetCache.get(cleanEndpoint);
+    if (cached && (Date.now() - cached.timestamp < 15000)) {
+      return Promise.resolve(cached.data as T);
+    }
+
+    if (inFlightAdminRequests.has(cleanEndpoint)) {
+      return inFlightAdminRequests.get(cleanEndpoint) as Promise<T>;
+    }
+  }
+
+  const url = `${API_BASE_URL.replace(/\/+$/, "")}/${cleanEndpoint}`;
   
   const headers = new Headers(options.headers || {});
   headers.set("Accept", "application/json");
   headers.set("X-Requested-With", "XMLHttpRequest");
 
-  const token = localStorage.getItem("examsecure_auth_token");
+  const token = isCandidateRoute
+    ? (localStorage.getItem("examsecure_candidate_token") || localStorage.getItem("examsecure_auth_token"))
+    : (localStorage.getItem("examsecure_admin_token") || localStorage.getItem("examsecure_auth_token"));
+
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      ...options,
-      credentials: "include", // Send and receive session cookies (JSESSIONID)
-      headers,
-    });
-  } catch (err: unknown) {
-    const error = err as Error;
-    throw new ApiError(
-      "Temporary network hiccup on your device. Please ensure your Wi-Fi is connected, wait 3 seconds, and click 'Continue to Role & Application' again.",
-      0,
-      { isCorsOrNetworkError: true }
-    );
-  }
-
-  if (!response.ok) {
-    let errorDetail = "";
+  const executeFetch = async (): Promise<T> => {
+    let response: Response;
     try {
-      const data = await response.json();
-      const detailStr = typeof data.detail === "string" 
-        ? data.detail 
-        : (Array.isArray(data.detail) ? data.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join("; ") : null);
-      errorDetail = detailStr || data.message || data.error || JSON.stringify(data);
-    } catch {
+      response = await fetch(url, {
+        ...options,
+        credentials: "include",
+        headers,
+      });
+    } catch (err: unknown) {
+      inFlightAdminRequests.delete(cleanEndpoint);
+      throw new ApiError(
+        "Temporary network hiccup on your device. Please ensure your Wi-Fi is connected, wait 3 seconds, and try again.",
+        0,
+        { isCorsOrNetworkError: true }
+      );
+    }
+
+    if (!response.ok) {
+      inFlightAdminRequests.delete(cleanEndpoint);
+      let errorDetail = "";
       try {
-        errorDetail = await response.text();
+        const data = await response.json();
+        const detailStr = typeof data.detail === "string" 
+          ? data.detail 
+          : (Array.isArray(data.detail) ? data.detail.map((e: any) => e.msg || e.message || JSON.stringify(e)).join("; ") : null);
+        errorDetail = detailStr || data.message || data.error || JSON.stringify(data);
       } catch {
-        errorDetail = response.statusText;
+        try {
+          errorDetail = await response.text();
+        } catch {
+          errorDetail = response.statusText;
+        }
       }
-    }
 
-    if (response.status === 401) {
-      throw new ApiError(
-        errorDetail || "401 Unauthorized: Authentication is required for this endpoint.",
-        401,
-        { isAuthError: true, backendMessage: errorDetail }
-      );
-    }
+      if (response.status === 401) {
+        if (!isCandidateRoute) {
+          localStorage.removeItem("examsecure_admin_token");
+          localStorage.removeItem("examsecure_auth_token");
+        } else {
+          localStorage.removeItem("examsecure_candidate_token");
+        }
+        throw new ApiError(
+          errorDetail || "401 Unauthorized: Authentication is required for this endpoint.",
+          401,
+          { isAuthError: true, backendMessage: errorDetail }
+        );
+      }
 
-    if (response.status === 403) {
-      throw new ApiError(
-        errorDetail || "403 Forbidden: Access denied. SUPER_ADMIN role is required.",
-        403,
-        { isAuthError: true, backendMessage: errorDetail }
-      );
-    }
+      if (response.status === 403) {
+        throw new ApiError(
+          errorDetail || "403 Forbidden: Access denied. SUPER_ADMIN role is required.",
+          403,
+          { isAuthError: true, backendMessage: errorDetail }
+        );
+      }
 
-    if (response.status === 502 || response.status === 503 || response.status === 504) {
+      if (response.status === 502 || response.status === 503 || response.status === 504) {
+        throw new ApiError(
+          "Temporary network delay. Please wait a few seconds and try again.",
+          response.status,
+          { isCorsOrNetworkError: true, backendMessage: errorDetail }
+        );
+      }
+
+      const cleanDetail = (errorDetail && !errorDetail.includes("<html") && !errorDetail.includes("<!DOCTYPE") && errorDetail.length < 150)
+        ? errorDetail
+        : "Unable to process request right now. Please try again.";
       throw new ApiError(
-        "Temporary network delay. Please wait a few seconds and try again.",
+        cleanDetail,
         response.status,
-        { isCorsOrNetworkError: true, backendMessage: errorDetail }
+        { backendMessage: errorDetail }
       );
     }
 
-    const cleanDetail = (errorDetail && !errorDetail.includes("<html") && !errorDetail.includes("<!DOCTYPE") && errorDetail.length < 150)
-      ? errorDetail
-      : "Unable to process request right now. Please try again.";
-    throw new ApiError(
-      cleanDetail,
-      response.status,
-      { backendMessage: errorDetail }
-    );
+    const result = await response.json() as T;
+    if (!isCandidateRoute && isGetMethod) {
+      adminGetCache.set(cleanEndpoint, { data: result, timestamp: Date.now() });
+      inFlightAdminRequests.delete(cleanEndpoint);
+    }
+    return result;
+  };
+
+  if (!isCandidateRoute && isGetMethod && options.cache !== "no-store") {
+    const promise = executeFetch();
+    inFlightAdminRequests.set(cleanEndpoint, promise);
+    return promise;
   }
 
-  return response.json() as Promise<T>;
+  return executeFetch();
 }
 
 /* =========================================================================
@@ -468,6 +547,7 @@ export async function loginAdmin(email: string, password: string): Promise<AuthR
     body: JSON.stringify({ email: email.trim(), password })
   });
   if (res.token) {
+    localStorage.setItem("examsecure_admin_token", res.token);
     localStorage.setItem("examsecure_auth_token", res.token);
   }
   return res;
@@ -478,6 +558,7 @@ export async function getAuthMe(): Promise<AuthUser> {
 }
 
 export async function logoutAdmin(): Promise<void> {
+  localStorage.removeItem("examsecure_admin_token");
   localStorage.removeItem("examsecure_auth_token");
   try {
     await request<AuthResponseDto>("auth/logout", { method: "POST" });
@@ -510,6 +591,10 @@ export async function getActiveDepartments(params?: { type?: "academic" | "colle
 
 export async function getAllColleges(): Promise<DepartmentDto[]> {
   return request<DepartmentDto[]>("admin/departments/colleges");
+}
+
+export async function getCandidateDepartments(): Promise<DepartmentDto[]> {
+  return request<DepartmentDto[]>("candidate/departments");
 }
 
 export async function createDepartment(dept: Partial<DepartmentDto>): Promise<DepartmentDto> {
@@ -800,6 +885,7 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   if (params?.search && params.search.trim()) query.set("search", params.search.trim());
   if (params?.departmentId !== undefined) query.set("departmentId", String(params.departmentId));
   if (params?.collegeId !== undefined) query.set("collegeId", String(params.collegeId));
+  if (params?.examId !== undefined) query.set("examId", String(params.examId));
   if (params?.batch && params.batch !== "ALL") query.set("batch", params.batch);
   if (params?.date && params.date !== "ALL") query.set("date", params.date);
   if (params?.status && params.status !== "ALL") query.set("status", params.status);
@@ -824,9 +910,28 @@ export async function getAvailableCandidateDates(): Promise<string[]> {
   return request<string[]>("admin/candidates/dates");
 }
 
+export async function getCandidateDateCounts(): Promise<{ [d: string]: number }> {
+  return request<{ [d: string]: number }>("admin/candidates/date-counts");
+}
+
+export async function getCandidateSlotCounts(date?: string): Promise<{ total: number; slot1: number; slot2: number; slot3: number; unassigned?: number }> {
+  const query = new URLSearchParams();
+  if (date && date !== "ALL") query.set("date", date);
+  const qs = query.toString();
+  return request<{ total: number; slot1: number; slot2: number; slot3: number; unassigned?: number }>(`admin/candidates/slot-counts${qs ? `?${qs}` : ""}`);
+}
+
 export async function createCandidate(cand: Partial<CandidateDto>): Promise<CandidateDto> {
   return request<CandidateDto>("admin/candidates", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cand)
+  });
+}
+
+export async function updateCandidate(id: number, cand: Partial<CandidateDto>): Promise<CandidateDto> {
+  return request<CandidateDto>(`admin/candidates/${id}`, {
+    method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(cand)
   });
@@ -843,6 +948,17 @@ export async function batchAssignCandidateBatch(
   });
 }
 
+export async function batchAssignCandidateExam(
+  candidateIds: number[], 
+  examId: number | null
+): Promise<{ success: boolean; updatedCount: number; examId?: number | null }> {
+  return request<{ success: boolean; updatedCount: number; examId?: number | null }>("admin/candidates/batch-assign-exam", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateIds, examId })
+  });
+}
+
 export async function assignCandidateBatch(
   candidateId: number, 
   batch: string | null
@@ -854,7 +970,7 @@ export async function assignCandidateBatch(
   });
 }
 
-export async function uploadCandidatesCsv(file: File): Promise<{
+export async function uploadCandidatesCsv(file: File, examDate?: string, examId?: number, batch?: string): Promise<{
   success: boolean;
   totalImported: number;
   errorsCount: number;
@@ -864,7 +980,15 @@ export async function uploadCandidatesCsv(file: File): Promise<{
   const formData = new FormData();
   formData.append("file", file);
 
-  const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch`;
+  const params = new URLSearchParams();
+  if (examDate) params.set("exam_date", examDate);
+  if (examId !== undefined && examId !== null) {
+    params.set("exam_id", String(examId));
+    params.set("examId", String(examId));
+  }
+  if (batch) params.set("batch", batch);
+  const query = params.toString() ? `?${params.toString()}` : "";
+  const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch${query}`;
   const headers = new Headers();
   const token = localStorage.getItem("examsecure_auth_token");
   if (token) {
@@ -880,7 +1004,7 @@ export async function uploadCandidatesCsv(file: File): Promise<{
 
   if (!response.ok) {
     const text = await response.text();
-    throw new ApiError(`Batch CSV upload failed: ${text}`, response.status);
+    throw new ApiError(`Batch document upload failed: ${text}`, response.status);
   }
   return response.json();
 }
@@ -909,6 +1033,10 @@ export async function getAllResults(examId?: number, date?: string): Promise<Exa
 
 export async function getAvailableResultDates(): Promise<string[]> {
   return request<string[]>("admin/results/dates");
+}
+
+export async function getResultDateCounts(): Promise<Record<string, number>> {
+  return request<Record<string, number>>("admin/results/date-counts");
 }
 
 export async function publishResults(examId: number, published: boolean): Promise<any> {
@@ -1009,6 +1137,209 @@ export async function batchRescheduleCandidateSlot(
     }
   );
 }
+
+export async function deleteCandidate(candidateId: number): Promise<{ success: boolean; message: string }> {
+  return request<{ success: boolean; message: string }>(`admin/candidates/${candidateId}`, {
+    method: "DELETE"
+  });
+}
+
+export async function batchDeleteCandidates(candidateIds: number[]): Promise<{ success: boolean; deleted: number; message: string }> {
+  return request<{ success: boolean; deleted: number; message: string }>("admin/candidates/batch-delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidate_ids: candidateIds })
+  });
+}
+
+export interface SlotInfo {
+  header: string;
+  sub: string;
+  btn: string;
+  startTime: string;
+  cutoffTime: string;
+  startMinutes?: number;
+  cutoffMinutes?: number;
+}
+
+export interface SlotTimingsConfig {
+  slot1: SlotInfo;
+  slot2: SlotInfo;
+  slot3?: SlotInfo;
+}
+
+export async function getSlotTimings(): Promise<SlotTimingsConfig> {
+  const result = await request<SlotTimingsConfig>("admin/candidates/slot-timings", { cache: "no-store" });
+  if (result && result.slot1) {
+    try {
+      localStorage.setItem("examsecure_slot_timings_v1", JSON.stringify(result));
+    } catch {}
+  }
+  return result;
+}
+
+export async function getCandidateSlotTimings(): Promise<SlotTimingsConfig> {
+  const result = await request<SlotTimingsConfig>("candidate/slot-timings", { cache: "no-store" });
+  if (result && result.slot1) {
+    try {
+      localStorage.setItem("examsecure_slot_timings_v1", JSON.stringify(result));
+    } catch {}
+  }
+  return result;
+}
+
+export async function updateSlotTimings(data: Partial<SlotTimingsConfig>): Promise<SlotTimingsConfig> {
+  const result = await request<SlotTimingsConfig>("admin/candidates/slot-timings", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  adminGetCache.delete("admin/candidates/slot-timings");
+  if (result && result.slot1) {
+    try {
+      localStorage.setItem("examsecure_slot_timings_v1", JSON.stringify(result));
+    } catch {}
+  }
+  return result;
+}
+
+/* =========================================================================
+   Live Exam Monitoring, Proctoring Cheating Alerts & Live Controls
+   ========================================================================= */
+
+export interface LiveExamineeDto {
+  candidateId: number;
+  registrationNumber: string;
+  fullName: string;
+  email: string;
+  department?: string;
+  college?: string;
+  batch?: string;
+  examDate?: string;
+  assignedSet?: string;
+  examId?: number | null;
+  examTitle?: string | null;
+  attemptId?: number;
+  status: string;
+  startedAt?: string;
+  expiresAt?: string;
+  extraTimeMinutes: number;
+  questionsAnswered: number;
+  totalQuestions: number;
+  remainingSeconds: number;
+  alertsCount: number;
+  lastAlert?: {
+    id: number;
+    alertType: string;
+    severity: string;
+    message: string;
+    status: string;
+    createdAt?: string;
+  };
+  terminationReason?: string;
+}
+
+export interface ProctorAlertDto {
+  id: number;
+  candidateId: number;
+  candidateName: string;
+  registrationNumber: string;
+  department?: string;
+  attemptId?: number;
+  alertType: string;
+  severity: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  message: string;
+  status: "NEW" | "REVIEWED" | "DISMISSED" | "ACTION_TAKEN";
+  reviewedBy?: string;
+  reviewedAt?: string;
+  createdAt: string;
+}
+
+export async function getLiveExaminees(params?: { date?: string; batch?: string; search?: string }): Promise<LiveExamineeDto[]> {
+  const query = new URLSearchParams();
+  if (params?.date) query.set("date", params.date);
+  if (params?.batch) query.set("batch", params.batch);
+  if (params?.search) query.set("search", params.search);
+  const qStr = query.toString();
+  return request<LiveExamineeDto[]>(`admin/live-monitoring/examinees${qStr ? `?${qStr}` : ""}`);
+}
+
+export async function giveExtraTime(candidateId: number, attemptId?: number, extraMinutes: number = 10): Promise<{
+  success: boolean;
+  message: string;
+  attemptId: number;
+  expiresAt: string;
+  extraTimeMinutes: number;
+}> {
+  return request("admin/live-monitoring/give-extra-time", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateId, attemptId, extraMinutes })
+  });
+}
+
+export async function stopCandidateExam(candidateId: number, attemptId?: number, reason: string = "Examination stopped by administrator."): Promise<{
+  success: boolean;
+  message: string;
+  status: string;
+}> {
+  return request("admin/live-monitoring/stop-exam", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateId, attemptId, reason })
+  });
+}
+
+export async function getProctorAlerts(params?: { candidateId?: number; status?: string; limit?: number }): Promise<ProctorAlertDto[]> {
+  const query = new URLSearchParams();
+  if (params?.candidateId) query.set("candidateId", String(params.candidateId));
+  if (params?.status) query.set("status", params.status);
+  if (params?.limit) query.set("limit", String(params.limit));
+  const qStr = query.toString();
+  return request<ProctorAlertDto[]>(`admin/live-monitoring/alerts${qStr ? `?${qStr}` : ""}`);
+}
+
+export async function reviewProctorAlert(alertId: number, status: string = "REVIEWED"): Promise<{ success: boolean }> {
+  return request(`admin/live-monitoring/alerts/${alertId}/review`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status })
+  });
+}
+
+export async function getCandidateAlertHistory(candidateId: number): Promise<ProctorAlertDto[]> {
+  return request<ProctorAlertDto[]>(`admin/live-monitoring/alerts/history/${candidateId}`);
+}
+
+export async function getCandidateHeartbeat(candidateId: number, attemptId?: number): Promise<{
+  status: string;
+  attemptId?: number;
+  expiresAt?: string;
+  deadlineMs?: number;
+  remainingSeconds?: number;
+  extraTimeMinutes?: number;
+  serverTime?: string;
+  terminationReason?: string;
+}> {
+  const query = new URLSearchParams({ candidateId: String(candidateId) });
+  if (attemptId) query.set("attemptId", String(attemptId));
+  return request(`candidate/heartbeat?${query.toString()}`);
+}
+
+export async function reportProctorAlert(payload: {
+  candidateId: number;
+  attemptId?: number;
+  alertType: string;
+  message: string;
+  severity?: string;
+}): Promise<any> {
+  return request("candidate/proctor/alert", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
 
 /* Legacy helpers for compatibility with existing status banner */
 export function setAdminCredentials(_u: string, _p: string): void {}

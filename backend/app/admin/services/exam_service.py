@@ -353,8 +353,17 @@ class ExamService:
                                 )
                                 db.add(new_opt)
 
-        # Single Active Exam Policy: Deactivate all other exams so exactly one exam is active at any time
-        db.query(Exam).filter(Exam.id != exam_id).update({"status": "DEACTIVATED"})
+        # Deactivate conflicting active exams for the same department(s) to avoid candidate collision
+        dept_ids = [d.id for d in exam.departments]
+        if dept_ids:
+            conflicting_exams = (
+                db.query(Exam)
+                .join(Exam.departments)
+                .filter(Exam.id != exam_id, Department.id.in_(dept_ids), Exam.status.in_(["ACTIVATED", "PUBLISHED"]))
+                .all()
+            )
+            for c_exam in conflicting_exams:
+                c_exam.status = "DEACTIVATED"
 
         exam.status = "ACTIVATED"
         db.add(AuditLog(
@@ -362,7 +371,7 @@ class ExamService:
             entity_type="Exam",
             entity_id=str(exam.id),
             performed_by=performed_by,
-            details=f"Activated exam: {exam.title} (Single active exam policy enforced; other exams deactivated)"
+            details=f"Activated exam: {exam.title}. Examination is now live for assigned candidates."
         ))
         db.commit()
         db.refresh(exam)

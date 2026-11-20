@@ -913,7 +913,7 @@ export default function PrimaryDepartmentOverview({
                         borderRadius: "6px",
                         border: "none",
                         cursor: "pointer",
-                        background: quickMode === "existing" ? (isTech ? "#EAF6EF" : "#eff6ff") : "transparent",
+                        background: quickMode === "existing" ? (isTech ? "#EAF6EF" : "#eaf6ef") : "transparent",
                         color: quickMode === "existing" ? (isTech ? "#017846" : "#0284c7") : "#64748b"
                       }}
                     >
@@ -929,7 +929,7 @@ export default function PrimaryDepartmentOverview({
                         borderRadius: "6px",
                         border: "none",
                         cursor: "pointer",
-                        background: quickMode === "new" ? (isTech ? "#EAF6EF" : "#eff6ff") : "transparent",
+                        background: quickMode === "new" ? (isTech ? "#EAF6EF" : "#eaf6ef") : "transparent",
                         color: quickMode === "new" ? (isTech ? "#017846" : "#0284c7") : "#64748b"
                       }}
                     >

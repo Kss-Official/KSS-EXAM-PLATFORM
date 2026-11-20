@@ -261,7 +261,7 @@ export default function AnswerKeyImporter({
           </small>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             {Object.entries(currentAnswerKey.entries).map(([qNum, letter]) => (
-              <span key={qNum} style={{ fontSize: "10.5px", padding: "2px 6px", background: "#eff6ff", color: "#1e40af", borderRadius: "4px", border: "1px solid #bfdbfe" }}>
+              <span key={qNum} style={{ fontSize: "10.5px", padding: "2px 6px", background: "#eaf6ef", color: "#014d32", borderRadius: "4px", border: "1px solid #bfdbfe" }}>
                 Q{qNum}: <b>{letter}</b>
               </span>
             ))}

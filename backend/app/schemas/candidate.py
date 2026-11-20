@@ -36,6 +36,8 @@ class CandidateDto(CamelModel):
     assigned_set: Optional[str] = None
     batch: Optional[str] = None
     exam_date: Optional[str] = None
+    assigned_exam_id: Optional[int] = None
+    assigned_exam_title: Optional[str] = None
 
 class CandidateAssignSetRequest(CamelModel):
     set_code: Optional[str] = None
@@ -47,6 +49,10 @@ class CandidateBatchAssignSetRequest(CamelModel):
 class CandidateBatchAssignBatchRequest(CamelModel):
     candidate_ids: List[int]
     batch: Optional[str] = None
+
+class CandidateBatchAssignExamRequest(CamelModel):
+    candidate_ids: List[int]
+    exam_id: Optional[int] = None
 
 class CandidateBatchGenerateSelectedRequest(CamelModel):
     candidate_ids: List[int]
@@ -63,6 +69,8 @@ class CandidateVerifyRequest(CamelModel):
     college_name: Optional[str] = None
     college_id: Optional[int] = None
     registration_number: Optional[str] = None
+    exam_id: Optional[int] = None
+    assigned_exam_id: Optional[int] = None
 
 class CandidateVerifyResponse(CamelModel):
     eligible: bool
@@ -73,6 +81,7 @@ class CandidateVerifyResponse(CamelModel):
     candidate_name: Optional[str] = None
     email: Optional[str] = None
     department_name: Optional[str] = None
+    department_category: Optional[str] = None
     college_name: Optional[str] = None
     batch: Optional[str] = None
     exam_id: Optional[int] = None
@@ -115,6 +124,8 @@ class CandidateStartAttemptResponse(CamelModel):
     total_duration_seconds: int
     questions: List[CandidateQuestionDto] = []
     answers: Optional[Dict[str, int]] = {}
+    server_time: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
 
 class AnswerSaveRequest(CamelModel):
     question_id: int

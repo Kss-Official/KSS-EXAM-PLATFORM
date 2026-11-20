@@ -29,14 +29,24 @@ def _init_engine():
     is_postgres = db_url.startswith("postgresql")
     is_serverless = bool(os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))
 
+    if "sqlite:///" in db_url:
+        sqlite_file = db_url.replace("sqlite:///", "", 1)
+        if not os.path.isabs(sqlite_file):
+            from pathlib import Path
+            base_backend_dir = Path(__file__).resolve().parent.parent.parent
+            clean_rel = sqlite_file.replace("\\", "/").lstrip("./")
+            abs_path = (base_backend_dir / clean_rel).resolve()
+            db_url = f"sqlite:///{abs_path.as_posix()}"
+
     if is_postgres:
         try:
-            # Quick connectivity verification with 15s timeout for Neon serverless
-            probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
-            with probe_engine.connect() as conn:
-                pass
-            probe_engine.dispose()  # Prevent socket leak from probe connection
-            logger.info("Successfully connected to primary PostgreSQL database.")
+            if not is_serverless:
+                # Quick connectivity verification with 15s timeout for non-serverless
+                probe_engine = create_engine(db_url, connect_args={"connect_timeout": 15})
+                with probe_engine.connect() as conn:
+                    pass
+                probe_engine.dispose()  # Prevent socket leak from probe connection
+                logger.info("Successfully connected to primary PostgreSQL database.")
 
             # Optimized PostgreSQL pool for load
             pg_connect_args = {
@@ -69,8 +79,10 @@ def _init_engine():
                 f"[DATABASE FAILOVER] PostgreSQL unreachable ({exc}). "
                 f"Falling back to local persistent SQLite (examsecure.db) for development resilience."
             )
+            from pathlib import Path
+            abs_db = (Path(__file__).resolve().parent.parent.parent / "examsecure.db").resolve()
             return create_engine(
-                "sqlite:///./examsecure.db",
+                f"sqlite:///{abs_db.as_posix()}",
                 connect_args={"check_same_thread": False},
                 echo=False
             )
@@ -85,11 +97,20 @@ from sqlalchemy import event
 engine = _init_engine()
 
 @event.listens_for(engine, "connect")
-def _set_pg_statement_timeout(dbapi_connection, connection_record):
-    """Guards Neon and PostgreSQL against runaway slow queries (10s limit)."""
+def _configure_connection_guards(dbapi_connection, connection_record):
+    """
+    Configures connection guards:
+    - PostgreSQL/Neon: statement timeout (10s limit) to avoid runaway queries.
+    - SQLite: WAL mode, 60s busy timeout, and synchronous=NORMAL for high-concurrency resilience.
+    """
     try:
         cursor = dbapi_connection.cursor()
-        cursor.execute("SET statement_timeout = 10000;")
+        if "sqlite" in engine.url.drivername:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA busy_timeout=60000;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+        else:
+            cursor.execute("SET statement_timeout = 10000;")
         cursor.close()
     except Exception:
         pass

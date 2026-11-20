@@ -39,7 +39,7 @@ export function useFaceDetection(
   videoRef: React.RefObject<HTMLVideoElement | null>,
   options: UseFaceDetectionOptions = {}
 ): UseFaceDetectionResult {
-  const { enabled = true, intervalMs = 180 } = options;
+  const { enabled = true, intervalMs = 1200 } = options;
 
   const [faceCount, setFaceCount] = useState<number>(1);
   const [faces, setFaces] = useState<DetectedFace[]>([]);
@@ -56,6 +56,7 @@ export function useFaceDetection(
   const unwantedMotionStreak = useRef<number>(0);
   const noCandidateStreak = useRef<number>(0);
   const optimalStreak = useRef<number>(0);
+  const isProcessingRef = useRef<boolean>(false);
 
   // Pre-load MediaPipe BlazeFace and Pico fallback in parallel
   useEffect(() => {
@@ -90,10 +91,20 @@ export function useFaceDetection(
         return;
       }
 
+      // Guard: Never stack concurrent computer-vision detection passes
+      if (isProcessingRef.current) {
+        return;
+      }
+      isProcessingRef.current = true;
+
       try {
         const result = await detectFacesInVideo(video);
-        setFaceCount(result.count);
-        setFaces(result.faces);
+
+        // Selective state update to eliminate unnecessary React re-renders
+        setFaceCount(prev => (prev === result.count ? prev : result.count));
+        if (result.count > 1 || result.count === 0) {
+          setFaces(result.faces);
+        }
 
         const currentScenario = result.scenario;
 
@@ -105,8 +116,7 @@ export function useFaceDetection(
           noCandidateStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Responsive detection (2 consecutive frames ~360ms)
-          if (multiMovingStreak.current >= 2) {
+          if (multiMovingStreak.current >= 1) {
             setScenario("SECOND_PERSON_MOVING");
             setSeverity("red");
             setBadgeLabel("PERSON IN MOTION");
@@ -125,8 +135,7 @@ export function useFaceDetection(
           noCandidateStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Responsive detection (2 consecutive frames ~360ms)
-          if (multiPresentStreak.current >= 2) {
+          if (multiPresentStreak.current >= 1) {
             setScenario("SECOND_PERSON_PRESENT");
             setSeverity("red");
             setBadgeLabel(`${result.count} PEOPLE IN VIEW`);
@@ -164,8 +173,7 @@ export function useFaceDetection(
           unwantedMotionStreak.current = 0;
           optimalStreak.current = 0;
 
-          // Responsive missing candidate: 3 consecutive frames (~540ms)
-          if (noCandidateStreak.current >= 3) {
+          if (noCandidateStreak.current >= 2) {
             setScenario("NO_CANDIDATE");
             setSeverity("amber");
             setBadgeLabel("FACE NOT DETECTED");
@@ -184,9 +192,7 @@ export function useFaceDetection(
           unwantedMotionStreak.current = 0;
           noCandidateStreak.current = 0;
 
-          // Require 6 consecutive clean frames (~1.1s) before clearing an active warning
-          // This prevents warnings from flickering or disappearing on a single frame glitch
-          if (optimalStreak.current >= 6) {
+          if (optimalStreak.current >= 2) {
             setScenario("OPTIMAL_ALONE");
             setSeverity("normal");
             setBadgeLabel("REC · PROCTORED");
@@ -196,6 +202,8 @@ export function useFaceDetection(
         }
       } catch (err) {
         console.warn("[useFaceDetection] Processing cycle warning:", err);
+      } finally {
+        isProcessingRef.current = false;
       }
     }, intervalMs);
 

@@ -90,6 +90,7 @@ export function createCandidateSession(
     sessionId,
     examId: DEMO_EXAM_ID,
     profile: {
+      ...profile,
       name: profile.name.trim(),
       email: (profile.email || "").trim().toLowerCase(),
       department: profile.department,

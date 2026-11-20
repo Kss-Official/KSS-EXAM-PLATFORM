@@ -39,7 +39,26 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error initializing administrator bootstrap: {e}")
     finally:
         db.close()
+
+    import asyncio
+    async def _auto_finalization_loop():
+        while True:
+            try:
+                await asyncio.sleep(15)
+                db_bg = SessionLocal()
+                try:
+                    from app.candidate.services.candidate_exam_service import CandidateExamService
+                    CandidateExamService.auto_finalize_expired_attempts(db_bg)
+                finally:
+                    db_bg.close()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug(f"[AUTO-FINALIZE-BG] notice: {e}")
+
+    finalizer_task = asyncio.create_task(_auto_finalization_loop())
     yield
+    finalizer_task.cancel()
     logger.info("ExamSecure FastAPI Backend shutting down.")
 
 _is_prod = settings.ENVIRONMENT.lower() == "production"

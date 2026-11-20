@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import { 
   ShieldCheck, 
   Lock, 
@@ -32,10 +33,25 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search.includes("expired=true")) {
+      setErrorMessage("Administrator session expired. Please sign in again to continue.");
+    }
+  }, []);
+
   // Check if session is already active on load
   useEffect(() => {
     let isCancelled = false;
     const checkActiveSession = async () => {
+      const token = localStorage.getItem("examsecure_auth_token");
+      if (!token) {
+        if (!isCancelled) {
+          setCheckingSession(false);
+          setBackendStatus("online");
+        }
+        return;
+      }
+
       try {
         const user = await getAuthMe();
         if (!isCancelled && user && user.role === "SUPER_ADMIN") {
@@ -44,7 +60,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           return;
         }
       } catch {
-        // Unauthenticated is expected here
+        localStorage.removeItem("examsecure_auth_token");
       } finally {
         if (!isCancelled) {
           setCheckingSession(false);
@@ -130,7 +146,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
         }}
       >
         <div style={{ width: "32px", height: "32px", border: "3px solid #017846", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-        <span style={{ fontSize: "13px" }}>ExamSecure: Verifying administrator session...</span>
+        <span style={{ fontSize: "13px" }}>Kalpanaaa Software Solutions: Verifying administrator session...</span>
       </div>
     );
   }
@@ -159,7 +175,7 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
           left: "20%",
           width: "350px",
           height: "350px",
-          background: "radial-gradient(circle, rgba(54, 95, 229, 0.15) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(1, 120, 70, 0.15) 0%, transparent 70%)",
           filter: "blur(50px)",
           pointerEvents: "none"
         }} 
@@ -187,28 +203,15 @@ export default function AdminLoginPage({ onLoginSuccess }: AdminLoginPageProps) 
       >
         {/* Brand & Platform Header */}
         <div style={{ textAlign: "center", marginBottom: "24px" }}>
-          <div 
-            style={{
-              width: "56px",
-              height: "56px",
-              borderRadius: "16px",
-              background: "linear-gradient(135deg, #017846, #014D32)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 14px",
-              boxShadow: "0 10px 25px rgba(1, 120, 70, 0.4)",
-              border: "1px solid rgba(255, 255, 255, 0.15)"
-            }}
-          >
-            <ShieldCheck size={30} color="#ffffff" />
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginBottom: "14px" }}>
+            <img 
+              src={kalpanaaLogo} 
+              alt="Kalpanaaa Software Solutions" 
+              style={{ height: "64px", maxWidth: "280px", objectFit: "contain", display: "block" }} 
+            />
           </div>
-
-          <h1 style={{ margin: "0 0 6px 0", fontSize: "23px", fontWeight: 800, color: "#ffffff", letterSpacing: "-0.5px" }}>
-            ExamSecure Administrator
-          </h1>
           <p style={{ margin: 0, fontSize: "12.5px", color: "#94a3b8" }}>
-            Single-Administrator Secure Access ┬╖ Role-Based Control (RBAC)
+            Examination Administration Console · Super Administrator Access
           </p>
         </div>
 

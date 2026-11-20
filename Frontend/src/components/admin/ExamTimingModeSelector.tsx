@@ -231,7 +231,7 @@ export default function ExamTimingModeSelector({
               <div style={{ fontSize: "11px", color: "#334155" }}>
                 <strong>Individual Candidate Window:</strong> Each candidate receives an independent countdown starting at their login.
               </div>
-              <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "#1e40af", background: "#dbeafe", padding: "3px 8px", borderRadius: "6px" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", fontSize: "11px", fontWeight: 700, color: "#014d32", background: "#dbeafe", padding: "3px 8px", borderRadius: "6px" }}>
                 <Clock size={13} /> Personal Duration: {durationMinutes || 60} Minutes
               </div>
             </>

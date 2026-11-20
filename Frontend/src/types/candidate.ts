@@ -10,6 +10,7 @@ export interface CandidateProfile {
   email: string;
   department: Department;
   departmentId?: number;
+  departmentCategory?: "TECHNICAL" | "NON_TECHNICAL";
   collegeName?: string;
   collegeId?: number;
   candidateId?: string;
@@ -65,6 +66,9 @@ export interface CandidateSession {
   percentage?: number;
   qualificationStatus?: string;
   isPublished?: boolean;
+  questions?: any[];
+  assignedSet?: string;
+  serverOffset?: number;
 }
 
 export interface SubmissionReceipt {
@@ -87,6 +91,9 @@ export interface SubmissionReceipt {
   percentage?: number;
   qualificationStatus?: string;
   isPublished?: boolean;
+  questions?: any[];
+  assignedSet?: string;
+  serverOffset?: number;
 }
 
 export interface ReadinessCheckState {

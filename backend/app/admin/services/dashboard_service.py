@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
 from app.models import (
-    Exam, Candidate, Department, ExamAttempt, AttemptAnswer, AttemptRandomizedQuestion, AuditLog
+    Exam, Candidate, Department, College, ExamAttempt, AttemptAnswer, AttemptRandomizedQuestion, AuditLog
 )
 from app.schemas import AdminDashboardResponse, ExamResultDto, AuditLogDto, AuditLogResponse
 
@@ -16,6 +16,13 @@ class DashboardService:
         Aggregates real-time examination telemetry using optimized SQL aggregate queries
         to eliminate latency bottlenecks over remote PostgreSQL connections.
         """
+        # 0. Auto-finalize any attempts exceeding duration deadline before aggregating stats
+        try:
+            from app.candidate.services.candidate_exam_service import CandidateExamService
+            CandidateExamService.auto_finalize_expired_attempts(db)
+        except Exception:
+            pass
+
         # 1. Aggregate Exam metrics in a single query
         total_exams, active_exams = db.query(
             func.count(Exam.id),
@@ -50,19 +57,65 @@ class DashboardService:
     def get_available_dates(cls, db: Session) -> List[str]:
         """
         Retrieves all distinct examination dates (in IST UTC+5:30) with recorded attempts.
+        Supports both PostgreSQL and local SQLite dialects seamlessly.
         """
         IST = timezone(timedelta(hours=5, minutes=30))
-        dates_raw = db.execute(text("""
-            SELECT DISTINCT to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt
-            FROM exam_attempts
-            WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
-            ORDER BY dt DESC
-        """)).fetchall()
+        is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
+        if is_sqlite:
+            dates_raw = db.execute(text("""
+                SELECT DISTINCT strftime('%Y-%m-%d', datetime(COALESCE(submitted_at, started_at, created_at), '+5 hours', '+30 minutes')) as dt
+                FROM exam_attempts
+                WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                ORDER BY dt DESC
+            """)).fetchall()
+        else:
+            dates_raw = db.execute(text("""
+                SELECT DISTINCT to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt
+                FROM exam_attempts
+                WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                ORDER BY dt DESC
+            """)).fetchall()
         result = [r[0] for r in dates_raw if r[0]]
         now_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
         if now_ist not in result:
             result.insert(0, now_ist)
         return result
+
+    @classmethod
+    def get_result_date_counts(cls, db: Session) -> dict:
+        """
+        Computes total examination attempts per date in a single fast SQL aggregate query.
+        """
+        counts = {}
+        is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
+        try:
+            if is_sqlite:
+                query = text("""
+                    SELECT 
+                        strftime('%Y-%m-%d', datetime(COALESCE(submitted_at, started_at, created_at), '+5 hours', '+30 minutes')) as dt,
+                        COUNT(*) as cnt
+                    FROM exam_attempts
+                    WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                    GROUP BY dt
+                    ORDER BY dt DESC
+                """)
+            else:
+                query = text("""
+                    SELECT 
+                        to_char(timezone('Asia/Kolkata', COALESCE(submitted_at, started_at, created_at)), 'YYYY-MM-DD') as dt,
+                        COUNT(*) as cnt
+                    FROM exam_attempts
+                    WHERE COALESCE(submitted_at, started_at, created_at) IS NOT NULL
+                    GROUP BY dt
+                    ORDER BY dt DESC
+                """)
+            rows = db.execute(query).fetchall()
+            for r in rows:
+                if r[0]:
+                    counts[str(r[0])] = int(r[1])
+        except Exception:
+            pass
+        return counts
 
     @classmethod
     def get_exam_results(
@@ -74,9 +127,17 @@ class DashboardService:
         """
         Loads candidate exam results filtered by optional exam_id and specific examination date (in IST).
         """
+        # Ensure any expired attempts are auto-finalized so Admin Portal reflects fresh submissions
+        try:
+            from app.candidate.services.candidate_exam_service import CandidateExamService
+            CandidateExamService.auto_finalize_expired_attempts(db)
+        except Exception:
+            pass
+
         IST = timezone(timedelta(hours=5, minutes=30))
         query = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.candidate).joinedload(Candidate.department),
+            joinedload(ExamAttempt.candidate).joinedload(Candidate.college),
             joinedload(ExamAttempt.exam),
             joinedload(ExamAttempt.question_set),
             joinedload(ExamAttempt.slot)
@@ -132,6 +193,8 @@ class DashboardService:
             cand_name = a.candidate.full_name if a.candidate else "Unknown"
             reg_num = a.candidate_code or (a.candidate.registration_number if a.candidate else "-")
             dept_name = a.candidate.department.name if (a.candidate and a.candidate.department) else "Unassigned"
+            college_name = a.candidate.college.name if (a.candidate and a.candidate.college) else None
+            college_id = a.candidate.college_id if a.candidate else None
             set_cd = a.question_set_code or (a.question_set.set_code if a.question_set else "-")
             cand_batch = a.candidate.batch if a.candidate else None
 
@@ -148,14 +211,27 @@ class DashboardService:
             )
 
             if not is_independent_exam:
-                if a.exam_id == 98 or 'slot 1' in exam_title_lower or cand_batch_lower == 'slot 1':
+                # 1. Candidate's enrolled batch is the primary administrative truth!
+                if 'slot 1' in cand_batch_lower or cand_batch_lower == 'slot1':
                     slot_num = 1
-                elif a.exam_id == 99 or 'slot 2' in exam_title_lower or '@' in exam_title_lower or cand_batch_lower == 'slot 2':
+                elif 'slot 2' in cand_batch_lower or cand_batch_lower == 'slot2':
                     slot_num = 2
-                elif 'slot 3' in exam_title_lower or '4:00' in exam_title_lower or '4pm' in exam_title_lower or 'slot 3' in cand_batch_lower or '4:00' in cand_batch_lower or '4pm' in cand_batch_lower:
+                elif 'slot 3' in cand_batch_lower or cand_batch_lower == 'slot3':
                     slot_num = 3
                 elif a.slot and a.slot.slot_number in (1, 2, 3):
                     slot_num = a.slot.slot_number
+                elif '10:00' in cand_batch_lower or '10am' in cand_batch_lower or '11:00' in cand_batch_lower or '11:30' in cand_batch_lower:
+                    slot_num = 1
+                elif '12:00' in cand_batch_lower or '1:00' in cand_batch_lower or '1pm' in cand_batch_lower or '2:00' in cand_batch_lower or '2pm' in cand_batch_lower:
+                    slot_num = 2
+                elif '4:00' in cand_batch_lower or '4pm' in cand_batch_lower or '4:00' in exam_title_lower or '4pm' in exam_title_lower:
+                    slot_num = 3
+                elif 'slot 1' in exam_title_lower or a.exam_id == 98:
+                    slot_num = 1
+                elif 'slot 2' in exam_title_lower or '@' in exam_title_lower or a.exam_id == 99:
+                    slot_num = 2
+                elif 'slot 3' in exam_title_lower:
+                    slot_num = 3
             ts = a.submitted_at or a.started_at or a.created_at
             exam_dt_str = None
             if ts:
@@ -168,6 +244,8 @@ class DashboardService:
                 candidate_name=cand_name,
                 registration_number=reg_num,
                 department_name=dept_name,
+                college_id=college_id,
+                college_name=college_name,
                 exam_id=a.exam_id,
                 exam_title=a.exam.title if a.exam else "Exam",
                 set_code=set_cd,

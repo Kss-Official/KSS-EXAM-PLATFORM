@@ -34,6 +34,7 @@ import {
 } from "../../services/api";
 import PrimaryDepartmentOverview from "../../components/admin/PrimaryDepartmentOverview";
 import DepartmentTrackConfigView from "../../components/admin/DepartmentTrackConfigView";
+import FormattedContent from "../../components/common/FormattedContent";
 import { 
   type PrimaryDepartmentType, 
   type SubDepartmentItem, 
@@ -322,6 +323,7 @@ export default function CreateExamPage() {
       const resp = await parsePdfInMemory(formData);
 
       if (resp.questions && resp.questions.length > 0) {
+        setServerError(null);
         const generatedSets = generateShuffledSets(resp.questions, currentBank.randomizeQuestions);
 
         setter(prev => ({
@@ -347,7 +349,10 @@ export default function CreateExamPage() {
           return String(Math.max(cur, qCount * mpq));
         });
       } else {
-        console.warn(`Extraction returned 0 questions for ${category} document.`);
+        const errDetail = resp.errors && resp.errors.length > 0 
+          ? resp.errors.join("; ") 
+          : "Document parsed but 0 questions were recognized. Please ensure questions are numbered (e.g., 1., 2.) with options (A., B., C., D.).";
+        setServerError(`Question extraction (${category}): ${errDetail}`);
       }
     } catch (err: unknown) {
       console.warn(`Extraction failed for ${category} Question Paper:`, err);
@@ -752,23 +757,47 @@ export default function CreateExamPage() {
   };
 
   return (
-    <div style={{ maxWidth: "1080px", margin: "0 auto", paddingBottom: "60px" }}>
+    <div className="admin-page-container" style={{ paddingBottom: "60px" }}>
       {/* Top Header Navigation */}
-      <div style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div className="admin-page-header">
+        <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
           <button 
             type="button" 
             className="secondary" 
             onClick={() => navigate("/admin/exams")}
-            style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+            style={{ 
+              display: "inline-flex", 
+              alignItems: "center", 
+              gap: "6px",
+              padding: "8px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600
+            }}
             title="Return to Examinations"
           >
-            <ArrowLeft size={14} /> Back to Examinations
+            <ArrowLeft size={15} /> Back to Examinations
           </button>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "20px", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.3px" }}>
+              Create Examination Blueprint
+            </h1>
+            <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "#64748b" }}>
+              Configure exam timeline, evaluation rules, academic tracks, and multi-set question banks
+            </p>
+          </div>
         </div>
 
-        <span style={{ fontSize: "11px", color: "#64748b" }}>
-          ExamSecure Assessment Engine · Integrated Department & Question Management
+        <span style={{ 
+          fontSize: "11.5px", 
+          fontWeight: 600, 
+          color: "#017846", 
+          background: "#EAF6EF", 
+          padding: "6px 12px", 
+          borderRadius: "8px",
+          border: "1px solid #d1fae5"
+        }}>
+          ExamSecure Assessment Engine
         </span>
       </div>
 
@@ -1539,9 +1568,12 @@ export default function CreateExamPage() {
             <div style={{ padding: "16px 20px", overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "12px" }}>
               {reviewingSet.questions.map((q, idx) => (
                 <div key={idx} style={{ padding: "12px", border: "1px solid #e2e8f0", borderRadius: "8px", background: "#f8fafc" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                    <strong style={{ fontSize: "13px", color: "#0f172a" }}>Q{idx + 1}. {q.questionText}</strong>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#dcfce7", padding: "2px 7px", borderRadius: "4px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
+                    <div style={{ fontSize: "13px", color: "#0f172a", fontWeight: 600 }}>
+                      <span style={{ marginRight: "4px" }}>Q{idx + 1}.</span>
+                      <FormattedContent content={q.questionText} />
+                    </div>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "#166534", background: "#dcfce7", padding: "2px 7px", borderRadius: "4px", whiteSpace: "nowrap" }}>
                       Ans: {q.correctOption}
                     </span>
                   </div>
@@ -1560,7 +1592,7 @@ export default function CreateExamPage() {
                             fontWeight: isCorrect ? 600 : 400
                           }}
                         >
-                          <b>{opt.label})</b> {opt.optionText}
+                          <b>{opt.label})</b> <FormattedContent content={opt.optionText} />
                         </div>
                       );
                     })}

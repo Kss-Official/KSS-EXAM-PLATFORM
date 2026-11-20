@@ -56,8 +56,17 @@ export default function RoleApplicationPage({
   onContinue
 }: RoleApplicationPageProps) {
   const isNonTechnical = Boolean(
-    profile.department && 
-    (profile.department.toLowerCase().includes("non") || profile.department.toUpperCase() === "NON_TECHNICAL")
+    (profile.departmentCategory && profile.departmentCategory.toUpperCase() === "NON_TECHNICAL") ||
+    (profile.department && (
+      profile.department.toLowerCase().includes("non") || 
+      profile.department.toUpperCase() === "NON_TECHNICAL" ||
+      profile.department.toLowerCase().includes("human resource") ||
+      profile.department.toLowerCase().includes("hr") ||
+      profile.department.toLowerCase().includes("sales") ||
+      profile.department.toLowerCase().includes("marketing") ||
+      profile.department.toLowerCase().includes("finance") ||
+      profile.department.toLowerCase().includes("accounting")
+    ))
   );
 
   const availableJobRoles = isNonTechnical ? NON_TECHNICAL_JOB_ROLES : TECHNICAL_JOB_ROLES;
@@ -166,7 +175,7 @@ export default function RoleApplicationPage({
         <header className="role-app-header">
           <img 
             src={kalpanaaLogo} 
-            alt="Kalpanaa Software Solutions" 
+            alt="Kalpanaaa Software Solutions" 
             className="role-app-logo"
           />
         </header>

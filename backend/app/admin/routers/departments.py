@@ -1,6 +1,7 @@
 from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from app.core import get_db, require_super_admin
@@ -28,16 +29,28 @@ def is_academic_department(d: Department) -> bool:
         return False
     return True
 
-def to_dto(d: Department) -> DepartmentDto:
+def to_dto(d: Department, cand_counts: Optional[dict] = None) -> DepartmentDto:
     assoc_count = len(d.exams) if d.exams else 0
+    c_count = (cand_counts or {}).get(d.id, 0)
+    # Deduce category if not set: HR, Sales, Marketing, etc. are NON_TECHNICAL
+    raw_cat = getattr(d, "category", None)
+    if not raw_cat:
+        c_upper = (d.code or "").upper()
+        n_lower = (d.name or "").lower()
+        if any(k in c_upper for k in ["HR", "SALES", "MKT", "MGMT", "NON_TECH", "FIN"]) or any(k in n_lower for k in ["human resource", "sales", "marketing", "management", "non-technical"]):
+            raw_cat = "NON_TECHNICAL"
+        else:
+            raw_cat = "TECHNICAL"
     return DepartmentDto(
         id=d.id,
         name=d.name,
         code=d.code,
+        category=raw_cat,
         description=d.description,
         active=d.active,
         created_at=d.created_at,
-        associated_exams_count=assoc_count
+        associated_exams_count=assoc_count,
+        candidates_count=c_count
     )
 
 @router.get("", response_model=List[DepartmentDto])
@@ -50,11 +63,18 @@ def get_all_departments(
         joinedload(Department.exams)
     ).order_by(Department.name.asc()).all()
     
+    cand_counts = dict(
+        db.query(Candidate.department_id, func.count(Candidate.id))
+        .filter(Candidate.department_id != None)
+        .group_by(Candidate.department_id)
+        .all()
+    )
+    
     if type == "academic":
         depts = [d for d in depts if is_academic_department(d)]
     elif type == "college":
         depts = [d for d in depts if not is_academic_department(d)]
-    return [to_dto(d) for d in depts]
+    return [to_dto(d, cand_counts) for d in depts]
 
 @router.get("/active", response_model=List[DepartmentDto])
 def get_active_departments(
@@ -66,11 +86,18 @@ def get_active_departments(
         joinedload(Department.exams)
     ).filter(Department.active == True).order_by(Department.name.asc()).all()
     
+    cand_counts = dict(
+        db.query(Candidate.department_id, func.count(Candidate.id))
+        .filter(Candidate.department_id != None)
+        .group_by(Candidate.department_id)
+        .all()
+    )
+    
     if type == "academic":
         depts = [d for d in depts if is_academic_department(d)]
     elif type == "college":
         depts = [d for d in depts if not is_academic_department(d)]
-    return [to_dto(d) for d in depts]
+    return [to_dto(d, cand_counts) for d in depts]
 
 @router.get("/colleges", response_model=List[DepartmentDto])
 def get_all_colleges(
@@ -131,9 +158,13 @@ def create_department(
             new_code = f"{base_code}_{counter}"
         code = new_code
 
+    cat_val = (dto.category or "TECHNICAL").strip().upper()
+    if cat_val not in ("TECHNICAL", "NON_TECHNICAL"):
+        cat_val = "TECHNICAL"
     dept = Department(
         name=dto.name.strip(),
         code=code,
+        category=cat_val,
         description=dto.description,
         active=dto.active,
         created_at=datetime.now(timezone.utc)
@@ -165,6 +196,10 @@ def update_department(
 
     dept.name = dto.name.strip()
     dept.code = dto.code.strip().upper()
+    if dto.category:
+        cat_val = dto.category.strip().upper()
+        if cat_val in ("TECHNICAL", "NON_TECHNICAL"):
+            dept.category = cat_val
     dept.description = dto.description
     dept.active = dto.active
     dept.updated_at = datetime.now(timezone.utc)

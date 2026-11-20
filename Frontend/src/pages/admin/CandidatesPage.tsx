@@ -19,21 +19,40 @@ import {
   ArrowRight,
   CheckSquare,
   Square,
-  Calendar
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  Edit2,
+  Save,
+  X,
+  Trash2,
+  BookOpen
 } from "lucide-react";
+import { useRouter } from "../../router";
 import { 
   getCandidates,
   createCandidate, 
   uploadCandidatesCsv, 
   getAllDepartments,
   getColleges,
+  getAllExams,
+  batchAssignCandidateExam,
   assignCandidateBatch,
   rescheduleCandidateSlot,
   batchRescheduleCandidateSlot,
   getAvailableCandidateDates,
+  getCandidateDateCounts,
+  getCandidateSlotCounts,
+  getSlotTimings,
+  updateSlotTimings,
+  deleteCandidate,
+  batchDeleteCandidates,
+  type SlotTimingsConfig,
   type CandidateDto, 
   type DepartmentDto,
-  type CollegeDto 
+  type CollegeDto,
+  type ExamDto 
 } from "../../services/api";
 
 const PAGE_SIZE = 30;
@@ -94,6 +113,7 @@ const formatDateYear = (dStr: string): string => {
 };
 
 export default function CandidatesPage() {
+  const { navigate } = useRouter();
   const [candidates, setCandidates] = useState<CandidateDto[]>([]);
   const [totalCandidates, setTotalCandidates] = useState<number>(0);
   const [page, setPage] = useState<number>(1);
@@ -108,6 +128,7 @@ export default function CandidatesPage() {
   const [batchFilter, setBatchFilter] = useState<string>("ALL");
   const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
   const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
+  const [examFilter, setExamFilter] = useState<number | undefined>(undefined);
   const todayIst = useMemo(() => getTodayIstString(), []);
   const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
   const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
@@ -120,9 +141,129 @@ export default function CandidatesPage() {
   const [sortBy, setSortBy] = useState<string>("registration_number");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
 
-  // Distinct Lists from separate Colleges and Departments tables
+  // Custom Interactive Calendar Popover State
+  const [showCalendarPopover, setShowCalendarPopover] = useState<boolean>(false);
+  const [popoverAlign, setPopoverAlign] = useState<"left" | "right">("left");
+  const [calendarViewMonth, setCalendarViewMonth] = useState<{ year: number; month: number }>(() => {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  });
+  const calendarPopoverRef = useRef<HTMLDivElement | null>(null);
+
+  // Close calendar popover on outside click
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (calendarPopoverRef.current && !calendarPopoverRef.current.contains(event.target as Node)) {
+        setShowCalendarPopover(false);
+      }
+    };
+    if (showCalendarPopover) {
+      document.addEventListener("mousedown", handleOutsideClick);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  }, [showCalendarPopover]);
+
+  // Open calendar popover and sync view to the selected date's month
+  const openCalendarPopover = useCallback(() => {
+    if (calendarPopoverRef.current) {
+      const rect = calendarPopoverRef.current.getBoundingClientRect();
+      // If there is enough room to the right of the button (at least 360px),
+      // align left: 0 so it extends rightwards into the open content area.
+      // Otherwise align right: 0 so it extends leftwards.
+      if (window.innerWidth - rect.left >= 360) {
+        setPopoverAlign("left");
+      } else {
+        setPopoverAlign("right");
+      }
+    }
+    if (selectedDate && selectedDate !== "ALL" && selectedDate.includes("-")) {
+      const parts = selectedDate.split("-");
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      if (!isNaN(y) && !isNaN(m)) {
+        setCalendarViewMonth({ year: y, month: m });
+      }
+    }
+    setShowCalendarPopover((prev) => !prev);
+  }, [selectedDate]);
+
+  // Generate calendar grid for calendarViewMonth
+  const calendarMonthData = useMemo(() => {
+    const { year, month } = calendarViewMonth;
+    const firstDayOfWeek = new Date(year, month, 1).getDay(); // 0 is Sunday
+    const daysInCurrentMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+    const monthName = new Date(year, month, 1).toLocaleString("en-US", { month: "long" });
+
+    const cells: Array<{
+      day: number;
+      dateStr: string;
+      isCurrentMonth: boolean;
+      candidateCount: number;
+    }> = [];
+
+    // Prefix days from previous month
+    for (let i = firstDayOfWeek - 1; i >= 0; i--) {
+      const dNum = daysInPrevMonth - i;
+      const prevM = month === 0 ? 11 : month - 1;
+      const prevY = month === 0 ? year - 1 : year;
+      const dStr = `${prevY}-${String(prevM + 1).padStart(2, "0")}-${String(dNum).padStart(2, "0")}`;
+      cells.push({
+        day: dNum,
+        dateStr: dStr,
+        isCurrentMonth: false,
+        candidateCount: dateCounts[dStr] || 0
+      });
+    }
+
+    // Days in current month
+    for (let d = 1; d <= daysInCurrentMonth; d++) {
+      const dStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({
+        day: d,
+        dateStr: dStr,
+        isCurrentMonth: true,
+        candidateCount: dateCounts[dStr] || 0
+      });
+    }
+
+    // Suffix days to complete the 7-column grid
+    const remainder = (7 - (cells.length % 7)) % 7;
+    for (let i = 1; i <= remainder; i++) {
+      const nextM = month === 11 ? 0 : month + 1;
+      const nextY = month === 11 ? year + 1 : year;
+      const dStr = `${nextY}-${String(nextM + 1).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+      cells.push({
+        day: i,
+        dateStr: dStr,
+        isCurrentMonth: false,
+        candidateCount: dateCounts[dStr] || 0
+      });
+    }
+
+    return { year, month, monthName, cells };
+  }, [calendarViewMonth, dateCounts]);
+
+  const goToPrevMonth = useCallback(() => {
+    setCalendarViewMonth(prev => {
+      if (prev.month === 0) return { year: prev.year - 1, month: 11 };
+      return { year: prev.year, month: prev.month - 1 };
+    });
+  }, []);
+
+  const goToNextMonth = useCallback(() => {
+    setCalendarViewMonth(prev => {
+      if (prev.month === 11) return { year: prev.year + 1, month: 0 };
+      return { year: prev.year, month: prev.month + 1 };
+    });
+  }, []);
+
+  // Distinct Lists from separate Colleges, Departments, and Exams tables
   const [colleges, setColleges] = useState<CollegeDto[]>([]);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [exams, setExams] = useState<ExamDto[]>([]);
   const [notice, setNotice] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
   // New Candidate Modal
@@ -130,24 +271,37 @@ export default function CandidatesPage() {
   const [newRegNum, setNewRegNum] = useState("");
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
+  const [newExamDate, setNewExamDate] = useState<string>(todayIst);
   const [newBatch, setNewBatch] = useState("Slot 1");
   const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
+  const [newCollegeName, setNewCollegeName] = useState("");
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
+  const [newExamId, setNewExamId] = useState<number | undefined>(undefined);
 
   // CSV Import Modal
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [csvExamDate, setCsvExamDate] = useState<string>(todayIst);
+  const [csvBatch, setCsvBatch] = useState<string>("Slot 1");
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvExamId, setCsvExamId] = useState<number | undefined>(undefined);
   const [uploadingCsv, setUploadingCsv] = useState(false);
+
+  // Batch Assign Exam Modal
+  const [isBatchExamModalOpen, setIsBatchExamModalOpen] = useState(false);
+  const [batchTargetExamId, setBatchTargetExamId] = useState<number | undefined>(undefined);
+  const [isAssigningBatchExam, setIsAssigningBatchExam] = useState(false);
 
   // IntersectionObserver sentinel for progressive infinite scrolling
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Global Slot Counts for high-level statistics
-  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number }>({
-    total: 842,
-    slot1: 421,
-    slot2: 421
+  const [slotCounts, setSlotCounts] = useState<{ total: number; slot1: number; slot2: number; slot3: number }>({
+    total: 0,
+    slot1: 0,
+    slot2: 0,
+    slot3: 0
   });
+  const [slotCountsLoading, setSlotCountsLoading] = useState<boolean>(true);
 
   // Multi-select state for bulk actions
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -170,51 +324,224 @@ export default function CandidatesPage() {
     loading: false
   });
 
+  // Single Candidate Delete state
+  const [candidateToDelete, setCandidateToDelete] = useState<CandidateDto | null>(null);
+  const [isDeletingSingle, setIsDeletingSingle] = useState(false);
+
+  // Batch Candidates Delete state
+  const [showBatchDeleteModal, setShowBatchDeleteModal] = useState(false);
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+
+  const handleConfirmSingleDelete = async () => {
+    if (!candidateToDelete) return;
+    try {
+      setIsDeletingSingle(true);
+      await deleteCandidate(candidateToDelete.id);
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        next.delete(candidateToDelete.id);
+        return next;
+      });
+      setCandidateToDelete(null);
+      setNotice({ text: `Successfully deleted candidate ${candidateToDelete.fullName}.`, type: "success" });
+      fetchPage1();
+      loadAvailableDates();
+      refreshSlotCounts(selectedDate);
+    } catch (err: any) {
+      setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to delete candidate", type: "error" });
+    } finally {
+      setIsDeletingSingle(false);
+    }
+  };
+
+  const handleConfirmBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      setIsDeletingBatch(true);
+      const ids = Array.from(selectedIds);
+      const res = await batchDeleteCandidates(ids);
+      setShowBatchDeleteModal(false);
+      setSelectedIds(new Set());
+      setNotice({ text: `Successfully deleted ${res.deleted || ids.length} candidate(s).`, type: "success" });
+      fetchPage1();
+      loadAvailableDates();
+      refreshSlotCounts(selectedDate);
+    } catch (err: any) {
+      setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to delete selected candidates", type: "error" });
+    } finally {
+      setIsDeletingBatch(false);
+    }
+  };
+
+  const handleConfirmBatchAssignExam = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      setIsAssigningBatchExam(true);
+      const ids = Array.from(selectedIds);
+      const targetExam = batchTargetExamId ? exams.find(e => e.id === batchTargetExamId) : null;
+      await batchAssignCandidateExam(ids, batchTargetExamId || null);
+      setIsBatchExamModalOpen(false);
+      setSelectedIds(new Set());
+      setNotice({ 
+        text: `Successfully ${targetExam ? `assigned ${ids.length} candidate(s) to "${targetExam.title}"` : `reset exam assignment for ${ids.length} candidate(s)`}.`, 
+        type: "success" 
+      });
+      fetchPage1();
+    } catch (err: any) {
+      setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to assign candidates to exam", type: "error" });
+    } finally {
+      setIsAssigningBatchExam(false);
+    }
+  };
+
+  // Helper to load cached or persistent slot timings
+  const getInitialSlotTimings = (): SlotTimingsConfig => {
+    try {
+      const cached = localStorage.getItem("examsecure_slot_timings_v1");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed?.slot1 && parsed?.slot2) return parsed;
+      }
+    } catch {}
+    return {
+      slot1: {
+        header: "Slot 1 • 2:00 PM",
+        sub: "Entry: 2:00 PM – 2:30 PM IST",
+        btn: "Slot 1 (2:00 PM)",
+        startTime: "2:00 PM",
+        cutoffTime: "2:30 PM"
+      },
+      slot2: {
+        header: "Slot 2 • 4:00 PM",
+        sub: "Entry: 4:00 PM – 4:30 PM IST",
+        btn: "Slot 2 (4:00 PM)",
+        startTime: "4:00 PM",
+        cutoffTime: "4:30 PM"
+      },
+      slot3: {
+        header: "Slot 3 • 6:00 PM",
+        sub: "Entry: 6:00 PM – 6:30 PM IST",
+        btn: "Slot 3 (6:00 PM)",
+        startTime: "6:00 PM",
+        cutoffTime: "6:30 PM"
+      }
+    };
+  };
+
+  // Slot Timings Configuration State
+  const [slotTimings, setSlotTimings] = useState<SlotTimingsConfig>(getInitialSlotTimings);
+
+  const [isEditSlotModalOpen, setIsEditSlotModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState(() => {
+    const init = getInitialSlotTimings();
+    return {
+      slot1StartTime: init.slot1.startTime || "2:00 PM",
+      slot1CutoffTime: init.slot1.cutoffTime || "2:30 PM",
+      slot2StartTime: init.slot2.startTime || "4:00 PM",
+      slot2CutoffTime: init.slot2.cutoffTime || "4:30 PM",
+      slot3StartTime: init.slot3?.startTime || "6:00 PM",
+      slot3CutoffTime: init.slot3?.cutoffTime || "6:30 PM"
+    };
+  });
+  const [savingSlotTimings, setSavingSlotTimings] = useState(false);
+
+  // Load slot timings configuration on mount directly from backend (PostgreSQL) and keep dynamically synced
+  useEffect(() => {
+    let mounted = true;
+    const loadTimings = () => {
+      getSlotTimings().then(cfg => {
+        if (mounted && cfg && cfg.slot1 && cfg.slot2) {
+          setSlotTimings(cfg);
+        }
+      }).catch(() => {});
+    };
+    loadTimings();
+    const interval = setInterval(loadTimings, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   const refreshSlotCounts = useCallback(async (activeDate: string = selectedDate) => {
+    setSlotCountsLoading(true);
     try {
       const dParam = activeDate !== "ALL" ? activeDate : undefined;
-      const [allRes, s1Res, s2Res] = await Promise.all([
-        getCandidates({ limit: 1, date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
-        getCandidates({ limit: 1, batch: "Slot 2", date: dParam })
-      ]);
-      setSlotCounts({
-        total: allRes.total,
-        slot1: s1Res.total,
-        slot2: s2Res.total
-      });
+      // Fast single aggregated slot-counts endpoint
+      try {
+        const counts = await getCandidateSlotCounts(dParam);
+        if (counts && typeof counts.total === "number") {
+          setSlotCounts({
+            total: counts.total,
+            slot1: counts.slot1,
+            slot2: counts.slot2,
+            slot3: counts.slot3 || 0
+          });
+          return;
+        }
+      } catch {
+        // Fallback to parallel count queries if slot-counts is not available
+        const [allRes, s1Res, s2Res, s3Res] = await Promise.all([
+          getCandidates({ limit: 1, date: dParam }),
+          getCandidates({ limit: 1, batch: "Slot 1", date: dParam }),
+          getCandidates({ limit: 1, batch: "Slot 2", date: dParam }),
+          getCandidates({ limit: 1, batch: "Slot 3", date: dParam })
+        ]);
+        setSlotCounts({
+          total: allRes.total,
+          slot1: s1Res.total,
+          slot2: s2Res.total,
+          slot3: s3Res.total
+        });
+      }
     } catch {
       // ignore
+    } finally {
+      setSlotCountsLoading(false);
     }
   }, [selectedDate]);
 
   const loadAvailableDates = useCallback(async () => {
     try {
+      try {
+        const counts = await getCandidateDateCounts();
+        if (counts && typeof counts === "object") {
+          const dates = Object.keys(counts).filter((d) => d !== "ALL").sort().reverse();
+          setAvailableDates(dates);
+          setDateCounts(counts);
+          return;
+        }
+      } catch {
+        // Fallback to dates list if date-counts endpoint is unavailable
+      }
+
       const dates = await getAvailableCandidateDates();
       setAvailableDates(dates);
       const counts: { [d: string]: number } = {};
       const datesToFetch = Array.from(new Set([...dates, todayIst, yesterdayIst, tomorrowIst]));
-      await Promise.all(
-        datesToFetch.map(async (d) => {
+      await Promise.all([
+        ...datesToFetch.map(async (d) => {
           try {
             const r = await getCandidates({ limit: 1, date: d });
             counts[d] = r.total;
           } catch {
             counts[d] = 0;
           }
-        })
-      );
-      try {
-        const allR = await getCandidates({ limit: 1 });
-        counts["ALL"] = allR.total;
-      } catch {}
+        }),
+        (async () => {
+          try {
+            const allR = await getCandidates({ limit: 1 });
+            counts["ALL"] = allR.total;
+          } catch {}
+        })()
+      ]);
       setDateCounts(counts);
     } catch {
       // ignore
     }
   }, [todayIst, yesterdayIst, tomorrowIst]);
 
-  // Fetch both Colleges and Academic Departments from their separate tables
+  // Fetch both Colleges and Academic Departments from their separate tables once on mount
   useEffect(() => {
     try {
       localStorage.removeItem("examsecure_cached_candidates_v2");
@@ -223,9 +550,9 @@ export default function CandidatesPage() {
     }
     getColleges().then(setColleges).catch(() => {});
     getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
+    getAllExams().then(setExams).catch(() => {});
     loadAvailableDates();
-    refreshSlotCounts(selectedDate);
-  }, [refreshSlotCounts, loadAvailableDates, selectedDate]);
+  }, [loadAvailableDates]);
 
   // Debounce search input by 300ms
   useEffect(() => {
@@ -245,6 +572,7 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        examId: examFilter,
         batch: batchFilter !== "ALL" ? batchFilter : undefined,
         date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
@@ -258,18 +586,29 @@ export default function CandidatesPage() {
     } catch (e: unknown) {
       const errorObj = e as Error;
       console.warn("[CandidatesPage] Server fetch failed:", errorObj.message);
-      setNotice({
-        text: `Failed to fetch candidate records: ${errorObj.message}`,
-        type: "error"
-      });
+      if (errorObj.message?.includes("Authentication required") || (errorObj as any)?.statusCode === 401) {
+        setNotice({
+          text: "Administrator session expired. Redirecting to sign in...",
+          type: "error"
+        });
+        setTimeout(() => {
+          navigate("/admin/login?expired=true");
+        }, 1500);
+      } else {
+        setNotice({
+          text: `Failed to fetch candidate records: ${errorObj.message}`,
+          type: "error"
+        });
+      }
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
+  }, [debouncedSearch, collegeFilter, departmentFilter, examFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder, navigate]);
 
   useEffect(() => {
     fetchPage1();
-  }, [fetchPage1]);
+    refreshSlotCounts(selectedDate);
+  }, [fetchPage1, refreshSlotCounts, selectedDate]);
 
   // Progressively fetch next page as the user scrolls towards the bottom
   const loadMoreCandidates = useCallback(async () => {
@@ -283,6 +622,7 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        examId: examFilter,
         batch: batchFilter !== "ALL" ? batchFilter : undefined,
         date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
@@ -303,7 +643,7 @@ export default function CandidatesPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
+  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, examFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
 
   // Attach IntersectionObserver to sentinel element for infinite scrolling
   useEffect(() => {
@@ -470,21 +810,28 @@ export default function CandidatesPage() {
     const regUpper = newRegNum.trim() ? newRegNum.trim().toUpperCase() : `CAND-${Date.now().toString().slice(-6)}`;
 
     try {
+      const targetDate = newExamDate.trim() || todayIst;
       const created = await createCandidate({
         registrationNumber: regUpper,
         fullName: newName.trim(),
         email: newEmail.trim().toLowerCase(),
         batch: newBatch || undefined,
         collegeId: newCollegeId,
-        departmentId: newDeptId
+        collegeName: newCollegeName.trim() || undefined,
+        departmentId: newDeptId,
+        assignedExamId: newExamId,
+        examDate: targetDate
       });
 
       setCandidates(prev => [created, ...prev]);
       setTotalCandidates(prev => prev + 1);
       setNotice({
-        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully in PostgreSQL under ${newBatch || "Unassigned"}.`,
+        text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully for ${targetDate} under ${newBatch || "Unassigned"}.`,
         type: "success"
       });
+      fetchPage1();
+      loadAvailableDates();
+      refreshSlotCounts(selectedDate);
     } catch (err: unknown) {
       const errorObj = err as Error;
       setNotice({ text: "Candidate registration failed: " + errorObj.message, type: "error" });
@@ -495,7 +842,9 @@ export default function CandidatesPage() {
       setNewEmail("");
       setNewBatch("Slot 1");
       setNewCollegeId(undefined);
+      setNewCollegeName("");
       setNewDeptId(undefined);
+      setNewExamId(undefined);
     }
   };
 
@@ -504,14 +853,19 @@ export default function CandidatesPage() {
     if (!csvFile) return;
     setUploadingCsv(true);
     try {
-      const res = await uploadCandidatesCsv(csvFile);
+      const targetDate = csvExamDate.trim() || todayIst;
+      const targetBatch = csvBatch.trim() || "Slot 1";
+      const res = await uploadCandidatesCsv(csvFile, targetDate, csvExamId, targetBatch);
       setNotice({
-        text: `Roster processed successfully. Imported ${res.totalImported} candidates.`,
+        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate} into ${targetBatch}.`,
         type: "success"
       });
       setIsCsvModalOpen(false);
       setCsvFile(null);
+      setCsvExamId(undefined);
       fetchPage1();
+      refreshSlotCounts(selectedDate);
+      loadAvailableDates();
     } catch (e: unknown) {
       const errorObj = e as Error;
       setNotice({ text: "Failed to upload roster document: " + errorObj.message, type: "error" });
@@ -520,20 +874,127 @@ export default function CandidatesPage() {
     }
   };
 
-  // Dynamic slot titles and timings based on selected date
-  const is31OctView = selectedDate === "2026-10-31" || selectedDate.includes("31") || selectedDate === todayIst;
-  const is30OctView = selectedDate === "2026-10-30" || selectedDate.includes("30") || selectedDate === yesterdayIst;
+  const openEditSlotModal = () => {
+    getSlotTimings().then(cfg => {
+      if (cfg && cfg.slot1) {
+        setSlotTimings(cfg);
+        setEditForm({
+          slot1StartTime: cfg.slot1.startTime || "2:00 PM",
+          slot1CutoffTime: cfg.slot1.cutoffTime || "2:30 PM",
+          slot2StartTime: cfg.slot2.startTime || "4:00 PM",
+          slot2CutoffTime: cfg.slot2.cutoffTime || "4:30 PM",
+          slot3StartTime: cfg.slot3?.startTime || "6:00 PM",
+          slot3CutoffTime: cfg.slot3?.cutoffTime || "6:30 PM"
+        });
+      }
+    }).catch(() => {});
 
-  const slot1Header = is31OctView ? "Slot 1 • 11:30 AM" : is30OctView ? "Slot 1 • 10:00 AM" : "Slot 1 (Morning)";
-  const slot1Sub = is31OctView ? "Entry: 11:30 AM – 1:30 PM IST" : is30OctView ? "Entry: 10:00 – 10:30 AM IST" : "10:00 AM / 11:30 AM";
-  const slot1Btn = is31OctView ? "Slot 1 (11:30 AM)" : is30OctView ? "Slot 1 (10:00 AM)" : "Slot 1";
+    setEditForm({
+      slot1StartTime: slotTimings.slot1.startTime || "2:00 PM",
+      slot1CutoffTime: slotTimings.slot1.cutoffTime || "2:30 PM",
+      slot2StartTime: slotTimings.slot2.startTime || "4:00 PM",
+      slot2CutoffTime: slotTimings.slot2.cutoffTime || "4:30 PM",
+      slot3StartTime: slotTimings.slot3?.startTime || "6:00 PM",
+      slot3CutoffTime: slotTimings.slot3?.cutoffTime || "6:30 PM"
+    });
+    setIsEditSlotModalOpen(true);
+  };
 
-  const slot2Header = is31OctView ? "Slot 2 • 4:00 PM" : is30OctView ? "Slot 2 • 2:00 PM" : "Slot 2 (Afternoon)";
-  const slot2Sub = is31OctView ? "Entry: 4:00 – 4:30 PM IST" : is30OctView ? "Entry: 2:00 – 2:30 PM IST" : "2:00 PM / 4:00 PM";
-  const slot2Btn = is31OctView ? "Slot 2 (4:00 PM)" : is30OctView ? "Slot 2 (2:00 PM)" : "Slot 2";
+  // Handle Slot Timings Save
+  const handleSaveSlotTimings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingSlotTimings(true);
+    const s1Start = editForm.slot1StartTime.trim();
+    const s1Cutoff = editForm.slot1CutoffTime.trim();
+    const s2Start = editForm.slot2StartTime.trim();
+    const s2Cutoff = editForm.slot2CutoffTime.trim();
+    const s3Start = editForm.slot3StartTime.trim();
+    const s3Cutoff = editForm.slot3CutoffTime.trim();
+
+    try {
+      const updated = await updateSlotTimings({
+        slot1: {
+          startTime: s1Start,
+          cutoffTime: s1Cutoff,
+          header: `Slot 1 • ${s1Start}`,
+          sub: `Entry: ${s1Start} – ${s1Cutoff} IST`,
+          btn: `Slot 1 (${s1Start})`
+        },
+        slot2: {
+          startTime: s2Start,
+          cutoffTime: s2Cutoff,
+          header: `Slot 2 • ${s2Start}`,
+          sub: `Entry: ${s2Start} – ${s2Cutoff} IST`,
+          btn: `Slot 2 (${s2Start})`
+        },
+        slot3: {
+          startTime: s3Start,
+          cutoffTime: s3Cutoff,
+          header: `Slot 3 • ${s3Start}`,
+          sub: `Entry: ${s3Start} – ${s3Cutoff} IST`,
+          btn: `Slot 3 (${s3Start})`
+        }
+      });
+      setSlotTimings({
+        slot1: {
+          ...updated.slot1,
+          startTime: s1Start,
+          cutoffTime: s1Cutoff,
+          header: `Slot 1 • ${s1Start}`,
+          sub: `Entry: ${s1Start} – ${s1Cutoff} IST`,
+          btn: `Slot 1 (${s1Start})`
+        },
+        slot2: {
+          ...updated.slot2,
+          startTime: s2Start,
+          cutoffTime: s2Cutoff,
+          header: `Slot 2 • ${s2Start}`,
+          sub: `Entry: ${s2Start} – ${s2Cutoff} IST`,
+          btn: `Slot 2 (${s2Start})`
+        },
+        slot3: {
+          ...(updated.slot3 || {}),
+          startTime: s3Start,
+          cutoffTime: s3Cutoff,
+          header: `Slot 3 • ${s3Start}`,
+          sub: `Entry: ${s3Start} – ${s3Cutoff} IST`,
+          btn: `Slot 3 (${s3Start})`
+        }
+      });
+      setNotice({
+        text: `Slot timings updated successfully! Slot 1: ${s1Start} | Slot 2: ${s2Start} | Slot 3: ${s3Start}`,
+        type: "success"
+      });
+      setIsEditSlotModalOpen(false);
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      setNotice({ text: "Failed to update slot timings: " + errorObj.message, type: "error" });
+    } finally {
+      setSavingSlotTimings(false);
+    }
+  };
+
+  // Dynamic slot titles and timings directly derived from persistent slot configuration
+  const s1ActiveStart = slotTimings.slot1.startTime || "2:00 PM";
+  const s1ActiveCutoff = slotTimings.slot1.cutoffTime || "3:30 PM";
+  const slot1Header = `Slot 1 • ${s1ActiveStart}`;
+  const slot1Sub = `Entry: ${s1ActiveStart} – ${s1ActiveCutoff} IST`;
+  const slot1Btn = `Slot 1 (${s1ActiveStart})`;
+
+  const s2ActiveStart = slotTimings.slot2.startTime || "4:00 PM";
+  const s2ActiveCutoff = slotTimings.slot2.cutoffTime || "5:30 PM";
+  const slot2Header = `Slot 2 • ${s2ActiveStart}`;
+  const slot2Sub = `Entry: ${s2ActiveStart} – ${s2ActiveCutoff} IST`;
+  const slot2Btn = `Slot 2 (${s2ActiveStart})`;
+
+  const s3ActiveStart = slotTimings.slot3?.startTime || "6:00 PM";
+  const s3ActiveCutoff = slotTimings.slot3?.cutoffTime || "7:30 PM";
+  const slot3Header = `Slot 3 • ${s3ActiveStart}`;
+  const slot3Sub = `Entry: ${s3ActiveStart} – ${s3ActiveCutoff} IST`;
+  const slot3Btn = `Slot 3 (${s3ActiveStart})`;
 
   return (
-    <div className="admin-page">
+    <div className="admin-page-container">
       <style>{`
         @keyframes shimmerPulse {
           0% { background-position: -200% 0; }
@@ -581,9 +1042,12 @@ export default function CandidatesPage() {
               setBatchFilter("ALL");
               setCollegeFilter(undefined);
               setDepartmentFilter(undefined);
+              setExamFilter(undefined);
               setSelectedDate("ALL");
               setCustomDatePicker("");
               fetchPage1();
+      refreshSlotCounts(selectedDate);
+      loadAvailableDates();
             }}
             title="Reset Filters & Refresh Records"
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
@@ -593,7 +1057,20 @@ export default function CandidatesPage() {
           <button 
             type="button" 
             className="secondary" 
-            onClick={() => setIsCsvModalOpen(true)}
+            onClick={() => openEditSlotModal()}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: "#0284c7", borderColor: "#bae6fd", backgroundColor: "#f0f9ff" }}
+            title="Edit Slot 1 and Slot 2 timings & entry windows"
+          >
+            <Clock size={15} color="#0284c7" /> Edit Slot Timings
+          </button>
+          <button 
+            type="button" 
+            className="secondary" 
+            onClick={() => {
+              setCsvExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setCsvBatch(batchFilter !== "ALL" && batchFilter.startsWith("Slot") ? batchFilter : "Slot 1");
+              setIsCsvModalOpen(true);
+            }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <FileText size={15} color="#017846" /> Add Document
@@ -601,7 +1078,10 @@ export default function CandidatesPage() {
           <button 
             type="button" 
             className="primary" 
-            onClick={() => setIsNewModalOpen(true)}
+            onClick={() => {
+              setNewExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setIsNewModalOpen(true);
+            }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
             <PlusCircle size={15} /> Add Candidate
@@ -634,9 +1114,19 @@ export default function CandidatesPage() {
           title="Click to view all candidates"
         >
           <div className="stat-card-info">
-            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>Total Candidates</small>
-            <div className="stat-card-value" style={{ color: "#017846" }}>{slotCounts.total}</div>
-            <span className="stat-card-sub">All registered examinees</span>
+            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>
+              {selectedDate === "ALL" 
+                ? "Total Candidates" 
+                : `Candidates (${selectedDate === todayIst ? "Today" : selectedDate === yesterdayIst ? "Yesterday" : selectedDate})`}
+            </small>
+            <div className="stat-card-value" style={{ color: "#017846" }}>
+              {slotCountsLoading ? "--" : slotCounts.total}
+            </div>
+            <span className="stat-card-sub">
+              {selectedDate === "ALL"
+                ? "All registered examinees across all dates"
+                : `${dateCounts["ALL"] !== undefined ? `${dateCounts["ALL"]} total enrolled across dates` : "Filtered for active date"}`}
+            </span>
           </div>
           <div className="stat-card-icon blue">
             <Users size={22} />
@@ -648,14 +1138,42 @@ export default function CandidatesPage() {
           style={{ 
             cursor: "pointer", 
             border: batchFilter === "Slot 1" ? "2px solid #0284c7" : "1px solid #e2e8f0",
-            backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : "#ffffff"
+            backgroundColor: batchFilter === "Slot 1" ? "#f0f9ff" : "#ffffff",
+            position: "relative"
           }}
           onClick={() => setBatchFilter(prev => prev === "Slot 1" ? "ALL" : "Slot 1")}
-          title="Click to filter Slot 1 (10:00 AM)"
+          title="Click to filter Slot 1"
         >
           <div className="stat-card-info">
-            <small style={{ color: "#0284c7" }}>{slot1Header}</small>
-            <div className="stat-card-value" style={{ color: "#0284c7" }}>{slotCounts.slot1}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#0284c7", fontWeight: 700 }}>{slot1Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditSlotModal();
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#0284c7",
+                  backgroundColor: "#e0f2fe",
+                  border: "1px solid #bae6fd",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 1 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
+            <div className="stat-card-value" style={{ color: "#0284c7" }}>
+              {slotCountsLoading ? "--" : slotCounts.slot1}
+            </div>
             <span className="stat-card-sub">{slot1Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#e0f2fe", color: "#0284c7" }}>
@@ -668,17 +1186,93 @@ export default function CandidatesPage() {
           style={{ 
             cursor: "pointer", 
             border: batchFilter === "Slot 2" ? "2px solid #7c3aed" : "1px solid #e2e8f0",
-            backgroundColor: batchFilter === "Slot 2" ? "#faf5ff" : "#ffffff"
+            backgroundColor: batchFilter === "Slot 2" ? "#faf5ff" : "#ffffff",
+            position: "relative"
           }}
           onClick={() => setBatchFilter(prev => prev === "Slot 2" ? "ALL" : "Slot 2")}
-          title="Click to filter Slot 2 (2:00 PM)"
+          title="Click to filter Slot 2"
         >
           <div className="stat-card-info">
-            <small style={{ color: "#7c3aed" }}>{slot2Header}</small>
-            <div className="stat-card-value" style={{ color: "#7c3aed" }}>{slotCounts.slot2}</div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#7c3aed", fontWeight: 700 }}>{slot2Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditSlotModal();
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#7c3aed",
+                  backgroundColor: "#f3e8ff",
+                  border: "1px solid #ddd6fe",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 2 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
+            <div className="stat-card-value" style={{ color: "#7c3aed" }}>
+              {slotCountsLoading ? "--" : slotCounts.slot2}
+            </div>
             <span className="stat-card-sub">{slot2Sub}</span>
           </div>
           <div className="stat-card-icon" style={{ background: "#f3e8ff", color: "#7c3aed" }}>
+            <Clock size={22} />
+          </div>
+        </div>
+
+        <div 
+          className="stat-card" 
+          style={{ 
+            cursor: "pointer", 
+            border: batchFilter === "Slot 3" ? "2px solid #d97706" : "1px solid #e2e8f0",
+            backgroundColor: batchFilter === "Slot 3" ? "#fffbeb" : "#ffffff",
+            position: "relative"
+          }}
+          onClick={() => setBatchFilter(prev => prev === "Slot 3" ? "ALL" : "Slot 3")}
+          title="Click to filter Slot 3"
+        >
+          <div className="stat-card-info">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px" }}>
+              <small style={{ color: "#d97706", fontWeight: 700 }}>{slot3Header}</small>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditSlotModal();
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  padding: "2px 7px",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  color: "#d97706",
+                  backgroundColor: "#fef3c7",
+                  border: "1px solid #fde68a",
+                  borderRadius: "5px",
+                  cursor: "pointer"
+                }}
+                title="Edit Slot 3 Timings"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+            </div>
+            <div className="stat-card-value" style={{ color: "#d97706" }}>
+              {slotCountsLoading ? "--" : slotCounts.slot3}
+            </div>
+            <span className="stat-card-sub">{slot3Sub}</span>
+          </div>
+          <div className="stat-card-icon" style={{ background: "#fef3c7", color: "#d97706" }}>
             <Clock size={22} />
           </div>
         </div>
@@ -747,7 +1341,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts[todayIst] ?? (selectedDate === todayIst ? totalCandidates : 675)}
+              {dateCounts[todayIst] ?? (selectedDate === todayIst ? totalCandidates : "--")}
             </span>
           </button>
 
@@ -779,7 +1373,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts[yesterdayIst] ?? 463}
+              {dateCounts[yesterdayIst] ?? "--"}
             </span>
           </button>
 
@@ -815,6 +1409,48 @@ export default function CandidatesPage() {
             </span>
           </button>
 
+          {/* Dynamically highlight any dates with registered candidates from availableDates */}
+          {availableDates
+            .filter((d) => d !== todayIst && d !== yesterdayIst && d !== tomorrowIst && (dateCounts[d] || 0) > 0)
+            .map((d) => {
+              const isSel = selectedDate === d;
+              return (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => { setSelectedDate(d); setCustomDatePicker(d); }}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: "8px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    border: isSel ? "2px solid #059669" : "1.5px solid #10b981",
+                    backgroundColor: isSel ? "#059669" : "#ecfdf5",
+                    color: isSel ? "#ffffff" : "#065f46",
+                    transition: "all 0.15s ease",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    boxShadow: isSel ? "0 2px 4px rgba(5,150,105,0.25)" : "none"
+                  }}
+                  title={`${d}: ${dateCounts[d]} candidate(s)`}
+                >
+                  <span>{formatDateShort(d)} {formatDateYear(d)}</span>
+                  <span style={{
+                    background: isSel ? "rgba(255,255,255,0.3)" : "#d1fae5",
+                    color: isSel ? "#fff" : "#047857",
+                    borderRadius: "12px",
+                    padding: "1px 7px",
+                    fontSize: "11.5px",
+                    fontWeight: 700
+                  }}>
+                    {dateCounts[d]}
+                  </span>
+                </button>
+              );
+            })}
+
           <button
             type="button"
             onClick={() => { setSelectedDate("ALL"); setCustomDatePicker(""); }}
@@ -842,30 +1478,304 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {dateCounts["ALL"] ?? (totalCandidates || 1138)}
+              {dateCounts["ALL"] ?? (totalCandidates || "--")}
             </span>
           </button>
 
-          {/* Custom Date Input */}
-          <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginLeft: "4px" }}>
-            <span style={{ fontSize: "12px", color: "#64748b", fontWeight: 500 }}>Custom:</span>
-            <input 
-              type="date"
-              value={customDatePicker}
-              onChange={(e) => {
-                const val = e.target.value;
-                setCustomDatePicker(val);
-                if (val) setSelectedDate(val);
-              }}
+          {/* Interactive Custom Calendar Popover with Date Highlights */}
+          <div style={{ position: "relative" }} ref={calendarPopoverRef}>
+            <button
+              type="button"
+              onClick={openCalendarPopover}
               style={{
-                padding: "4px 8px",
-                borderRadius: "6px",
-                border: "1px solid #cbd5e1",
-                fontSize: "12.5px",
-                color: "#334155",
-                backgroundColor: selectedDate !== "ALL" && selectedDate !== "2026-10-31" && selectedDate !== "2026-10-30" ? "#f0fdf4" : "#ffffff"
+                padding: "7px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                border: (selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? "2px solid #059669"
+                  : "1px solid #cbd5e1",
+                backgroundColor: (selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? "#ecfdf5"
+                  : "#ffffff",
+                color: (selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? "#065f46"
+                  : "#334155",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "7px",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.04)"
               }}
-            />
+            >
+              <CalendarDays size={15} color={(selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst) ? "#059669" : "#64748b"} />
+              <span>
+                {(selectedDate !== "ALL" && selectedDate !== todayIst && selectedDate !== yesterdayIst && selectedDate !== tomorrowIst)
+                  ? `${formatDateShort(selectedDate)} ${formatDateYear(selectedDate)}`
+                  : "Pick Date"}
+              </span>
+              {(selectedDate !== "ALL" && (dateCounts[selectedDate] ?? 0) > 0) && (
+                <span style={{
+                  background: "#059669",
+                  color: "#fff",
+                  borderRadius: "12px",
+                  padding: "1px 7px",
+                  fontSize: "11px",
+                  fontWeight: 700
+                }}>
+                  {dateCounts[selectedDate]}
+                </span>
+              )}
+            </button>
+
+            {showCalendarPopover && (
+              <div 
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 8px)",
+                  left: popoverAlign === "left" ? 0 : "auto",
+                  right: popoverAlign === "right" ? 0 : "auto",
+                  zIndex: 100,
+                  backgroundColor: "#ffffff",
+                  borderRadius: "14px",
+                  boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                  border: "1px solid #cbd5e1",
+                  padding: "16px",
+                  width: "340px",
+                  maxWidth: "calc(100vw - 320px)",
+                  animation: "fadeIn 0.15s ease-out"
+                }}
+              >
+                {/* Calendar Header with Month & Navigation */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                  <button
+                    type="button"
+                    onClick={goToPrevMonth}
+                    style={{
+                      background: "#f1f5f9",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                      padding: "6px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#334155"
+                    }}
+                    title="Previous Month"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontWeight: 800, fontSize: "15px", color: "#0f172a" }}>
+                      {calendarMonthData.monthName} {calendarMonthData.year}
+                    </div>
+                    <div style={{ fontSize: "11px", color: "#64748b", marginTop: "1px" }}>
+                      Dates with candidates are highlighted
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={goToNextMonth}
+                    style={{
+                      background: "#f1f5f9",
+                      border: "1px solid #e2e8f0",
+                      borderRadius: "8px",
+                      padding: "6px",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#334155"
+                    }}
+                    title="Next Month"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                {/* Quick Month Jump Chips */}
+                <div style={{ display: "flex", gap: "6px", marginBottom: "12px", justifyContent: "center" }}>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMonth({ year: 2026, month: 10 })}
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? 700 : 500,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      border: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? "1px solid #059669" : "1px solid #e2e8f0",
+                      background: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? "#ecfdf5" : "#f8fafc",
+                      color: calendarMonthData.month === 10 && calendarMonthData.year === 2026 ? "#065f46" : "#475569",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Nov 2026
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarViewMonth({ year: 2026, month: 9 })}
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? 700 : 500,
+                      padding: "3px 8px",
+                      borderRadius: "6px",
+                      border: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? "1px solid #059669" : "1px solid #e2e8f0",
+                      background: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? "#ecfdf5" : "#f8fafc",
+                      color: calendarMonthData.month === 9 && calendarMonthData.year === 2026 ? "#065f46" : "#475569",
+                      cursor: "pointer"
+                    }}
+                  >
+                    Oct 2026 (1,139 Cand.)
+                  </button>
+                </div>
+
+                {/* Weekday Row Header */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px", marginBottom: "6px", textAlign: "center" }}>
+                  {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map(d => (
+                    <div key={d} style={{ fontSize: "11px", fontWeight: 700, color: "#94a3b8" }}>
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Calendar 7xN Grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "4px" }}>
+                  {calendarMonthData.cells.map((cell, idx) => {
+                    const isSel = selectedDate === cell.dateStr;
+                    const hasCand = cell.candidateCount > 0;
+                    const isTodayCell = cell.dateStr === todayIst;
+
+                    return (
+                      <button
+                        key={`${cell.dateStr}-${idx}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDate(cell.dateStr);
+                          setCustomDatePicker(cell.dateStr);
+                          setShowCalendarPopover(false);
+                        }}
+                        title={`${cell.dateStr}: ${cell.candidateCount} candidate(s)`}
+                        style={{
+                          height: "44px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                          position: "relative",
+                          padding: "2px",
+                          // HIGHLIGHT DATES WITH CANDIDATES IN VIBRANT EMERALD GREEN:
+                          border: isSel 
+                            ? "2px solid #047857" 
+                            : hasCand 
+                            ? "1.5px solid #10b981" 
+                            : isTodayCell 
+                            ? "1px dashed #3b82f6" 
+                            : "1px solid transparent",
+                          backgroundColor: isSel
+                            ? "#059669"
+                            : hasCand
+                            ? "#dcfce7" // Highlight green background
+                            : !cell.isCurrentMonth
+                            ? "#fafafa"
+                            : "#ffffff",
+                          color: isSel
+                            ? "#ffffff"
+                            : hasCand
+                            ? "#065f46" // Bold dark emerald text
+                            : !cell.isCurrentMonth
+                            ? "#cbd5e1"
+                            : "#334155",
+                          fontWeight: hasCand || isSel || isTodayCell ? 700 : 500,
+                          boxShadow: hasCand && !isSel ? "0 1px 3px rgba(16, 185, 129, 0.2)" : "none"
+                        }}
+                      >
+                        <span style={{ fontSize: "12px", lineHeight: "1" }}>{cell.day}</span>
+                        {hasCand ? (
+                          <span 
+                            style={{
+                              fontSize: "8.5px",
+                              fontWeight: 800,
+                              borderRadius: "4px",
+                              padding: "1px 3px",
+                              marginTop: "2px",
+                              backgroundColor: isSel ? "rgba(255,255,255,0.3)" : "#059669",
+                              color: "#ffffff",
+                              lineHeight: "1.1"
+                            }}
+                          >
+                            {cell.candidateCount > 999 ? "999+" : cell.candidateCount}
+                          </span>
+                        ) : isTodayCell ? (
+                          <span style={{ fontSize: "7.5px", color: isSel ? "#fff" : "#017846", fontWeight: 700, marginTop: "2px" }}>
+                            TODAY
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Legend & Quick Actions */}
+                <div style={{ marginTop: "14px", paddingTop: "10px", borderTop: "1px solid #f1f5f9" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "11px", color: "#64748b", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "10px", height: "10px", borderRadius: "3px", backgroundColor: "#dcfce7", border: "1.5px solid #10b981", display: "inline-block" }}></span>
+                      <span style={{ fontWeight: 600, color: "#065f46" }}>Dates with Candidates</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                      <span style={{ width: "10px", height: "10px", borderRadius: "3px", backgroundColor: "#ffffff", border: "1px solid #cbd5e1", display: "inline-block" }}></span>
+                      <span>No Candidates</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", justifyContent: "space-between" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDate("ALL");
+                        setCustomDatePicker("");
+                        setShowCalendarPopover(false);
+                      }}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #cbd5e1",
+                        background: selectedDate === "ALL" ? "#475569" : "#f8fafc",
+                        color: selectedDate === "ALL" ? "#ffffff" : "#475569",
+                        cursor: "pointer"
+                      }}
+                    >
+                      All Dates Combined ({dateCounts["ALL"] ?? totalCandidates ?? "--"})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendarPopover(false)}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #e2e8f0",
+                        background: "#ffffff",
+                        color: "#64748b",
+                        cursor: "pointer"
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -940,7 +1850,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {slotCounts.total}
+              {slotCountsLoading ? "--" : slotCounts.total}
             </span>
           </button>
 
@@ -972,7 +1882,7 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {slotCounts.slot1}
+              {slotCountsLoading ? "--" : slotCounts.slot1}
             </span>
           </button>
 
@@ -1004,7 +1914,39 @@ export default function CandidatesPage() {
               fontSize: "11.5px",
               fontWeight: 700
             }}>
-              {slotCounts.slot2}
+              {slotCountsLoading ? "--" : slotCounts.slot2}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setBatchFilter("Slot 3")}
+            style={{
+              padding: "7px 14px",
+              borderRadius: "8px",
+              fontSize: "13px",
+              fontWeight: 600,
+              cursor: "pointer",
+              border: batchFilter === "Slot 3" ? "2px solid #d97706" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "Slot 3" ? "#d97706" : "#f8fafc",
+              color: batchFilter === "Slot 3" ? "#ffffff" : "#475569",
+              transition: "all 0.15s ease",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px"
+            }}
+          >
+            <Clock size={14} />
+            {slot3Btn}
+            <span style={{
+              background: batchFilter === "Slot 3" ? "rgba(255,255,255,0.25)" : "#fef3c7",
+              color: batchFilter === "Slot 3" ? "#fff" : "#b45309",
+              borderRadius: "12px",
+              padding: "1px 7px",
+              fontSize: "11.5px",
+              fontWeight: 700
+            }}>
+              {slotCountsLoading ? "--" : slotCounts.slot3}
             </span>
           </button>
         </div>
@@ -1023,7 +1965,7 @@ export default function CandidatesPage() {
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: "12px",
-            background: "#eff6ff",
+            background: "#eaf6ef",
             border: "1.5px solid #3b82f6",
             padding: "12px 18px",
             borderRadius: "10px",
@@ -1033,7 +1975,7 @@ export default function CandidatesPage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{
-              background: "#2563eb",
+              background: "#017846",
               color: "#fff",
               padding: "4px 10px",
               borderRadius: "14px",
@@ -1066,7 +2008,7 @@ export default function CandidatesPage() {
                 boxShadow: "0 2px 4px rgba(124, 58, 237, 0.25)"
               }}
             >
-              <Clock size={15} /> Move All Selected to Slot 2 (2:00 PM)
+              <Clock size={15} /> Move All Selected to Slot 2 ({s2ActiveStart})
             </button>
 
             <button
@@ -1087,6 +2029,51 @@ export default function CandidatesPage() {
               }}
             >
               Move to Slot 1
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setBatchTargetExamId(exams.length > 0 ? exams[0].id : undefined);
+                setIsBatchExamModalOpen(true);
+              }}
+              style={{
+                backgroundColor: "#0d9488",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 4px rgba(13, 148, 136, 0.25)"
+              }}
+            >
+              <BookOpen size={14} /> Assign Exam ({selectedIds.size})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowBatchDeleteModal(true)}
+              style={{
+                backgroundColor: "#dc2626",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 4px rgba(220, 38, 38, 0.25)"
+              }}
+            >
+              <Trash2 size={14} /> Delete Selected ({selectedIds.size})
             </button>
 
             <button
@@ -1145,6 +2132,22 @@ export default function CandidatesPage() {
             <option value="">🎓 All Departments ({departments.length})</option>
             {departments.map(d => (
               <option key={d.id} value={d.id}>{d.code ? `[${d.code}] ` : ""}{d.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Examination Filter Dropdown */}
+        <div style={{ minWidth: "180px" }}>
+          <select
+            value={examFilter ?? ""}
+            onChange={e => setExamFilter(e.target.value ? Number(e.target.value) : undefined)}
+            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", height: "40px" }}
+          >
+            <option value="">📝 All Examinations ({exams.length})</option>
+            {exams.map(ex => (
+              <option key={ex.id} value={ex.id}>
+                {ex.title} {ex.status === "ACTIVATED" ? "🟢 [ACTIVE]" : ""}
+              </option>
             ))}
           </select>
         </div>
@@ -1229,6 +2232,7 @@ export default function CandidatesPage() {
                     {renderSortIndicator("department")}
                   </div>
                 </th>
+                <th>Assigned Examination</th>
                 <th 
                   className="sortable-th"
                   onClick={() => handleSort("batch")}
@@ -1241,6 +2245,7 @@ export default function CandidatesPage() {
                   </div>
                 </th>
                 <th>Account Status</th>
+                <th style={{ width: "90px", textAlign: "center" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1254,13 +2259,15 @@ export default function CandidatesPage() {
                     <td><div className="skeleton-cell" style={{ width: "200px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "140px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
+                    <td style={{ width: "140px" }}><div className="skeleton-cell" style={{ width: "110px" }} /></td>
                     <td style={{ width: "220px" }}><div className="skeleton-cell" style={{ width: "180px" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
+                    <td style={{ width: "90px", textAlign: "center" }}><div className="skeleton-cell" style={{ width: "32px", margin: "0 auto" }} /></td>
                   </tr>
                 ))
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={10} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
@@ -1297,8 +2304,8 @@ export default function CandidatesPage() {
                           <span 
                             className="admin-dept-chip"
                             style={{
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
+                              background: "#eaf6ef",
+                              color: "#01663c",
                               border: "1px solid #bfdbfe",
                               fontWeight: 600,
                               fontSize: "12px",
@@ -1333,6 +2340,31 @@ export default function CandidatesPage() {
                         )}
                       </td>
                       <td>
+                        {cand.assignedExamTitle ? (
+                          <span
+                            className="admin-dept-chip"
+                            style={{
+                              background: "#ecfdf5",
+                              color: "#065f46",
+                              border: "1px solid #a7f3d0",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px"
+                            }}
+                            title={`Assigned to Exam: ${cand.assignedExamTitle}`}
+                          >
+                            <BookOpen size={11} />
+                            {cand.assignedExamTitle}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Auto (Dept)</span>
+                        )}
+                      </td>
+                      <td>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
                           {cand.examDate && (
                             <span
@@ -1363,9 +2395,9 @@ export default function CandidatesPage() {
                               fontWeight: 700,
                               padding: "3px 8px",
                               borderRadius: "6px",
-                              backgroundColor: cand.batch === "Slot 1" ? "#e0f2fe" : cand.batch === "Slot 2" ? "#f3e8ff" : "#f1f5f9",
-                              color: cand.batch === "Slot 1" ? "#0369a1" : cand.batch === "Slot 2" ? "#6b21a8" : "#64748b",
-                              border: cand.batch === "Slot 1" ? "1px solid #bae6fd" : cand.batch === "Slot 2" ? "1px solid #e9d5ff" : "1px solid #cbd5e1"
+                              backgroundColor: cand.batch === "Slot 1" ? "#e0f2fe" : cand.batch === "Slot 2" ? "#f3e8ff" : cand.batch === "Slot 3" ? "#fef3c7" : "#f1f5f9",
+                              color: cand.batch === "Slot 1" ? "#0369a1" : cand.batch === "Slot 2" ? "#6b21a8" : cand.batch === "Slot 3" ? "#b45309" : "#64748b",
+                              border: cand.batch === "Slot 1" ? "1px solid #bae6fd" : cand.batch === "Slot 2" ? "1px solid #e9d5ff" : cand.batch === "Slot 3" ? "1px solid #fde68a" : "1px solid #cbd5e1"
                             }}
                           >
                             <Clock size={11} />
@@ -1373,50 +2405,142 @@ export default function CandidatesPage() {
                           </span>
 
                           {cand.batch === "Slot 1" && (
-                            <button
-                              type="button"
-                              onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
-                              title="Move candidate to Slot 2 (2:00 PM) with automatic attempt reset"
-                              style={{
-                                padding: "3px 8px",
-                                borderRadius: "6px",
-                                fontSize: "11px",
-                                fontWeight: 700,
-                                backgroundColor: "#7c3aed",
-                                color: "#ffffff",
-                                border: "none",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px",
-                                boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
-                              }}
-                            >
-                              To Slot 2 <ArrowRight size={11} />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
+                                title={`Move candidate to Slot 2 (${s2ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#7c3aed",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
+                                }}
+                              >
+                                To Slot 2 <ArrowRight size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 3")}
+                                title={`Move candidate to Slot 3 (${s3ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#d97706",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(217, 119, 6, 0.2)"
+                                }}
+                              >
+                                To Slot 3 <ArrowRight size={11} />
+                              </button>
+                            </>
                           )}
 
                           {cand.batch === "Slot 2" && (
-                            <button
-                              type="button"
-                              onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
-                              title="Move candidate to Slot 1 (10:00 AM) with automatic attempt reset"
-                              style={{
-                                padding: "3px 8px",
-                                borderRadius: "6px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                backgroundColor: "#f0f9ff",
-                                color: "#0369a1",
-                                border: "1px solid #bae6fd",
-                                cursor: "pointer",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "3px"
-                              }}
-                            >
-                              To Slot 1 <ArrowRight size={11} />
-                            </button>
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
+                                title={`Move candidate to Slot 1 (${s1ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  backgroundColor: "#f0f9ff",
+                                  color: "#0369a1",
+                                  border: "1px solid #bae6fd",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                              >
+                                To Slot 1 <ArrowRight size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 3")}
+                                title={`Move candidate to Slot 3 (${s3ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#d97706",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(217, 119, 6, 0.2)"
+                                }}
+                              >
+                                To Slot 3 <ArrowRight size={11} />
+                              </button>
+                            </>
+                          )}
+
+                          {cand.batch === "Slot 3" && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 1")}
+                                title={`Move candidate to Slot 1 (${s1ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  backgroundColor: "#f0f9ff",
+                                  color: "#0369a1",
+                                  border: "1px solid #bae6fd",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px"
+                                }}
+                              >
+                                To Slot 1 <ArrowRight size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openSingleRescheduleModal(cand, "Slot 2")}
+                                title={`Move candidate to Slot 2 (${s2ActiveStart}) with automatic attempt reset`}
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "6px",
+                                  fontSize: "11px",
+                                  fontWeight: 700,
+                                  backgroundColor: "#7c3aed",
+                                  color: "#ffffff",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "3px",
+                                  boxShadow: "0 1px 2px rgba(124, 58, 237, 0.2)"
+                                }}
+                              >
+                                To Slot 2 <ArrowRight size={11} />
+                              </button>
+                            </>
                           )}
                         </div>
                       </td>
@@ -1424,6 +2548,35 @@ export default function CandidatesPage() {
                         <span className={`status-pill ${getStatusClass(cand.status)}`}>
                           {formatStatus(cand.status)}
                         </span>
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <button
+                          type="button"
+                          onClick={() => setCandidateToDelete(cand)}
+                          title="Delete Candidate"
+                          style={{
+                            backgroundColor: "#fee2e2",
+                            color: "#dc2626",
+                            border: "1px solid #fecaca",
+                            borderRadius: "6px",
+                            padding: "6px 9px",
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            transition: "all 0.15s ease"
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = "#dc2626";
+                            e.currentTarget.style.color = "#ffffff";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = "#fee2e2";
+                            e.currentTarget.style.color = "#dc2626";
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -1494,13 +2647,33 @@ export default function CandidatesPage() {
                 <input type="email" placeholder="e.g. aarav@campus.edu" value={newEmail} onChange={e => setNewEmail(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
               </div>
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600 }}>Affiliated College *</label>
-                <select value={newCollegeId || ""} onChange={e => setNewCollegeId(e.target.value ? Number(e.target.value) : undefined)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
-                  <option value="">-- Select College --</option>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>Affiliated College</label>
+                  <span style={{ fontSize: "11px", color: "#64748b" }}>Optional</span>
+                </div>
+                <input 
+                  type="text" 
+                  list="colleges-datalist"
+                  placeholder="Type college name or select from list..." 
+                  value={newCollegeName} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    setNewCollegeName(val);
+                    const matched = colleges.find(c => 
+                      c.name.toLowerCase() === val.trim().toLowerCase() || 
+                      (c.code && c.code.toLowerCase() === val.trim().toLowerCase())
+                    );
+                    setNewCollegeId(matched ? matched.id : undefined);
+                  }} 
+                  style={{ width: "100%", padding: "8px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px" }} 
+                />
+                <datalist id="colleges-datalist">
                   {colleges.map(c => (
-                    <option key={c.id} value={c.id}>{c.code ? `[${c.code}] ` : ""}{c.name}</option>
+                    <option key={c.id} value={c.name}>
+                      {c.code ? `[${c.code}] ` : ""}{c.name}
+                    </option>
                   ))}
-                </select>
+                </datalist>
               </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Academic Department / Specialization Track</label>
@@ -1512,6 +2685,37 @@ export default function CandidatesPage() {
                 </select>
               </div>
               <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Assigned Examination</label>
+                <select 
+                  value={newExamId || ""} 
+                  onChange={e => setNewExamId(e.target.value ? Number(e.target.value) : undefined)} 
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                >
+                  <option value="">-- Auto-Assign (Based on Department) --</option>
+                  {exams.map(ex => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.title} {ex.status === "ACTIVATED" ? "🟢 (ACTIVE)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
+                  Lock candidate strictly to this exam paper, or let the platform auto-match by department.
+                </small>
+              </div>
+              <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Scheduled Exam Date *</label>
+                <input 
+                  type="date" 
+                  value={newExamDate} 
+                  onChange={e => setNewExamDate(e.target.value)} 
+                  required 
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
+                />
+                <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
+                  Candidate will be enrolled for: <strong>{formatDateShort(newExamDate)} {formatDateYear(newExamDate)}</strong>
+                </small>
+              </div>
+              <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Exam Slot / Batch *</label>
                 <select 
                   value={newBatch} 
@@ -1519,8 +2723,9 @@ export default function CandidatesPage() {
                   required 
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
-                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Cutoff)</option>
-                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Cutoff)</option>
+                  <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
+                  <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Cutoff)</option>
+                  <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Cutoff)</option>
                   <option value="">Unassigned</option>
                 </select>
               </div>
@@ -1545,8 +2750,61 @@ export default function CandidatesPage() {
               Supported Formats: PDF, DOCS, Word (.doc, .docx), Spreadsheets (.xlsx, .xls, .csv)
             </p>
             <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 14px 0" }}>
-              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode]</code>
+              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode], [Slot/Batch]</code>
             </p>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Scheduled Exam Date for Imported Candidates *
+              </label>
+              <input 
+                type="date" 
+                value={csvExamDate} 
+                onChange={e => setCsvExamDate(e.target.value)} 
+                required 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", boxSizing: "border-box" }} 
+              />
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                All imported examinees in this document will be scheduled for <strong>{formatDateShort(csvExamDate)} {formatDateYear(csvExamDate)}</strong>
+              </small>
+            </div>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Exam Slot / Batch for Imported Candidates *
+              </label>
+              <select 
+                value={csvBatch} 
+                onChange={e => setCsvBatch(e.target.value)} 
+                required 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", fontWeight: 500, boxSizing: "border-box" }}
+              >
+                <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
+                <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Cutoff)</option>
+                <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Cutoff)</option>
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                Candidates will be allocated to <strong>{csvBatch}</strong> (or to their row-level Slot column if specified)
+              </small>
+            </div>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Assign All to Examination (Optional)
+              </label>
+              <select
+                value={csvExamId ?? ""}
+                onChange={e => setCsvExamId(e.target.value ? Number(e.target.value) : undefined)}
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", boxSizing: "border-box" }}
+              >
+                <option value="">-- Auto-Assign (Based on Candidate Departments) --</option>
+                {exams.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.title} {ex.status === "ACTIVATED" ? "🟢 (ACTIVE)" : ""}
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                Enrolls all examinees imported from this roster directly into the chosen examination.
+              </small>
+            </div>
             <input 
               type="file" 
               accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
@@ -1562,6 +2820,72 @@ export default function CandidatesPage() {
                 onClick={handleUploadCsv}
               >
                 {uploadingCsv ? "Uploading..." : "Upload Document"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Assign Examination Modal */}
+      {isBatchExamModalOpen && (
+        <div className="admin-modal-backdrop" onClick={() => !isAssigningBatchExam && setIsBatchExamModalOpen(false)}>
+          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "460px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <BookOpen size={18} color="#0d9488" />
+                <h3 style={{ margin: 0, fontSize: "16px" }}>Assign Examination</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => !isAssigningBatchExam && setIsBatchExamModalOpen(false)} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: "12.5px", color: "#334155", margin: "0 0 14px 0" }}>
+              You have selected <strong>{selectedIds.size} candidates</strong>. Choose the examination paper to assign to them:
+            </p>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                Target Examination
+              </label>
+              <select
+                value={batchTargetExamId ?? ""}
+                onChange={e => setBatchTargetExamId(e.target.value ? Number(e.target.value) : undefined)}
+                style={{ width: "100%", padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "13.5px" }}
+              >
+                <option value="">-- Clear Specific Assignment (Use Auto-Dept Routing) --</option>
+                {exams.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.title} {ex.status === "ACTIVATED" ? "🟢 [ACTIVE]" : ""}
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "6px" }}>
+                Candidates will be strictly locked to their assigned examination and will only see its questions.
+              </small>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button 
+                type="button" 
+                className="secondary" 
+                disabled={isAssigningBatchExam}
+                onClick={() => setIsBatchExamModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="primary" 
+                disabled={isAssigningBatchExam}
+                onClick={handleConfirmBatchAssignExam}
+                style={{ backgroundColor: "#0d9488", borderColor: "#0d9488" }}
+              >
+                {isAssigningBatchExam ? "Assigning..." : `Confirm Assignment (${selectedIds.size})`}
               </button>
             </div>
           </div>
@@ -1623,8 +2947,9 @@ export default function CandidatesPage() {
                   onChange={e => setRescheduleModal(prev => ({ ...prev, targetSlot: e.target.value }))}
                   style={{ width: "100%", padding: "8px 12px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px", fontWeight: 600 }}
                 >
-                  <option value="Slot 2">🕒 Slot 2 (2:00 PM - 2:30 PM Entry Window)</option>
-                  <option value="Slot 1">🕒 Slot 1 (10:00 AM - 10:30 AM Entry Window)</option>
+                  <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Window)</option>
+                  <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Window)</option>
+                  <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Window)</option>
                 </select>
               </div>
 
@@ -1699,6 +3024,307 @@ export default function CandidatesPage() {
                   Confirm Move to {rescheduleModal.targetSlot}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Slot Timings Modal */}
+      {isEditSlotModalOpen && (
+        <div className="admin-modal-backdrop" onClick={() => setIsEditSlotModalOpen(false)}>
+          <div className="admin-modal-box" style={{ maxWidth: "560px", width: "95%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#e0f2fe", color: "#0284c7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: "16.5px", color: "#0f172a", fontWeight: 700 }}>Configure Slot Timings</h3>
+                  <small style={{ color: "#64748b" }}>Update examination entry windows & schedules</small>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsEditSlotModalOpen(false)} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "18px", color: "#64748b" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveSlotTimings}>
+              {/* Slot 1 Settings */}
+              <div style={{ background: "#f0f9ff", border: "1px solid #bae6fd", borderRadius: "10px", padding: "14px", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#0369a1" }}>SLOT 1 (Forenoon / Morning)</span>
+                  <span style={{ fontSize: "11px", color: "#0284c7", background: "#e0f2fe", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot1StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot1StartTime: e.target.value }))}
+                      placeholder="e.g. 11:30 AM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot1CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot1CutoffTime: e.target.value }))}
+                      placeholder="e.g. 1:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#0284c7" }}>
+                  Preview: <strong>Slot 1 • {editForm.slot1StartTime}</strong> (Entry: {editForm.slot1StartTime} – {editForm.slot1CutoffTime} IST)
+                </div>
+              </div>
+
+              {/* Slot 2 Settings */}
+              <div style={{ background: "#faf5ff", border: "1px solid #ddd6fe", borderRadius: "10px", padding: "14px", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#6d28d9" }}>SLOT 2 (Afternoon / Evening)</span>
+                  <span style={{ fontSize: "11px", color: "#7c3aed", background: "#f3e8ff", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot2StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot2StartTime: e.target.value }))}
+                      placeholder="e.g. 4:00 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot2CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot2CutoffTime: e.target.value }))}
+                      placeholder="e.g. 4:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#7c3aed" }}>
+                  Preview: <strong>Slot 2 • {editForm.slot2StartTime}</strong> (Entry: {editForm.slot2StartTime} – {editForm.slot2CutoffTime} IST)
+                </div>
+              </div>
+
+              {/* Slot 3 Settings */}
+              <div style={{ background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "10px", padding: "14px", marginBottom: "18px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+                  <span style={{ fontWeight: 700, fontSize: "13px", color: "#b45309" }}>SLOT 3 (Late Evening / Night)</span>
+                  <span style={{ fontSize: "11px", color: "#d97706", background: "#fef3c7", padding: "2px 8px", borderRadius: "12px", fontWeight: 600 }}>Active</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Start Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot3StartTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot3StartTime: e.target.value }))}
+                      placeholder="e.g. 6:00 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label style={{ display: "block", fontSize: "11.5px", fontWeight: 600, color: "#334155", marginBottom: "4px" }}>
+                      Entry Cutoff Time
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.slot3CutoffTime}
+                      onChange={e => setEditForm(prev => ({ ...prev, slot3CutoffTime: e.target.value }))}
+                      placeholder="e.g. 7:30 PM"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+                      required
+                    />
+                  </div>
+                </div>
+                <div style={{ marginTop: "8px", fontSize: "11.5px", color: "#d97706" }}>
+                  Preview: <strong>Slot 3 • {editForm.slot3StartTime}</strong> (Entry: {editForm.slot3StartTime} – {editForm.slot3CutoffTime} IST)
+                </div>
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => setIsEditSlotModalOpen(false)}
+                  disabled={savingSlotTimings}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="primary"
+                  disabled={savingSlotTimings}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#0284c7" }}
+                >
+                  {savingSlotTimings ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                  Save Timings
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {/* Single Candidate Delete Confirmation Modal */}
+      {candidateToDelete && (
+        <div className="admin-modal-backdrop" onClick={() => !isDeletingSingle && setCandidateToDelete(null)}>
+          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "460px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Trash2 size={18} /> Delete Candidate
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => !isDeletingSingle && setCandidateToDelete(null)} 
+                disabled={isDeletingSingle}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "12px", marginBottom: "16px" }}>
+              <p style={{ margin: "0 0 8px 0", fontSize: "13px", fontWeight: 700, color: "#991b1b" }}>
+                Are you sure you want to permanently delete this candidate?
+              </p>
+              <div style={{ fontSize: "12.5px", color: "#7f1d1d", lineHeight: "1.6" }}>
+                <div><strong>Name:</strong> {candidateToDelete.fullName}</div>
+                <div><strong>Email:</strong> {candidateToDelete.email}</div>
+                <div><strong>Reg No:</strong> {candidateToDelete.registrationNumber || "N/A"}</div>
+                <div><strong>Slot:</strong> {candidateToDelete.batch || "Slot 1"}</div>
+              </div>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 18px 0", lineHeight: "1.5" }}>
+              This will permanently delete the candidate and purge all associated exam attempts, answer submissions, access codes, and proctoring alerts from the database. This action cannot be undone.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setCandidateToDelete(null)}
+                disabled={isDeletingSingle}
+                style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSingleDelete}
+                disabled={isDeletingSingle}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "8px 18px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: isDeletingSingle ? "not-allowed" : "pointer"
+                }}
+              >
+                {isDeletingSingle ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeletingSingle ? "Deleting..." : "Yes, Delete Candidate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Delete Confirmation Modal */}
+      {showBatchDeleteModal && (
+        <div className="admin-modal-backdrop" onClick={() => !isDeletingBatch && setShowBatchDeleteModal(false)}>
+          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "480px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <h3 style={{ margin: 0, fontSize: "16px", color: "#dc2626", display: "flex", alignItems: "center", gap: "8px" }}>
+                <Trash2 size={18} /> Delete Selected Candidates
+              </h3>
+              <button 
+                type="button" 
+                onClick={() => !isDeletingBatch && setShowBatchDeleteModal(false)} 
+                disabled={isDeletingBatch}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ background: "#fef2f2", border: "1px solid #fee2e2", borderRadius: "8px", padding: "14px", marginBottom: "16px" }}>
+              <p style={{ margin: "0 0 6px 0", fontSize: "13.5px", fontWeight: 700, color: "#991b1b" }}>
+                Permanently delete {selectedIds.size} selected candidate(s)?
+              </p>
+              <p style={{ margin: 0, fontSize: "12.5px", color: "#7f1d1d" }}>
+                You have selected <strong>{selectedIds.size} candidates</strong> for batch deletion.
+              </p>
+            </div>
+
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "0 0 18px 0", lineHeight: "1.5" }}>
+              All selected examinees, along with their exam attempts, recorded answers, access credentials, and proctoring logs, will be permanently removed from the cloud database. This action cannot be reversed.
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowBatchDeleteModal(false)}
+                disabled={isDeletingBatch}
+                style={{ padding: "8px 16px", borderRadius: "6px", fontSize: "13px", cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmBatchDelete}
+                disabled={isDeletingBatch}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "8px 18px",
+                  borderRadius: "6px",
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  cursor: isDeletingBatch ? "not-allowed" : "pointer"
+                }}
+              >
+                {isDeletingBatch ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                {isDeletingBatch ? `Deleting ${selectedIds.size}...` : `Yes, Delete ${selectedIds.size} Candidates`}
+              </button>
             </div>
           </div>
         </div>
