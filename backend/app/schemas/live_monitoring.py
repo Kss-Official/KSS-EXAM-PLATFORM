@@ -24,6 +24,8 @@ class LiveExamineeDto(BaseModel):
     alertsCount: int = 0
     lastAlert: Optional[Dict[str, Any]] = None
     terminationReason: Optional[str] = None
+    examId: Optional[int] = None
+    examTitle: Optional[str] = None
 
 class ProctorAlertDto(BaseModel):
     model_config = ConfigDict(populate_by_name=True)

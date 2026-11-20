@@ -55,9 +55,9 @@ export default function ExamsPage() {
     setActionNotice(null);
     try {
       const updated = await activateExam(examId);
-      // Enforce Single Active Exam in state: only this exam is ACTIVATED, all others become DEACTIVATED
-      setExams(prev => prev.map(e => e.id === examId ? { ...updated, status: "ACTIVATED" } : { ...e, status: "DEACTIVATED" }));
-      setActionNotice(`Examination "${updated.title}" is now ACTIVATED! (All other exams are deactivated). Live for candidates.`);
+      // Support Multiple Active Exams: update this exam's status to ACTIVATED without deactivating other exams
+      setExams(prev => prev.map(e => e.id === examId ? { ...updated, status: "ACTIVATED" } : e));
+      setActionNotice(`Examination "${updated.title}" is now ACTIVATED! Live for assigned candidates.`);
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setActionNotice(`Cannot activate examination: ${err.message}`);
@@ -346,7 +346,7 @@ export default function ExamsPage() {
                           <button 
                             type="button"
                             className="btn-publish" 
-                            title="Activate Examination (Deactivates all other exams)"
+                            title="Activate Examination (Live for assigned candidates)"
                             onClick={() => handleActivate(exam.id)}
                             style={{ 
                               display: "inline-flex", 

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 from fastapi import HTTPException, status
 
 from app.models import (
-    Exam, Candidate, Department, ExamAttempt, AttemptAnswer, AttemptRandomizedQuestion, AuditLog
+    Exam, Candidate, Department, College, ExamAttempt, AttemptAnswer, AttemptRandomizedQuestion, AuditLog
 )
 from app.schemas import AdminDashboardResponse, ExamResultDto, AuditLogDto, AuditLogResponse
 
@@ -137,6 +137,7 @@ class DashboardService:
         IST = timezone(timedelta(hours=5, minutes=30))
         query = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.candidate).joinedload(Candidate.department),
+            joinedload(ExamAttempt.candidate).joinedload(Candidate.college),
             joinedload(ExamAttempt.exam),
             joinedload(ExamAttempt.question_set),
             joinedload(ExamAttempt.slot)
@@ -192,6 +193,8 @@ class DashboardService:
             cand_name = a.candidate.full_name if a.candidate else "Unknown"
             reg_num = a.candidate_code or (a.candidate.registration_number if a.candidate else "-")
             dept_name = a.candidate.department.name if (a.candidate and a.candidate.department) else "Unassigned"
+            college_name = a.candidate.college.name if (a.candidate and a.candidate.college) else None
+            college_id = a.candidate.college_id if a.candidate else None
             set_cd = a.question_set_code or (a.question_set.set_code if a.question_set else "-")
             cand_batch = a.candidate.batch if a.candidate else None
 
@@ -241,6 +244,8 @@ class DashboardService:
                 candidate_name=cand_name,
                 registration_number=reg_num,
                 department_name=dept_name,
+                college_id=college_id,
+                college_name=college_name,
                 exam_id=a.exam_id,
                 exam_title=a.exam.title if a.exam else "Exam",
                 set_code=set_cd,

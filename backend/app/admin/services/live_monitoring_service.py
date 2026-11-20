@@ -140,7 +140,9 @@ class LiveMonitoringService:
                     remainingSeconds=rem_sec,
                     alertsCount=alerts_count,
                     lastAlert=last_alert_dict,
-                    terminationReason=getattr(a, "termination_reason", None)
+                    terminationReason=getattr(a, "termination_reason", None),
+                    examId=a.exam_id,
+                    examTitle=a.exam.title if a.exam else "Unassigned"
                 )
             )
 

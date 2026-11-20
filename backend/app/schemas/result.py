@@ -31,6 +31,8 @@ class ExamResultDto(CamelModel):
     candidate_name: str
     registration_number: str
     department_name: str
+    college_id: Optional[int] = None
+    college_name: Optional[str] = None
     exam_id: int
     exam_title: str
     set_code: str

@@ -121,7 +121,7 @@ def ensure_indexes_and_constraints():
                     );
                 """))
 
-        # Ensure candidates.college_id
+        # Ensure candidates.college_id and candidates.assigned_exam_id
         if "candidates" in insp.get_table_names():
             cand_cols = {c["name"] for c in insp.get_columns("candidates")}
             if "college_id" not in cand_cols:
@@ -129,6 +129,14 @@ def ensure_indexes_and_constraints():
                     conn.execute(text("ALTER TABLE candidates ADD COLUMN college_id BIGINT REFERENCES colleges(id) ON DELETE SET NULL;"))
                 except Exception as e:
                     logger.debug(f"Could not add college_id to candidates: {e}")
+            if "assigned_exam_id" not in cand_cols:
+                try:
+                    if is_sqlite:
+                        conn.execute(text("ALTER TABLE candidates ADD COLUMN assigned_exam_id INTEGER REFERENCES exams(id) ON DELETE SET NULL;"))
+                    else:
+                        conn.execute(text("ALTER TABLE candidates ADD COLUMN assigned_exam_id BIGINT REFERENCES exams(id) ON DELETE SET NULL;"))
+                except Exception as e:
+                    logger.debug(f"Could not add assigned_exam_id to candidates: {e}")
 
         # Ensure proctor_alerts table
         if "proctor_alerts" not in insp.get_table_names():
@@ -198,6 +206,7 @@ def ensure_indexes_and_constraints():
         "CREATE INDEX IF NOT EXISTS ix_colleges_code ON colleges (code);",
         "CREATE INDEX IF NOT EXISTS ix_colleges_active ON colleges (active);",
         "CREATE INDEX IF NOT EXISTS ix_candidates_college_id ON candidates (college_id);",
+        "CREATE INDEX IF NOT EXISTS ix_candidates_assigned_exam_id ON candidates (assigned_exam_id);",
         "CREATE INDEX IF NOT EXISTS ix_candidates_department_id ON candidates (department_id);",
         "CREATE INDEX IF NOT EXISTS ix_candidates_email_lower ON candidates (lower(email));",
         "CREATE INDEX IF NOT EXISTS ix_candidates_assigned_set ON candidates (assigned_set);",

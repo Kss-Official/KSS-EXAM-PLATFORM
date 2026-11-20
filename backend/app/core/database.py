@@ -86,11 +86,20 @@ from sqlalchemy import event
 engine = _init_engine()
 
 @event.listens_for(engine, "connect")
-def _set_pg_statement_timeout(dbapi_connection, connection_record):
-    """Guards Neon and PostgreSQL against runaway slow queries (10s limit)."""
+def _configure_connection_guards(dbapi_connection, connection_record):
+    """
+    Configures connection guards:
+    - PostgreSQL/Neon: statement timeout (10s limit) to avoid runaway queries.
+    - SQLite: WAL mode, 60s busy timeout, and synchronous=NORMAL for high-concurrency resilience.
+    """
     try:
         cursor = dbapi_connection.cursor()
-        cursor.execute("SET statement_timeout = 10000;")
+        if "sqlite" in engine.url.drivername:
+            cursor.execute("PRAGMA journal_mode=WAL;")
+            cursor.execute("PRAGMA busy_timeout=60000;")
+            cursor.execute("PRAGMA synchronous=NORMAL;")
+        else:
+            cursor.execute("SET statement_timeout = 10000;")
         cursor.close()
     except Exception:
         pass

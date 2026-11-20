@@ -283,7 +283,7 @@ class CandidateExamService:
         if not candidate:
             resp.eligible = False
             resp.message = (
-                f"Access Denied: The email address '{input_email}' is not registered in our candidate records. "
+                f"Access Denied: No candidate record found for email address '{input_email}'. "
                 "Both your registered Full Name and Email Address must match institutional records."
             )
             return resp
@@ -302,7 +302,7 @@ class CandidateExamService:
         if not check_name_match(input_name, candidate.full_name):
             resp.eligible = False
             resp.message = (
-                f"Access Denied: The entered Full Name '{input_name}' does not match the name "
+                f"Access Denied (Full Name mismatch): The entered Full Name '{input_name}' does not match the name "
                 f"registered with email '{input_email}'. Both your Full Name and Email Address must match institutional records."
             )
             return resp
@@ -379,8 +379,12 @@ class CandidateExamService:
             resp.message = slot_err or "Access Denied: You cannot enter the examination at this time."
             return resp
 
-        # Only reuse existing attempt if its exam is currently active/published
-        if existing_attempt and existing_attempt.exam and existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED"):
+        # Only reuse existing attempt if its exam is currently active/published and matches candidate's assigned exam (if any)
+        if (
+            existing_attempt and existing_attempt.exam and
+            existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED") and
+            (not candidate.assigned_exam_id or existing_attempt.exam_id == candidate.assigned_exam_id)
+        ):
             exam = existing_attempt.exam
             # If candidate has an assigned set and attempt has not started yet (ASSIGNED),
             # synchronize the attempt's question set to match candidate's assigned set
@@ -400,41 +404,96 @@ class CandidateExamService:
             question_set = existing_attempt.question_set
             slot = existing_attempt.slot
         else:
-            published_exams = db.query(Exam).options(
-                joinedload(Exam.departments)
-            ).filter(
-                Exam.status.in_(["ACTIVATED", "PUBLISHED"])
-            ).order_by(Exam.created_at.desc()).all()
+            exam = None
 
-            if not published_exams:
-                resp.message = "No activated examination is currently available. Please contact administrator."
-                return resp
+            # 1. Primary Authority: Candidate's explicit assigned examination
+            if candidate.assigned_exam_id:
+                assigned = db.query(Exam).options(
+                    joinedload(Exam.departments)
+                ).filter(Exam.id == candidate.assigned_exam_id).first()
+                if not assigned:
+                    resp.eligible = False
+                    resp.message = "Assigned examination was not found in our records. Please contact administrator."
+                    return resp
+                if assigned.status not in ("ACTIVATED", "PUBLISHED"):
+                    resp.eligible = False
+                    resp.message = f"Your assigned examination '{assigned.title}' is not currently active. Please contact administrator."
+                    return resp
+                exam = assigned
 
-            def exam_matches_track(e, track_cat):
-                if not e.departments:
-                    return True
-                for d in e.departments:
-                    if get_department_category(d.name, d.code or "") == track_cat:
+            # 2. Candidate specifically requested an exam (e.g. via direct exam portal link)
+            req_exam_id = getattr(req, "exam_id", None) or getattr(req, "assigned_exam_id", None)
+            if not exam and req_exam_id:
+                if candidate.assigned_exam_id and candidate.assigned_exam_id != req_exam_id:
+                    resp.eligible = False
+                    resp.message = "Access Denied: You are not authorized or enrolled for this examination."
+                    return resp
+                requested_exam = db.query(Exam).options(
+                    joinedload(Exam.departments)
+                ).filter(
+                    Exam.id == req_exam_id,
+                    Exam.status.in_(["ACTIVATED", "PUBLISHED"])
+                ).first()
+                if not requested_exam:
+                    resp.eligible = False
+                    resp.message = "The requested examination is not currently active. Please contact administrator."
+                    return resp
+                if requested_exam.departments and candidate.department_id:
+                    allowed_dept_ids = {d.id for d in requested_exam.departments}
+                    cand_cat = get_department_category(candidate.department.name if candidate.department else "", candidate.department.code if candidate.department else "")
+                    exam_cats = {get_department_category(d.name, d.code or "") for d in requested_exam.departments}
+                    if candidate.department_id not in allowed_dept_ids and cand_cat not in exam_cats:
+                        resp.eligible = False
+                        resp.message = f"Access Denied: Your assigned department is not authorized for '{requested_exam.title}'."
+                        return resp
+                exam = requested_exam
+
+            # 3. Department Track Auto-Matching across published active exams
+            if not exam:
+                published_exams = db.query(Exam).options(
+                    joinedload(Exam.departments)
+                ).filter(
+                    Exam.status.in_(["ACTIVATED", "PUBLISHED"])
+                ).order_by(Exam.created_at.desc()).all()
+
+                if not published_exams:
+                    resp.message = "No activated examination is currently available. Please contact administrator."
+                    return resp
+
+                def exam_matches_track(e, track_cat):
+                    if not e.departments:
                         return True
-                return False
+                    for d in e.departments:
+                        if get_department_category(d.name, d.code or "") == track_cat:
+                            return True
+                    return False
 
-            track_matched = [e for e in published_exams if exam_matches_track(e, chosen_category)]
-            candidate_pool = track_matched if track_matched else published_exams
+                # Exact department match
+                if candidate.department_id:
+                    dept_matched = [e for e in published_exams if any(d.id == candidate.department_id for d in e.departments)]
+                    if dept_matched:
+                        candidate_pool = dept_matched
+                    else:
+                        track_matched = [e for e in published_exams if exam_matches_track(e, chosen_category)]
+                        candidate_pool = track_matched if track_matched else published_exams
+                else:
+                    track_matched = [e for e in published_exams if exam_matches_track(e, chosen_category)]
+                    candidate_pool = track_matched if track_matched else published_exams
 
-            # Segregate Mock Test exam vs Public Slot exam
-            is_mock_cand = bool(candidate.batch and ("test" in candidate.batch.lower() or "mock" in candidate.batch.lower()))
-            if is_mock_cand:
-                mock_exams = [e for e in candidate_pool if "mock" in e.title.lower() or "test" in e.title.lower()]
-                if mock_exams:
-                    candidate_pool = mock_exams
-            else:
-                # General examinees must never be allocated the Mock Test exam
-                regular_exams = [e for e in candidate_pool if "mock" not in e.title.lower() and "test" not in e.title.lower()]
-                if regular_exams:
-                    candidate_pool = regular_exams
+                # Segregate Mock Test exam vs Public Slot exam
+                is_mock_cand = bool(candidate.batch and ("test" in candidate.batch.lower() or "mock" in candidate.batch.lower()))
+                if is_mock_cand:
+                    mock_exams = [e for e in candidate_pool if "mock" in e.title.lower() or "test" in e.title.lower()]
+                    if mock_exams:
+                        candidate_pool = mock_exams
+                else:
+                    # General examinees must never be allocated the Mock Test exam
+                    regular_exams = [e for e in candidate_pool if "mock" not in e.title.lower() and "test" not in e.title.lower()]
+                    if regular_exams:
+                        candidate_pool = regular_exams
 
-            # Target exam in pool
-            exam = candidate_pool[0]
+                # Target exam in pool
+                exam = candidate_pool[0]
 
             # Set allocation across A, B, C, D
             sets = []
@@ -580,12 +639,38 @@ class CandidateExamService:
 
     @classmethod
     def start_or_resume_attempt(cls, db: Session, candidate_id: int, exam_id: int) -> CandidateStartAttemptResponse:
-        # Enforce single active exam policy: ensure we target the currently ACTIVATED exam
-        active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.created_at.desc()).first()
-        if active_exam:
-            req_exam = db.query(Exam).filter(Exam.id == exam_id).first() if exam_id else None
-            if not req_exam or req_exam.status not in ("ACTIVATED", "PUBLISHED"):
-                exam_id = active_exam.id
+        cand = db.query(Candidate).options(joinedload(Candidate.department)).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+
+        # Security check: If candidate is explicitly enrolled in a specific exam, they CANNOT start another exam!
+        if cand.assigned_exam_id and cand.assigned_exam_id != exam_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: You are enrolled in Examination #{cand.assigned_exam_id} and not authorized to access Examination #{exam_id}."
+            )
+
+        target_exam = db.query(Exam).options(joinedload(Exam.departments)).filter(
+            Exam.id == exam_id,
+            Exam.status.in_(["ACTIVATED", "PUBLISHED"])
+        ).first()
+
+        if not target_exam:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied: Examination #{exam_id} is not currently active."
+            )
+
+        # Department authorization check if candidate is not explicitly assigned to this exam
+        if not cand.assigned_exam_id and target_exam.departments and cand.department_id:
+            allowed_dept_ids = {d.id for d in target_exam.departments}
+            cand_cat = get_department_category(cand.department.name if cand.department else "", cand.department.code if cand.department else "")
+            exam_cats = {get_department_category(d.name, d.code or "") for d in target_exam.departments}
+            if cand.department_id not in allowed_dept_ids and cand_cat not in exam_cats:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Access denied: Candidate's assigned department is not authorized for this examination."
+                )
 
         attempt = db.query(ExamAttempt).options(
             joinedload(ExamAttempt.exam),
@@ -737,8 +822,10 @@ class CandidateExamService:
                         detail=slot_err or "Access denied: You cannot start the examination at this time."
                     )
 
-            # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers
+            # Ensure fresh clean slate: brand new attempt starts with strictly 0 pre-selected answers and fresh randomization
             db.query(AttemptAnswer).filter(AttemptAnswer.attempt_id == attempt.id).delete()
+            db.query(AttemptRandomizedOption).filter(AttemptRandomizedOption.attempt_id == attempt.id).delete()
+            db.query(AttemptRandomizedQuestion).filter(AttemptRandomizedQuestion.attempt_id == attempt.id).delete()
 
             attempt.status = "IN_PROGRESS"
             attempt.started_at = now

@@ -175,6 +175,8 @@ export interface CandidateDto {
   collegeName?: string;
   batch?: string;
   examDate?: string;
+  assignedExamId?: number | null;
+  assignedExamTitle?: string | null;
   status: string;
   createdAt?: string;
 }
@@ -204,6 +206,7 @@ export interface CandidateQueryParams {
   search?: string;
   departmentId?: number;
   collegeId?: number;
+  examId?: number;
   batch?: string;
   date?: string;
   status?: string;
@@ -223,6 +226,8 @@ export interface CandidateVerifyRequest {
   collegeName?: string;
   collegeId?: number;
   registrationNumber?: string;
+  examId?: number | null;
+  assignedExamId?: number | null;
 }
 
 export interface CandidateVerifyResponse {
@@ -313,6 +318,8 @@ export interface ExamResultDto {
   candidateName: string;
   registrationNumber: string;
   departmentName: string;
+  collegeId?: number | null;
+  collegeName?: string | null;
   examId: number;
   examTitle: string;
   setCode: string;
@@ -878,6 +885,7 @@ export async function getCandidates(params?: CandidateQueryParams): Promise<Pagi
   if (params?.search && params.search.trim()) query.set("search", params.search.trim());
   if (params?.departmentId !== undefined) query.set("departmentId", String(params.departmentId));
   if (params?.collegeId !== undefined) query.set("collegeId", String(params.collegeId));
+  if (params?.examId !== undefined) query.set("examId", String(params.examId));
   if (params?.batch && params.batch !== "ALL") query.set("batch", params.batch);
   if (params?.date && params.date !== "ALL") query.set("date", params.date);
   if (params?.status && params.status !== "ALL") query.set("status", params.status);
@@ -940,6 +948,17 @@ export async function batchAssignCandidateBatch(
   });
 }
 
+export async function batchAssignCandidateExam(
+  candidateIds: number[], 
+  examId: number | null
+): Promise<{ success: boolean; updatedCount: number; examId?: number | null }> {
+  return request<{ success: boolean; updatedCount: number; examId?: number | null }>("admin/candidates/batch-assign-exam", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ candidateIds, examId })
+  });
+}
+
 export async function assignCandidateBatch(
   candidateId: number, 
   batch: string | null
@@ -951,7 +970,7 @@ export async function assignCandidateBatch(
   });
 }
 
-export async function uploadCandidatesCsv(file: File, examDate?: string): Promise<{
+export async function uploadCandidatesCsv(file: File, examDate?: string, examId?: number): Promise<{
   success: boolean;
   totalImported: number;
   errorsCount: number;
@@ -961,7 +980,10 @@ export async function uploadCandidatesCsv(file: File, examDate?: string): Promis
   const formData = new FormData();
   formData.append("file", file);
 
-  const query = examDate ? `?exam_date=${encodeURIComponent(examDate)}` : "";
+  const params = new URLSearchParams();
+  if (examDate) params.set("exam_date", examDate);
+  if (examId) params.set("exam_id", String(examId));
+  const query = params.toString() ? `?${params.toString()}` : "";
   const url = `${API_BASE_URL.replace(/\/+$/, "")}/admin/candidates/batch${query}`;
   const headers = new Headers();
   const token = localStorage.getItem("examsecure_auth_token");
@@ -1191,6 +1213,8 @@ export interface LiveExamineeDto {
   batch?: string;
   examDate?: string;
   assignedSet?: string;
+  examId?: number | null;
+  examTitle?: string | null;
   attemptId?: number;
   status: string;
   startedAt?: string;

@@ -20,6 +20,10 @@ cookies.txt
 *.sqlite
 *.sqlite3
 examsecure.db
+*.db-wal
+*.db-shm
+*.db-journal
+backend/*.db*
 
 # Deprecated duplicate directories
 secure-exam-frontend/

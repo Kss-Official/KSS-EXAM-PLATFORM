@@ -353,16 +353,14 @@ class ExamService:
                                 )
                                 db.add(new_opt)
 
-        # Single Active Exam Policy: Deactivate all other exams so exactly one exam is active at any time
-        db.query(Exam).filter(Exam.id != exam_id).update({"status": "DEACTIVATED"})
-
+        # Multiple active exams supported: activate this exam without deactivating others
         exam.status = "ACTIVATED"
         db.add(AuditLog(
             action="ACTIVATE_EXAM",
             entity_type="Exam",
             entity_id=str(exam.id),
             performed_by=performed_by,
-            details=f"Activated exam: {exam.title} (Single active exam policy enforced; other exams deactivated)"
+            details=f"Activated exam: {exam.title}. Examination is now live for assigned candidates."
         ))
         db.commit()
         db.refresh(exam)

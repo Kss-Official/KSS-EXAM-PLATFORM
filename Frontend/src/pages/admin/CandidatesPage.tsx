@@ -26,7 +26,8 @@ import {
   Edit2,
   Save,
   X,
-  Trash2
+  Trash2,
+  BookOpen
 } from "lucide-react";
 import { useRouter } from "../../router";
 import { 
@@ -35,6 +36,8 @@ import {
   uploadCandidatesCsv, 
   getAllDepartments,
   getColleges,
+  getAllExams,
+  batchAssignCandidateExam,
   assignCandidateBatch,
   rescheduleCandidateSlot,
   batchRescheduleCandidateSlot,
@@ -48,7 +51,8 @@ import {
   type SlotTimingsConfig,
   type CandidateDto, 
   type DepartmentDto,
-  type CollegeDto 
+  type CollegeDto,
+  type ExamDto 
 } from "../../services/api";
 
 const PAGE_SIZE = 30;
@@ -124,6 +128,7 @@ export default function CandidatesPage() {
   const [batchFilter, setBatchFilter] = useState<string>("ALL");
   const [collegeFilter, setCollegeFilter] = useState<number | undefined>(undefined);
   const [departmentFilter, setDepartmentFilter] = useState<number | undefined>(undefined);
+  const [examFilter, setExamFilter] = useState<number | undefined>(undefined);
   const todayIst = useMemo(() => getTodayIstString(), []);
   const yesterdayIst = useMemo(() => getYesterdayIstString(todayIst), [todayIst]);
   const tomorrowIst = useMemo(() => getTomorrowIstString(todayIst), [todayIst]);
@@ -255,9 +260,10 @@ export default function CandidatesPage() {
     });
   }, []);
 
-  // Distinct Lists from separate Colleges and Departments tables
+  // Distinct Lists from separate Colleges, Departments, and Exams tables
   const [colleges, setColleges] = useState<CollegeDto[]>([]);
   const [departments, setDepartments] = useState<DepartmentDto[]>([]);
+  const [exams, setExams] = useState<ExamDto[]>([]);
   const [notice, setNotice] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
 
   // New Candidate Modal
@@ -270,12 +276,19 @@ export default function CandidatesPage() {
   const [newCollegeId, setNewCollegeId] = useState<number | undefined>(undefined);
   const [newCollegeName, setNewCollegeName] = useState("");
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
+  const [newExamId, setNewExamId] = useState<number | undefined>(undefined);
 
   // CSV Import Modal
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [csvExamDate, setCsvExamDate] = useState<string>(todayIst);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvExamId, setCsvExamId] = useState<number | undefined>(undefined);
   const [uploadingCsv, setUploadingCsv] = useState(false);
+
+  // Batch Assign Exam Modal
+  const [isBatchExamModalOpen, setIsBatchExamModalOpen] = useState(false);
+  const [batchTargetExamId, setBatchTargetExamId] = useState<number | undefined>(undefined);
+  const [isAssigningBatchExam, setIsAssigningBatchExam] = useState(false);
 
   // IntersectionObserver sentinel for progressive infinite scrolling
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -356,6 +369,27 @@ export default function CandidatesPage() {
       setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to delete selected candidates", type: "error" });
     } finally {
       setIsDeletingBatch(false);
+    }
+  };
+
+  const handleConfirmBatchAssignExam = async () => {
+    if (selectedIds.size === 0) return;
+    try {
+      setIsAssigningBatchExam(true);
+      const ids = Array.from(selectedIds);
+      const targetExam = batchTargetExamId ? exams.find(e => e.id === batchTargetExamId) : null;
+      await batchAssignCandidateExam(ids, batchTargetExamId || null);
+      setIsBatchExamModalOpen(false);
+      setSelectedIds(new Set());
+      setNotice({ 
+        text: `Successfully ${targetExam ? `assigned ${ids.length} candidate(s) to "${targetExam.title}"` : `reset exam assignment for ${ids.length} candidate(s)`}.`, 
+        type: "success" 
+      });
+      fetchPage1();
+    } catch (err: any) {
+      setNotice({ text: err?.response?.data?.detail || err?.message || "Failed to assign candidates to exam", type: "error" });
+    } finally {
+      setIsAssigningBatchExam(false);
     }
   };
 
@@ -515,6 +549,7 @@ export default function CandidatesPage() {
     }
     getColleges().then(setColleges).catch(() => {});
     getAllDepartments({ type: "academic" }).then(setDepartments).catch(() => {});
+    getAllExams().then(setExams).catch(() => {});
     loadAvailableDates();
   }, [loadAvailableDates]);
 
@@ -536,6 +571,7 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        examId: examFilter,
         batch: batchFilter !== "ALL" ? batchFilter : undefined,
         date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
@@ -566,7 +602,7 @@ export default function CandidatesPage() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder, navigate]);
+  }, [debouncedSearch, collegeFilter, departmentFilter, examFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder, navigate]);
 
   useEffect(() => {
     fetchPage1();
@@ -585,6 +621,7 @@ export default function CandidatesPage() {
         search: debouncedSearch,
         collegeId: collegeFilter,
         departmentId: departmentFilter,
+        examId: examFilter,
         batch: batchFilter !== "ALL" ? batchFilter : undefined,
         date: selectedDate !== "ALL" ? selectedDate : undefined,
         status: statusFilter,
@@ -605,7 +642,7 @@ export default function CandidatesPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
+  }, [loading, loadingMore, hasMore, page, debouncedSearch, collegeFilter, departmentFilter, examFilter, batchFilter, selectedDate, statusFilter, sortBy, sortOrder]);
 
   // Attach IntersectionObserver to sentinel element for infinite scrolling
   useEffect(() => {
@@ -781,6 +818,7 @@ export default function CandidatesPage() {
         collegeId: newCollegeId,
         collegeName: newCollegeName.trim() || undefined,
         departmentId: newDeptId,
+        assignedExamId: newExamId,
         examDate: targetDate
       });
 
@@ -805,6 +843,7 @@ export default function CandidatesPage() {
       setNewCollegeId(undefined);
       setNewCollegeName("");
       setNewDeptId(undefined);
+      setNewExamId(undefined);
     }
   };
 
@@ -814,13 +853,14 @@ export default function CandidatesPage() {
     setUploadingCsv(true);
     try {
       const targetDate = csvExamDate.trim() || todayIst;
-      const res = await uploadCandidatesCsv(csvFile, targetDate);
+      const res = await uploadCandidatesCsv(csvFile, targetDate, csvExamId);
       setNotice({
         text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate}.`,
         type: "success"
       });
       setIsCsvModalOpen(false);
       setCsvFile(null);
+      setCsvExamId(undefined);
       fetchPage1();
       refreshSlotCounts(selectedDate);
       loadAvailableDates();
@@ -1000,6 +1040,7 @@ export default function CandidatesPage() {
               setBatchFilter("ALL");
               setCollegeFilter(undefined);
               setDepartmentFilter(undefined);
+              setExamFilter(undefined);
               setSelectedDate("ALL");
               setCustomDatePicker("");
               fetchPage1();
@@ -1989,6 +2030,30 @@ export default function CandidatesPage() {
 
             <button
               type="button"
+              onClick={() => {
+                setBatchTargetExamId(exams.length > 0 ? exams[0].id : undefined);
+                setIsBatchExamModalOpen(true);
+              }}
+              style={{
+                backgroundColor: "#0d9488",
+                color: "#ffffff",
+                border: "none",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                boxShadow: "0 2px 4px rgba(13, 148, 136, 0.25)"
+              }}
+            >
+              <BookOpen size={14} /> Assign Exam ({selectedIds.size})
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowBatchDeleteModal(true)}
               style={{
                 backgroundColor: "#dc2626",
@@ -2064,6 +2129,22 @@ export default function CandidatesPage() {
             <option value="">🎓 All Departments ({departments.length})</option>
             {departments.map(d => (
               <option key={d.id} value={d.id}>{d.code ? `[${d.code}] ` : ""}{d.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Examination Filter Dropdown */}
+        <div style={{ minWidth: "180px" }}>
+          <select
+            value={examFilter ?? ""}
+            onChange={e => setExamFilter(e.target.value ? Number(e.target.value) : undefined)}
+            style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid #cbd5e1", fontSize: "13px", height: "40px" }}
+          >
+            <option value="">📝 All Examinations ({exams.length})</option>
+            {exams.map(ex => (
+              <option key={ex.id} value={ex.id}>
+                {ex.title} {ex.status === "ACTIVATED" ? "🟢 [ACTIVE]" : ""}
+              </option>
             ))}
           </select>
         </div>
@@ -2148,6 +2229,7 @@ export default function CandidatesPage() {
                     {renderSortIndicator("department")}
                   </div>
                 </th>
+                <th>Assigned Examination</th>
                 <th 
                   className="sortable-th"
                   onClick={() => handleSort("batch")}
@@ -2174,6 +2256,7 @@ export default function CandidatesPage() {
                     <td><div className="skeleton-cell" style={{ width: "200px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "140px" }} /></td>
                     <td><div className="skeleton-cell" style={{ width: "120px" }} /></td>
+                    <td style={{ width: "140px" }}><div className="skeleton-cell" style={{ width: "110px" }} /></td>
                     <td style={{ width: "220px" }}><div className="skeleton-cell" style={{ width: "180px" }} /></td>
                     <td style={{ width: "120px" }}><div className="skeleton-cell" style={{ width: "90px" }} /></td>
                     <td style={{ width: "90px", textAlign: "center" }}><div className="skeleton-cell" style={{ width: "32px", margin: "0 auto" }} /></td>
@@ -2181,7 +2264,7 @@ export default function CandidatesPage() {
                 ))
               ) : candidates.length === 0 ? (
                 <tr>
-                  <td colSpan={9} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={10} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <UserCheck size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       No candidates match your criteria
@@ -2251,6 +2334,31 @@ export default function CandidatesPage() {
                           </span>
                         ) : (
                           <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {cand.assignedExamTitle ? (
+                          <span
+                            className="admin-dept-chip"
+                            style={{
+                              background: "#ecfdf5",
+                              color: "#065f46",
+                              border: "1px solid #a7f3d0",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px"
+                            }}
+                            title={`Assigned to Exam: ${cand.assignedExamTitle}`}
+                          >
+                            <BookOpen size={11} />
+                            {cand.assignedExamTitle}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>Auto (Dept)</span>
                         )}
                       </td>
                       <td>
@@ -2574,6 +2682,24 @@ export default function CandidatesPage() {
                 </select>
               </div>
               <div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Assigned Examination</label>
+                <select 
+                  value={newExamId || ""} 
+                  onChange={e => setNewExamId(e.target.value ? Number(e.target.value) : undefined)} 
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                >
+                  <option value="">-- Auto-Assign (Based on Department) --</option>
+                  {exams.map(ex => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.title} {ex.status === "ACTIVATED" ? "🟢 (ACTIVE)" : ""}
+                    </option>
+                  ))}
+                </select>
+                <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
+                  Lock candidate strictly to this exam paper, or let the platform auto-match by department.
+                </small>
+              </div>
+              <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Scheduled Exam Date *</label>
                 <input 
                   type="date" 
@@ -2638,6 +2764,26 @@ export default function CandidatesPage() {
                 All imported examinees in this document will be scheduled for <strong>{formatDateShort(csvExamDate)} {formatDateYear(csvExamDate)}</strong>
               </small>
             </div>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Assign All to Examination (Optional)
+              </label>
+              <select
+                value={csvExamId ?? ""}
+                onChange={e => setCsvExamId(e.target.value ? Number(e.target.value) : undefined)}
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff" }}
+              >
+                <option value="">-- Auto-Assign (Based on Candidate Departments) --</option>
+                {exams.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.title} {ex.status === "ACTIVATED" ? "🟢 (ACTIVE)" : ""}
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                Enrolls all examinees imported from this roster directly into the chosen examination.
+              </small>
+            </div>
             <input 
               type="file" 
               accept=".pdf,.doc,.docx,.xlsx,.xls,.csv,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
@@ -2653,6 +2799,72 @@ export default function CandidatesPage() {
                 onClick={handleUploadCsv}
               >
                 {uploadingCsv ? "Uploading..." : "Upload Document"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Batch Assign Examination Modal */}
+      {isBatchExamModalOpen && (
+        <div className="admin-modal-backdrop" onClick={() => !isAssigningBatchExam && setIsBatchExamModalOpen(false)}>
+          <div className="admin-modal-box" onClick={e => e.stopPropagation()} style={{ maxWidth: "460px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <BookOpen size={18} color="#0d9488" />
+                <h3 style={{ margin: 0, fontSize: "16px" }}>Assign Examination</h3>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => !isAssigningBatchExam && setIsBatchExamModalOpen(false)} 
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "16px" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: "12.5px", color: "#334155", margin: "0 0 14px 0" }}>
+              You have selected <strong>{selectedIds.size} candidates</strong>. Choose the examination paper to assign to them:
+            </p>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "6px" }}>
+                Target Examination
+              </label>
+              <select
+                value={batchTargetExamId ?? ""}
+                onChange={e => setBatchTargetExamId(e.target.value ? Number(e.target.value) : undefined)}
+                style={{ width: "100%", padding: "9px 12px", border: "1px solid #cbd5e1", borderRadius: "8px", fontSize: "13.5px" }}
+              >
+                <option value="">-- Clear Specific Assignment (Use Auto-Dept Routing) --</option>
+                {exams.map(ex => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.title} {ex.status === "ACTIVATED" ? "🟢 [ACTIVE]" : ""}
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "6px" }}>
+                Candidates will be strictly locked to their assigned examination and will only see its questions.
+              </small>
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button 
+                type="button" 
+                className="secondary" 
+                disabled={isAssigningBatchExam}
+                onClick={() => setIsBatchExamModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="primary" 
+                disabled={isAssigningBatchExam}
+                onClick={handleConfirmBatchAssignExam}
+                style={{ backgroundColor: "#0d9488", borderColor: "#0d9488" }}
+              >
+                {isAssigningBatchExam ? "Assigning..." : `Confirm Assignment (${selectedIds.size})`}
               </button>
             </div>
           </div>

@@ -8,6 +8,7 @@ class Candidate(Base):
     __table_args__ = (
         Index("ix_candidates_department_id", "department_id"),
         Index("ix_candidates_college_id", "college_id"),
+        Index("ix_candidates_assigned_exam_id", "assigned_exam_id"),
         Index("ix_candidates_assigned_set", "assigned_set"),
         Index("ix_candidates_batch", "batch"),
     )
@@ -19,6 +20,7 @@ class Candidate(Base):
     password_hash = Column(String(255), nullable=True)
     department_id = Column(BigInteger, ForeignKey("departments.id", ondelete="SET NULL"), nullable=True)
     college_id = Column(BigInteger, ForeignKey("colleges.id", ondelete="SET NULL"), nullable=True)
+    assigned_exam_id = Column(BigInteger, ForeignKey("exams.id", ondelete="SET NULL"), nullable=True)
     batch = Column(String(50), nullable=True)  # Slot 1, Slot 2, Batch 1, Batch 2, etc.
     exam_date = Column(String(20), nullable=True, index=True)  # YYYY-MM-DD
     assigned_set = Column(String(10), nullable=True)  # Set A, Set B, Set C, Set D, or None
@@ -27,6 +29,7 @@ class Candidate(Base):
 
     department = relationship("Department", back_populates="candidates")
     college = relationship("College", back_populates="candidates")
+    assigned_exam = relationship("Exam", foreign_keys=[assigned_exam_id])
     attempts = relationship("ExamAttempt", back_populates="candidate", cascade="all, delete-orphan")
     access_codes = relationship("CandidateAccessCode", back_populates="candidate", cascade="all, delete-orphan", order_by="CandidateAccessCode.created_at.desc()")
 

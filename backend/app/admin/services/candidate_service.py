@@ -38,6 +38,8 @@ class CandidateService:
     def _to_dto(c: Candidate, attempt_status: Optional[str] = None) -> CandidateDto:
         dept_name = c.department.name if c.department else None
         college_name = c.college.name if c.college else None
+        assigned_exam_title = c.assigned_exam.title if getattr(c, "assigned_exam", None) else None
+        assigned_exam_id = getattr(c, "assigned_exam_id", None)
 
         # Determine real-time exam / account status: COMPLETED, GOING ON, PENDING, or DISABLED
         if c.status and c.status.upper() == "DISABLED":
@@ -66,7 +68,9 @@ class CandidateService:
             created_at=c.created_at,
             assigned_set=c.assigned_set,
             batch=c.batch,
-            exam_date=getattr(c, "exam_date", None)
+            exam_date=getattr(c, "exam_date", None),
+            assigned_exam_id=assigned_exam_id,
+            assigned_exam_title=assigned_exam_title
         )
 
     @classmethod
@@ -84,6 +88,7 @@ class CandidateService:
         query = db.query(Candidate).options(
             joinedload(Candidate.department),
             joinedload(Candidate.college),
+            joinedload(Candidate.assigned_exam),
             joinedload(Candidate.access_codes)
         )
         is_sqlite = bool(db.bind and db.bind.dialect.name == "sqlite")
@@ -256,6 +261,7 @@ class CandidateService:
         status: Optional[str] = None,
         batch: Optional[str] = None,
         date: Optional[str] = None,
+        exam_id: Optional[int] = None,
         sort_by: str = "registration_number",
         sort_order: str = "asc"
     ) -> PaginatedCandidatesResponse:
@@ -298,6 +304,10 @@ class CandidateService:
         # 3. Server-side College filter
         if college_id is not None:
             query = query.filter(Candidate.college_id == college_id)
+
+        # 3a. Server-side Assigned Examination filter
+        if exam_id is not None:
+            query = query.filter(Candidate.assigned_exam_id == exam_id)
 
         # 3b. Server-side Batch/Slot filter (e.g. 'Slot 1', 'Slot 2', 'UNASSIGNED', 'ALL')
         if batch and batch.strip() and batch.strip().upper() != "ALL":
@@ -404,7 +414,8 @@ class CandidateService:
         offset_val = (page - 1) * limit
         cands = query.options(
             joinedload(Candidate.department),
-            joinedload(Candidate.college)
+            joinedload(Candidate.college),
+            joinedload(Candidate.assigned_exam)
         ).offset(offset_val).limit(limit).all()
 
         # 7. Query attempts ONLY for the current page slice (eliminates loading all attempts in database)
@@ -495,6 +506,7 @@ class CandidateService:
             email=email,
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
+            assigned_exam_id=getattr(dto, "assigned_exam_id", None),
             batch=dto.batch.strip() if dto.batch else None,
             exam_date=cand_exam_date,
             status="ACTIVE",
@@ -528,6 +540,8 @@ class CandidateService:
             cand.department_id = dto.department_id
         if dto.college_id:
             cand.college_id = dto.college_id
+        if hasattr(dto, "assigned_exam_id"):
+            cand.assigned_exam_id = dto.assigned_exam_id
         if dto.batch is not None:
             cand.batch = dto.batch.strip() if dto.batch.strip() else None
         if dto.status:
@@ -592,7 +606,7 @@ class CandidateService:
         return {"deleted": count, "message": f"Successfully deleted {count} candidates"}
 
     @classmethod
-    def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str, exam_date: Optional[str] = None) -> Dict[str, Any]:
+    def import_candidates_csv_sync(cls, db: Session, file: UploadFile, performed_by: str, exam_date: Optional[str] = None, exam_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Imports candidates in bulk from uploaded PDF, Excel (.xlsx/.xls), Word (.docx), or CSV file.
         Dynamically resolves column mappings (RegNumber/Sl.No, FullName, Email, College/Department),
@@ -893,6 +907,7 @@ class CandidateService:
                 full_name=full_name,
                 email=email,
                 department_id=dept_id,
+                assigned_exam_id=exam_id,
                 batch="Slot 1",
                 exam_date=cand_exam_date,
                 status="ACTIVE",
@@ -1442,6 +1457,35 @@ class CandidateService:
         ))
         db.commit()
         return {"success": True, "updatedCount": updated_count, "batch": cleaned_batch}
+
+    @classmethod
+    def batch_assign_candidate_exam(
+        cls, db: Session, candidate_ids: List[int], exam_id: Optional[int], performed_by: str = "ADMIN"
+    ) -> Dict[str, Any]:
+        """Batch assigns an examination (or unassigns) to selected candidate IDs."""
+        if not candidate_ids:
+            return {"success": True, "updatedCount": 0, "examId": exam_id}
+
+        target_exam_title = "Unassigned"
+        if exam_id is not None:
+            exam = db.query(Exam).filter(Exam.id == exam_id).first()
+            if not exam:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Examination #{exam_id} not found.")
+            target_exam_title = exam.title
+
+        candidates = db.query(Candidate).filter(Candidate.id.in_(candidate_ids)).all()
+        for cand in candidates:
+            cand.assigned_exam_id = exam_id
+        updated_count = len(candidates)
+        db.add(AuditLog(
+            action="BATCH_ASSIGN_CANDIDATE_EXAM",
+            entity_type="Candidate",
+            entity_id="BATCH",
+            performed_by=performed_by,
+            details=f"Batch assigned {updated_count} candidates to examination '{target_exam_title}' (ID: {exam_id})."
+        ))
+        db.commit()
+        return {"success": True, "updatedCount": updated_count, "examId": exam_id, "examTitle": target_exam_title}
 
     @classmethod
     def assign_candidate_batch(

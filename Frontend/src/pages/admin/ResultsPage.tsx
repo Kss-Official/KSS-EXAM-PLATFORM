@@ -170,6 +170,7 @@ export default function ResultsPage() {
     }
   }, [path]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [collegeFilter, setCollegeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [scorePreset, setScorePreset] = useState<ScorePresetType>("ALL");
   const [minScore, setMinScore] = useState<string>("");
@@ -424,6 +425,17 @@ export default function ResultsPage() {
     return Math.max(0, ...activeSlotPool.map(r => r.score || 0));
   }, [activeSlotPool]);
 
+  // List of distinct colleges present in results
+  const availableColleges = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach(r => {
+      if (r.collegeName && r.collegeName.trim()) {
+        set.add(r.collegeName.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [results]);
+
   // Multi-filter evaluation
   const filtered = useMemo(() => {
     return results.filter(r => {
@@ -432,17 +444,23 @@ export default function ResultsPage() {
         if (getCandidateSlot(r) !== slotFilter) return false;
       }
 
-      // 2. Search Query (name, roll no, department, email, exam title)
+      // 2. Search Query (name, roll no, college, department, email, exam title)
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchName = r.candidateName?.toLowerCase().includes(q);
         const matchRoll = r.registrationNumber?.toLowerCase().includes(q);
+        const matchCollege = r.collegeName?.toLowerCase().includes(q);
         const matchDept = r.departmentName?.toLowerCase().includes(q);
         const matchEmail = r.candidateEmail?.toLowerCase().includes(q);
         const matchExam = r.examTitle?.toLowerCase().includes(q);
-        if (!matchName && !matchRoll && !matchDept && !matchEmail && !matchExam) {
+        if (!matchName && !matchRoll && !matchCollege && !matchDept && !matchEmail && !matchExam) {
           return false;
         }
+      }
+
+      // 2b. College Filter
+      if (collegeFilter && (r.collegeName || "").trim().toLowerCase() !== collegeFilter.trim().toLowerCase()) {
+        return false;
       }
 
       // 3. Exam Dropdown
@@ -484,7 +502,7 @@ export default function ResultsPage() {
       }
       return 0; // Default order
     });
-  }, [results, slotFilter, searchQuery, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort]);
+  }, [results, slotFilter, searchQuery, collegeFilter, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort]);
 
   // Candidates for export (unpaginated)
   const exportCandidates = useMemo(() => {
@@ -505,13 +523,14 @@ export default function ResultsPage() {
   // Reset to page 1 whenever any filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [slotFilter, searchQuery, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort, selectedDate]);
+  }, [slotFilter, searchQuery, collegeFilter, selectedExamId, statusFilter, scorePreset, minScore, maxScore, scoreSort, selectedDate]);
 
-  const hasActiveFilters = slotFilter !== "Slot 1" || searchQuery.trim() !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
+  const hasActiveFilters = slotFilter !== "Slot 1" || searchQuery.trim() !== "" || collegeFilter !== "" || statusFilter !== "ALL" || scorePreset !== "ALL" || minScore !== "" || maxScore !== "" || scoreSort !== "DEFAULT" || selectedExamId !== undefined;
 
   const resetAllFilters = () => {
     setSlotFilter("Slot 1");
     setSearchQuery("");
+    setCollegeFilter("");
     setStatusFilter("ALL");
     setScorePreset("ALL");
     setMinScore("");
@@ -542,6 +561,7 @@ export default function ResultsPage() {
       "Candidate Name", 
       "Registration Number", 
       "Email Address",
+      "College",
       "Department", 
       "Slot", 
       "Exam Title", 
@@ -561,6 +581,7 @@ export default function ResultsPage() {
       `"${c.candidateName}"`,
       `"${c.registrationNumber}"`,
       `"${c.candidateEmail || "-"}"`,
+      `"${c.collegeName || "-"}"`,
       `"${c.departmentName}"`,
       `"${getCandidateSlot(c)}"`,
       `"${c.examTitle}"`,
@@ -653,6 +674,7 @@ export default function ResultsPage() {
               <th style="width: 32px;">#</th>
               <th>Exam Date</th>
               <th>Candidate Name & Reg No</th>
+              <th>College</th>
               <th>Department</th>
               <th>Slot & Set</th>
               <th>Ans / Unans</th>
@@ -673,6 +695,7 @@ export default function ResultsPage() {
                     <strong>${c.candidateName}</strong>
                     <div style="font-family: monospace; font-size: 11px; color: #64748b;">${c.registrationNumber}</div>
                   </td>
+                  <td>${c.collegeName || "—"}</td>
                   <td>${c.departmentName}</td>
                   <td>
                     <span class="slot-pill ${slot === "Slot 1" ? "slot-1" : slot === "Slot 2" ? "slot-2" : slot === "Slot 3" ? "slot-3" : "slot-other"}">${slot}</span>
@@ -739,6 +762,7 @@ export default function ResultsPage() {
               <th>Exam Date</th>
               <th>Candidate Name</th>
               <th>Roll / Reg No</th>
+              <th>College</th>
               <th>Department</th>
               <th>Slot</th>
               <th>Set</th>
@@ -755,6 +779,7 @@ export default function ResultsPage() {
                 <td>${c.examDate || getCandidateExamDate(c)}</td>
                 <td><b>${c.candidateName}</b></td>
                 <td>${c.registrationNumber}</td>
+                <td>${c.collegeName || "—"}</td>
                 <td>${c.departmentName}</td>
                 <td>${getCandidateSlot(c)}</td>
                 <td>Set ${c.setCode}</td>
@@ -1394,11 +1419,38 @@ export default function ResultsPage() {
           <Search size={16} className="search-icon" />
           <input 
             type="text" 
-            placeholder="Search by candidate name, roll no, department, or email..." 
+            placeholder="Search by candidate name, roll no, college, department, or email..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
+
+        {/* College Filter Dropdown */}
+        {availableColleges.length > 0 && (
+          <select
+            value={collegeFilter}
+            onChange={e => {
+              setCollegeFilter(e.target.value);
+              setCurrentPage(1);
+            }}
+            style={{
+              height: "42px",
+              padding: "8px 14px",
+              fontSize: "12.5px",
+              borderRadius: "10px",
+              border: "1.5px solid #e2e8f0",
+              background: "#f8fafc",
+              color: "#0f172a",
+              outline: "none",
+              cursor: "pointer"
+            }}
+          >
+            <option value="">All Colleges ({availableColleges.length})</option>
+            {availableColleges.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        )}
 
         {/* Exam Filter Dropdown */}
         <select
@@ -1754,6 +1806,7 @@ export default function ResultsPage() {
             <thead>
               <tr>
                 <th>Candidate & Slot</th>
+                <th>College</th>
                 <th>Department</th>
                 <th>Examination & Set</th>
                 <th>Answered / Unanswered</th>
@@ -1766,13 +1819,13 @@ export default function ResultsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "40px", color: "#64748b" }}>
                     Loading real attempt results from PostgreSQL...
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
+                  <td colSpan={9} style={{ textAlign: "center", padding: "50px 20px", color: "#64748b" }}>
                     <BarChart3 size={36} color="#cbd5e1" style={{ margin: "0 auto 10px" }} />
                     <p style={{ margin: 0, fontWeight: 700, fontSize: "14px", color: "#1e293b" }}>
                       {results.length === 0 
@@ -1897,6 +1950,32 @@ export default function ResultsPage() {
                           <small style={{ display: "block", color: "#475569", fontSize: "11.5px" }}>{r.candidateEmail}</small>
                         )}
                         <small style={{ display: "block", color: "#64748b", fontFamily: "JetBrains Mono, monospace" }}>{r.registrationNumber}</small>
+                      </td>
+                      <td>
+                        {r.collegeName ? (
+                          <span 
+                            className="admin-dept-chip"
+                            style={{
+                              background: "#eff6ff",
+                              color: "#1d4ed8",
+                              border: "1px solid #bfdbfe",
+                              fontWeight: 600,
+                              fontSize: "12px",
+                              padding: "4px 8px",
+                              borderRadius: "6px",
+                              display: "inline-block",
+                              maxWidth: "200px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap"
+                            }}
+                            title={r.collegeName}
+                          >
+                            {r.collegeName}
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: "11px", color: "#94a3b8" }}>—</span>
+                        )}
                       </td>
                       <td>
                         <span className="admin-dept-chip">

@@ -11,6 +11,7 @@ from app.schemas.candidate import (
     CandidateDto, CandidateAccessCodeDto, CandidateVerifyRequest, CandidateVerifyResponse,
     CandidateOptionDto, CandidateQuestionDto, CandidateStartAttemptResponse,
     AnswerSaveRequest, CandidateAssignSetRequest, CandidateBatchAssignSetRequest,
+    CandidateBatchAssignBatchRequest, CandidateBatchAssignExamRequest,
     CandidateBatchGenerateSelectedRequest, PaginatedCandidatesResponse
 )
 from app.schemas.result import SubmissionResponse, ExamResultDto
@@ -49,6 +50,7 @@ __all__ = [
     "CandidateAccessCodeDto",
     "CandidateVerifyRequest",
     "CandidateVerifyResponse",
+    "CandidateBatchAssignExamRequest",
     "CandidateOptionDto",
     "CandidateQuestionDto",
     "CandidateStartAttemptResponse",

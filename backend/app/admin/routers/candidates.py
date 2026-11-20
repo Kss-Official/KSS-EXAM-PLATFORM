@@ -20,6 +20,7 @@ def get_candidates(
     status: Optional[str] = Query(None, description="Filter by status (COMPLETED, GOING ON, PENDING, ALL)"),
     batch: Optional[str] = Query(None, description="Filter by batch (Slot 1, Slot 2, UNASSIGNED, ALL)"),
     date: Optional[str] = Query(None, description="Filter by candidate examination date (YYYY-MM-DD or ALL)"),
+    exam_id: Optional[int] = Query(None, alias="examId", description="Filter by assigned exam ID"),
     sort_by: str = Query("registration_number", alias="sortBy", description="Sort field"),
     sort_order: str = Query("asc", alias="sortOrder", description="Sort order (asc or desc)"),
     all: bool = Query(False, description="Return all candidates unpaginated"),
@@ -40,6 +41,7 @@ def get_candidates(
         status=status,
         batch=batch,
         date=date,
+        exam_id=exam_id,
         sort_by=sort_by,
         sort_order=sort_order
     )
@@ -81,10 +83,11 @@ def create_candidate(
 def import_candidates_batch(
     file: UploadFile = File(...),
     exam_date: Optional[str] = Query(None, description="Target exam date (YYYY-MM-DD)"),
+    exam_id: Optional[int] = Query(None, alias="examId", description="Target examination ID"),
     current_user: AppUser = Depends(require_super_admin),
     db: Session = Depends(get_db)
 ):
-    return CandidateService.import_candidates_csv_sync(db, file, current_user.email, exam_date=exam_date)
+    return CandidateService.import_candidates_csv_sync(db, file, current_user.email, exam_date=exam_date, exam_id=exam_id)
 
 @router.post("/{candidate_id}/assign")
 def assign_candidate(
@@ -149,6 +152,20 @@ def batch_assign_candidate_batch(
     batch = payload.get("batch")
     return CandidateService.batch_assign_candidate_batch(
         db, candidate_ids=candidate_ids, batch=batch, performed_by=current_user.email
+    )
+
+@router.post("/batch-assign-exam")
+def batch_assign_candidate_exam(
+    payload: Dict[str, Any] = Body(...),
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db)
+):
+    """Batch assigns an examination to selected candidate IDs."""
+    candidate_ids = payload.get("candidateIds") or payload.get("candidate_ids") or []
+    raw_exam_id = payload.get("examId") if "examId" in payload else payload.get("exam_id")
+    exam_id = int(raw_exam_id) if raw_exam_id is not None and str(raw_exam_id).strip() != "" else None
+    return CandidateService.batch_assign_candidate_exam(
+        db, candidate_ids=candidate_ids, exam_id=exam_id, performed_by=current_user.email
     )
 
 @router.post("/{candidate_id}/assign-batch")

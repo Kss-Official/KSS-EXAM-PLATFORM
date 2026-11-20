@@ -19,7 +19,9 @@ import {
   Maximize2,
   Calendar,
   Layers,
-  ArrowRight
+  ArrowRight,
+  Download,
+  FileText
 } from "lucide-react";
 import { 
   getLiveExaminees, 
@@ -292,6 +294,541 @@ export default function LiveMonitoringPage() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
+
+  // Download PDF Report for Cheating Alerts
+  const downloadAlertsPdf = () => {
+    const alertsToExport = filteredAlerts.length > 0 ? filteredAlerts : alerts;
+    if (alertsToExport.length === 0) {
+      showNotification("info", "No cheating alerts available to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const dateStr = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+    const timeStr = new Date().toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    });
+
+    const criticalCount = alertsToExport.filter(a => a.severity === "CRITICAL").length;
+    const highCount = alertsToExport.filter(a => a.severity === "HIGH").length;
+    const mediumCount = alertsToExport.filter(a => a.severity === "MEDIUM" || a.severity === "LOW").length;
+    const uniqueCandidates = new Set(alertsToExport.map(a => a.candidateId)).size;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Proctor Security & Cheating Alerts Audit Report - Talentise Global</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 28px; color: #0f172a; margin: 0; background: #ffffff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #dc2626; padding-bottom: 14px; margin-bottom: 18px; }
+          .title { font-size: 20px; font-weight: 800; color: #dc2626; margin: 0 0 4px 0; }
+          .subtitle { font-size: 12.5px; color: #64748b; margin: 0; }
+          .badge-box { text-align: right; }
+          .badge { background: #fee2e2; color: #dc2626; padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 12.5px; border: 1px solid #fecaca; display: inline-block; }
+          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+          .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+          .stat-label { font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+          .stat-value { font-size: 18px; font-weight: 800; color: #0f172a; }
+          .stat-crit { color: #dc2626; }
+          .stat-high { color: #d97706; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+          th { background: #f1f5f9; color: #334155; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+          td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .sev-pill { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+          .sev-CRITICAL { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+          .sev-HIGH { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+          .sev-MEDIUM { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+          .sev-LOW { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+          .type-pill { background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; display: inline-block; }
+          .status-pill { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+          .st-NEW { background: #fee2e2; color: #b91c1c; }
+          .st-REVIEWED { background: #dcfce7; color: #166534; }
+          .st-DISMISSED { background: #f1f5f9; color: #64748b; }
+          .st-ACTION_TAKEN { background: #fae8ff; color: #86198f; }
+          .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+          @media print {
+            body { padding: 12px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">Talentise Global &mdash; Proctor Security & Cheating Alerts Audit</h1>
+            <p class="subtitle">Official Examination Integrity Ledger &bull; Date: <strong>${selectedDate === "ALL" ? "All Dates Combined" : selectedDate}</strong> &bull; Generated: ${dateStr} at ${timeStr}</p>
+          </div>
+          <div class="badge-box">
+            <div class="badge">Total Incidents: ${alertsToExport.length}</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Unique Flagged: ${uniqueCandidates}</div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Logged Alerts</div>
+            <div class="stat-value">${alertsToExport.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Critical Incidents</div>
+            <div class="stat-value stat-crit">${criticalCount}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">High Severity Alerts</div>
+            <div class="stat-value stat-high">${highCount}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Unique Candidates Flagged</div>
+            <div class="stat-value">${uniqueCandidates}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 28px;">#</th>
+              <th style="width: 80px;">Time (IST)</th>
+              <th>Candidate Details</th>
+              <th>Academic Track / Dept</th>
+              <th>Violation Type</th>
+              <th style="width: 75px;">Severity</th>
+              <th>Proctor Incident Message</th>
+              <th style="width: 75px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${alertsToExport.map((a, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td style="font-family: monospace; font-size: 11px;">${formatIST(a.createdAt)}</td>
+                <td>
+                  <strong>${a.candidateName}</strong>
+                  <div style="font-family: monospace; font-size: 10.5px; color: #64748b;">${a.registrationNumber}</div>
+                </td>
+                <td>${a.department || "—"}</td>
+                <td>
+                  <span class="type-pill">${(a.alertType || "").replace(/_/g, " ")}</span>
+                </td>
+                <td>
+                  <span class="sev-pill sev-${a.severity}">${a.severity}</span>
+                </td>
+                <td style="line-height: 1.35; color: #1e293b;">
+                  ${a.message}
+                </td>
+                <td>
+                  <span class="status-pill st-${a.status}">${a.status}</span>
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          Talentise Global Assessment Platform &bull; Official Authenticated Proctor Security Ledger &bull; Strictly Confidential &bull; Document ID: SEB-SEC-${Date.now().toString(36).toUpperCase()}
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  // Download PDF Report for Live Examinees
+  const downloadExamineesPdf = () => {
+    const examineesToExport = filteredExaminees.length > 0 ? filteredExaminees : examinees;
+    if (examineesToExport.length === 0) {
+      showNotification("info", "No live examinees available to export.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const dateStr = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+    const timeStr = new Date().toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    });
+
+    const writingCount = examineesToExport.filter(e => e.status === "IN_PROGRESS").length;
+    const alertCountTotal = examineesToExport.reduce((acc, e) => acc + (e.alertsCount || 0), 0);
+    const extraTimeGrantedCount = examineesToExport.filter(e => e.extraTimeMinutes > 0).length;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Live Examination Monitoring Ledger - Talentise Global</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 28px; color: #0f172a; margin: 0; background: #ffffff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #2563EB; padding-bottom: 14px; margin-bottom: 18px; }
+          .title { font-size: 20px; font-weight: 800; color: #2563EB; margin: 0 0 4px 0; }
+          .subtitle { font-size: 12.5px; color: #64748b; margin: 0; }
+          .badge-box { text-align: right; }
+          .badge { background: #eff6ff; color: #2563EB; padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 12.5px; border: 1px solid #bfdbfe; display: inline-block; }
+          .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+          .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; }
+          .stat-label { font-size: 11px; text-transform: uppercase; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+          .stat-value { font-size: 18px; font-weight: 800; color: #0f172a; }
+          .stat-alert { color: #dc2626; }
+          .stat-active { color: #166534; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+          th { background: #f1f5f9; color: #334155; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+          td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .st-pill { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; }
+          .st-IN_PROGRESS { background: #dcfce7; color: #166534; }
+          .st-SUBMITTED { background: #e0f2fe; color: #0369a1; }
+          .st-DISCARDED, .st-STOPPED { background: #fee2e2; color: #991b1b; }
+          .st-COMPLETED { background: #f1f5f9; color: #475569; }
+          .alert-pill { background: #fee2e2; color: #991b1b; padding: 2px 6px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+          .slot-pill { background: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; }
+          .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+          @media print {
+            body { padding: 12px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">Talentise Global &mdash; Live Examination Monitoring Ledger</h1>
+            <p class="subtitle">Real-Time Examination Attendee & Proctor Status &bull; Date: <strong>${selectedDate === "ALL" ? "All Dates Combined" : selectedDate}</strong> &bull; Generated: ${dateStr} at ${timeStr}</p>
+          </div>
+          <div class="badge-box">
+            <div class="badge">Total Examinees: ${examineesToExport.length}</div>
+            <div style="font-size: 11px; color: #64748b; margin-top: 4px;">Scope: ${selectedSlot !== "ALL" ? selectedSlot : "All Slots Combined"}</div>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Examinees Listed</div>
+            <div class="stat-value">${examineesToExport.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Active Writing Sessions</div>
+            <div class="stat-value stat-active">${writingCount}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Cheating Alerts Flagged</div>
+            <div class="stat-value stat-alert">${alertCountTotal}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Extra Time Granted</div>
+            <div class="stat-value">${extraTimeGrantedCount}</div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 28px;">#</th>
+              <th>Candidate Name & Reg No</th>
+              <th>Track / Department</th>
+              <th>College</th>
+              <th>Date & Slot</th>
+              <th>Set</th>
+              <th style="width: 85px;">Live Status</th>
+              <th>Remaining Time</th>
+              <th>Answered</th>
+              <th style="width: 80px;">Cheating Flags</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${examineesToExport.map((e, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td>
+                  <strong>${e.fullName}</strong>
+                  <div style="font-family: monospace; font-size: 10.5px; color: #64748b;">${e.registrationNumber}</div>
+                </td>
+                <td>${e.department || "—"}</td>
+                <td>${e.college || "—"}</td>
+                <td>
+                  <div>${e.examDate || selectedDate}</div>
+                  <span class="slot-pill">${e.batch || "Slot 1"}</span>
+                </td>
+                <td style="font-weight: 700;">Set ${e.assignedSet || "A"}</td>
+                <td>
+                  <span class="st-pill st-${e.status}">${e.status}</span>
+                </td>
+                <td style="font-family: monospace; font-weight: 600;">
+                  ${formatTimer(e.remainingSeconds)}
+                  ${e.extraTimeMinutes > 0 ? `<div style="font-size: 10px; color: #0284c7;">+${e.extraTimeMinutes}m extra</div>` : ""}
+                </td>
+                <td>${e.questionsAnswered} / ${e.totalQuestions}</td>
+                <td>
+                  ${e.alertsCount > 0 
+                    ? `<span class="alert-pill">${e.alertsCount} Alerts</span>` 
+                    : `<span style="color: #16a34a; font-weight: 600; font-size: 11px;">✓ Clear</span>`}
+                </td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          Talentise Global Assessment Platform &bull; Live Examination Proctoring Record &bull; Strictly Confidential &bull; Document ID: SEB-LIVE-${Date.now().toString(36).toUpperCase()}
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  // Download PDF Dossier for Individual Candidate Cheating Timeline
+  const downloadCandidateTimelinePdf = (candName: string, regNo: string, history: ProctorAlertDto[]) => {
+    if (history.length === 0) {
+      showNotification("info", "No proctor alert history to export for this candidate.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const dateStr = new Date().toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric"
+    });
+    const timeStr = new Date().toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true
+    });
+
+    const criticalCount = history.filter(a => a.severity === "CRITICAL").length;
+    const highCount = history.filter(a => a.severity === "HIGH").length;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Candidate Proctoring Violation Dossier - ${candName}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; padding: 28px; color: #0f172a; margin: 0; background: #ffffff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #dc2626; padding-bottom: 14px; margin-bottom: 18px; }
+          .title { font-size: 20px; font-weight: 800; color: #dc2626; margin: 0 0 4px 0; }
+          .subtitle { font-size: 12.5px; color: #64748b; margin: 0; }
+          .cand-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11.5px; }
+          th { background: #f1f5f9; color: #334155; text-align: left; padding: 8px 10px; border: 1px solid #cbd5e1; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+          td { padding: 8px 10px; border: 1px solid #e2e8f0; vertical-align: top; }
+          tr:nth-child(even) { background: #f8fafc; }
+          .sev-pill { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+          .sev-CRITICAL { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
+          .sev-HIGH { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+          .sev-MEDIUM { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+          .type-pill { background: #e0e7ff; color: #3730a3; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+          .footer { margin-top: 24px; font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+          @media print {
+            body { padding: 12px; }
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">Talentise Global &mdash; Candidate Proctoring Violation Dossier</h1>
+            <p class="subtitle">Individual Disciplinary Evidence Timeline &bull; Generated: ${dateStr} at ${timeStr}</p>
+          </div>
+          <div style="text-align: right;">
+            <div style="background: #fee2e2; color: #dc2626; padding: 5px 12px; border-radius: 6px; font-weight: 700; font-size: 12px; border: 1px solid #fecaca; display: inline-block;">
+              ${history.length} Total Incidents Logged
+            </div>
+          </div>
+        </div>
+
+        <div class="cand-box">
+          <div>
+            <div style="font-size: 16px; font-weight: 800; color: #0f172a;">${candName}</div>
+            <div style="font-family: monospace; font-size: 12px; color: #64748b; margin-top: 2px;">Registration: ${regNo}</div>
+          </div>
+          <div style="text-align: right; font-size: 12px;">
+            <div>Critical Alerts: <strong style="color: #dc2626;">${criticalCount}</strong></div>
+            <div>High Alerts: <strong style="color: #d97706;">${highCount}</strong></div>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 28px;">#</th>
+              <th style="width: 80px;">Time (IST)</th>
+              <th>Violation Type</th>
+              <th style="width: 75px;">Severity</th>
+              <th>Incident Message / Evidence Log</th>
+              <th style="width: 80px;">Review Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${history.map((a, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td style="font-family: monospace; font-size: 11px;">${formatIST(a.createdAt)}</td>
+                <td><span class="type-pill">${(a.alertType || "").replace(/_/g, " ")}</span></td>
+                <td><span class="sev-pill sev-${a.severity}">${a.severity}</span></td>
+                <td style="line-height: 1.4; color: #1e293b;">${a.message}</td>
+                <td style="font-weight: 600;">${a.status}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          Talentise Global Assessment Platform &bull; Candidate Evidence Dossier &bull; Official Disciplinary Record
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  // Download CSV for Cheating Alerts
+  const downloadAlertsCsv = () => {
+    const alertsToExport = filteredAlerts.length > 0 ? filteredAlerts : alerts;
+    if (alertsToExport.length === 0) return;
+    const headers = [
+      "Alert ID",
+      "Timestamp (IST)",
+      "Candidate Name",
+      "Registration Number",
+      "Department",
+      "Alert Type",
+      "Severity",
+      "Violation Message",
+      "Status",
+      "Reviewed By"
+    ];
+    const rows = alertsToExport.map(a => [
+      a.id,
+      `"${formatIST(a.createdAt)}"`,
+      `"${(a.candidateName || "").replace(/"/g, '""')}"`,
+      `"${a.registrationNumber || ""}"`,
+      `"${(a.department || "").replace(/"/g, '""')}"`,
+      `"${(a.alertType || "").replace(/_/g, " ")}"`,
+      `"${a.severity || ""}"`,
+      `"${(a.message || "").replace(/"/g, '""')}"`,
+      `"${a.status || ""}"`,
+      `"${(a.reviewedBy || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Cheating_Alerts_Audit_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Download CSV for Live Examinees
+  const downloadExamineesCsv = () => {
+    const examineesToExport = filteredExaminees.length > 0 ? filteredExaminees : examinees;
+    if (examineesToExport.length === 0) return;
+    const headers = [
+      "Candidate ID",
+      "Candidate Name",
+      "Registration Number",
+      "Email",
+      "College",
+      "Department",
+      "Slot / Batch",
+      "Exam Title",
+      "Set",
+      "Live Status",
+      "Questions Answered",
+      "Total Questions",
+      "Remaining Time (Mins)",
+      "Extra Time (Mins)",
+      "Cheating Alerts Count"
+    ];
+    const rows = examineesToExport.map(e => [
+      e.candidateId,
+      `"${(e.fullName || "").replace(/"/g, '""')}"`,
+      `"${e.registrationNumber || ""}"`,
+      `"${e.email || ""}"`,
+      `"${(e.college || "").replace(/"/g, '""')}"`,
+      `"${(e.department || "").replace(/"/g, '""')}"`,
+      `"${(e.batch || "").replace(/"/g, '""')}"`,
+      `"${(e.examTitle || "").replace(/"/g, '""')}"`,
+      `"${e.assignedSet || ""}"`,
+      `"${e.status || ""}"`,
+      e.questionsAnswered,
+      e.totalQuestions,
+      Math.round(e.remainingSeconds / 60),
+      e.extraTimeMinutes,
+      e.alertsCount
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\r\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Live_Examinees_Report_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -882,6 +1419,148 @@ export default function LiveMonitoringPage() {
               ))}
             </div>
           )}
+
+          {/* Primary Quick Download PDF Button */}
+          <button
+            type="button"
+            onClick={activeTab === "alerts" ? downloadAlertsPdf : downloadExamineesPdf}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "7px 14px",
+              borderRadius: "8px",
+              background: "#2563EB",
+              color: "#ffffff",
+              border: "none",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              cursor: "pointer",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+              transition: "background 0.15s ease",
+              whiteSpace: "nowrap"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1d4ed8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#2563EB"; }}
+            title={activeTab === "alerts" ? "Download Cheating Alerts PDF Report" : "Download Live Examinees PDF Report"}
+          >
+            <Download size={14} /> Download PDF
+          </button>
+        </div>
+      </div>
+
+      {/* Proctoring & Cheating Alerts Export Action Bar */}
+      <div style={{
+        background: "#ffffff",
+        border: "1px solid #e2e8f0",
+        borderRadius: "12px",
+        padding: "12px 18px",
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: "12px",
+        boxShadow: "0 1px 3px rgba(0, 0, 0, 0.03)"
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "13px", color: "#334155" }}>
+          <span style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "28px",
+            height: "28px",
+            borderRadius: "6px",
+            background: "#eff6ff",
+            color: "#2563EB"
+          }}>
+            <FileText size={15} />
+          </span>
+          <span>
+            <strong>Proctoring Reports & Export:</strong>{" "}
+            {selectedDate === "ALL" ? "All Dates Combined" : `Date: ${selectedDate}`}
+            {selectedSlot !== "ALL" && ` • ${selectedSlot}`}
+            {" • "}
+            {alerts.length} Total Alerts Logged ({filteredAlerts.length} filtered)
+          </span>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          {/* Download Cheating Alerts PDF */}
+          <button
+            type="button"
+            onClick={downloadAlertsPdf}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "7px 14px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: "#dc2626",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              boxShadow: "0 1px 2px rgba(220, 38, 38, 0.2)"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#b91c1c"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#dc2626"; }}
+            title="Download printable / PDF report of Cheating Alerts"
+          >
+            <ShieldAlert size={14} /> Download Cheating Alerts PDF
+          </button>
+
+          {/* Download Live Examinees PDF */}
+          <button
+            type="button"
+            onClick={downloadExamineesPdf}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "7px 14px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: "#2563EB",
+              color: "#ffffff",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              boxShadow: "0 1px 2px rgba(37, 99, 235, 0.2)"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#1d4ed8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#2563EB"; }}
+            title="Download printable / PDF report of Live Examinees"
+          >
+            <Radio size={14} /> Download Examinees PDF
+          </button>
+
+          {/* Download CSV */}
+          <button
+            type="button"
+            onClick={activeTab === "alerts" ? downloadAlertsCsv : downloadExamineesCsv}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "7px 13px",
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: "#ffffff",
+              color: "#334155",
+              border: "1px solid #cbd5e1",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "all 0.15s ease"
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "#f8fafc"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "#ffffff"; }}
+            title={`Download CSV Spreadsheet of ${activeTab === "alerts" ? "Cheating Alerts" : "Examinees"}`}
+          >
+            <Download size={14} /> Download CSV
+          </button>
         </div>
       </div>
 
@@ -1730,27 +2409,51 @@ export default function LiveMonitoringPage() {
                   </div>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setHistoryModalTarget(null)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "#94a3b8",
-                  cursor: "pointer",
-                  padding: "6px",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "all 0.15s ease"
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
-                title="Close"
-              >
-                <X size={18} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button
+                  type="button"
+                  onClick={() => downloadCandidateTimelinePdf(historyModalTarget.candidateName, historyModalTarget.regNo, candidateHistory)}
+                  disabled={candidateHistory.length === 0}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "6px 12px",
+                    borderRadius: "7px",
+                    background: candidateHistory.length === 0 ? "#94a3b8" : "#2563EB",
+                    color: "#ffffff",
+                    border: "none",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: candidateHistory.length === 0 ? "not-allowed" : "pointer",
+                    boxShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                  }}
+                  title="Download candidate proctoring audit dossier as PDF"
+                >
+                  <Download size={13} /> Download Dossier PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryModalTarget(null)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "#94a3b8",
+                    cursor: "pointer",
+                    padding: "6px",
+                    borderRadius: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.15s ease"
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f5f9"; e.currentTarget.style.color = "#0f172a"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}
+                  title="Close"
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* Modal Body: Timeline list */}
