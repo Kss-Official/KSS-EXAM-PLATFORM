@@ -281,6 +281,7 @@ export default function CandidatesPage() {
   // CSV Import Modal
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [csvExamDate, setCsvExamDate] = useState<string>(todayIst);
+  const [csvBatch, setCsvBatch] = useState<string>("Slot 1");
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvExamId, setCsvExamId] = useState<number | undefined>(undefined);
   const [uploadingCsv, setUploadingCsv] = useState(false);
@@ -702,9 +703,9 @@ export default function CandidatesPage() {
       return <ArrowUpDown size={12} color="#94a3b8" style={{ marginLeft: "4px", opacity: 0.6 }} />;
     }
     return sortOrder === "asc" ? (
-      <ArrowUp size={12} color="#2563EB" style={{ marginLeft: "4px" }} />
+      <ArrowUp size={12} color="#017846" style={{ marginLeft: "4px" }} />
     ) : (
-      <ArrowDown size={12} color="#2563EB" style={{ marginLeft: "4px" }} />
+      <ArrowDown size={12} color="#017846" style={{ marginLeft: "4px" }} />
     );
   };
 
@@ -853,9 +854,10 @@ export default function CandidatesPage() {
     setUploadingCsv(true);
     try {
       const targetDate = csvExamDate.trim() || todayIst;
-      const res = await uploadCandidatesCsv(csvFile, targetDate, csvExamId);
+      const targetBatch = csvBatch.trim() || "Slot 1";
+      const res = await uploadCandidatesCsv(csvFile, targetDate, csvExamId, targetBatch);
       setNotice({
-        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate}.`,
+        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate} into ${targetBatch}.`,
         type: "success"
       });
       setIsCsvModalOpen(false);
@@ -1019,7 +1021,7 @@ export default function CandidatesPage() {
       <div className="admin-page-header">
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Users size={20} color="#2563EB" />
+            <Users size={20} color="#017846" />
             <strong style={{ fontSize: "15px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Candidate Directory
             </strong>
@@ -1066,11 +1068,12 @@ export default function CandidatesPage() {
             className="secondary" 
             onClick={() => {
               setCsvExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setCsvBatch(batchFilter !== "ALL" && batchFilter.startsWith("Slot") ? batchFilter : "Slot 1");
               setIsCsvModalOpen(true);
             }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
           >
-            <FileText size={15} color="#2563EB" /> Add Document
+            <FileText size={15} color="#017846" /> Add Document
           </button>
           <button 
             type="button" 
@@ -1104,19 +1107,19 @@ export default function CandidatesPage() {
           className="stat-card" 
           style={{ 
             cursor: "pointer", 
-            border: batchFilter === "ALL" ? "2px solid #2563EB" : "1px solid #e2e8f0",
+            border: batchFilter === "ALL" ? "2px solid #017846" : "1px solid #e2e8f0",
             backgroundColor: batchFilter === "ALL" ? "#fbfdfc" : "#ffffff"
           }}
           onClick={() => setBatchFilter("ALL")}
           title="Click to view all candidates"
         >
           <div className="stat-card-info">
-            <small style={{ color: batchFilter === "ALL" ? "#2563EB" : undefined }}>
+            <small style={{ color: batchFilter === "ALL" ? "#017846" : undefined }}>
               {selectedDate === "ALL" 
                 ? "Total Candidates" 
                 : `Candidates (${selectedDate === todayIst ? "Today" : selectedDate === yesterdayIst ? "Yesterday" : selectedDate})`}
             </small>
-            <div className="stat-card-value" style={{ color: "#2563EB" }}>
+            <div className="stat-card-value" style={{ color: "#017846" }}>
               {slotCountsLoading ? "--" : slotCounts.total}
             </div>
             <span className="stat-card-sub">
@@ -1304,7 +1307,7 @@ export default function CandidatesPage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", marginRight: "4px" }}>
-            <Calendar size={16} color="#2563EB" />
+            <Calendar size={16} color="#017846" />
             <span style={{ fontSize: "12px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.5px" }}>
               Exam Date:
             </span>
@@ -1320,8 +1323,8 @@ export default function CandidatesPage() {
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: selectedDate === todayIst ? "2px solid #2563EB" : "1px solid #cbd5e1",
-              backgroundColor: selectedDate === todayIst ? "#2563EB" : "#f8fafc",
+              border: selectedDate === todayIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === todayIst ? "#017846" : "#f8fafc",
               color: selectedDate === todayIst ? "#ffffff" : "#334155",
               transition: "all 0.15s ease",
               display: "inline-flex",
@@ -1384,8 +1387,8 @@ export default function CandidatesPage() {
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: selectedDate === tomorrowIst ? "2px solid #2563EB" : "1px solid #cbd5e1",
-              backgroundColor: selectedDate === tomorrowIst ? "#2563EB" : "#f8fafc",
+              border: selectedDate === tomorrowIst ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: selectedDate === tomorrowIst ? "#017846" : "#f8fafc",
               color: selectedDate === tomorrowIst ? "#ffffff" : "#334155",
               transition: "all 0.15s ease",
               display: "inline-flex",
@@ -1709,7 +1712,7 @@ export default function CandidatesPage() {
                             {cell.candidateCount > 999 ? "999+" : cell.candidateCount}
                           </span>
                         ) : isTodayCell ? (
-                          <span style={{ fontSize: "7.5px", color: isSel ? "#fff" : "#2563eb", fontWeight: 700, marginTop: "2px" }}>
+                          <span style={{ fontSize: "7.5px", color: isSel ? "#fff" : "#017846", fontWeight: 700, marginTop: "2px" }}>
                             TODAY
                           </span>
                         ) : null}
@@ -1829,8 +1832,8 @@ export default function CandidatesPage() {
               fontSize: "13px",
               fontWeight: 600,
               cursor: "pointer",
-              border: batchFilter === "ALL" ? "2px solid #2563EB" : "1px solid #cbd5e1",
-              backgroundColor: batchFilter === "ALL" ? "#2563EB" : "#f8fafc",
+              border: batchFilter === "ALL" ? "2px solid #017846" : "1px solid #cbd5e1",
+              backgroundColor: batchFilter === "ALL" ? "#017846" : "#f8fafc",
               color: batchFilter === "ALL" ? "#ffffff" : "#475569",
               transition: "all 0.15s ease",
               display: "inline-flex",
@@ -1962,7 +1965,7 @@ export default function CandidatesPage() {
             justifyContent: "space-between",
             flexWrap: "wrap",
             gap: "12px",
-            background: "#eff6ff",
+            background: "#eaf6ef",
             border: "1.5px solid #3b82f6",
             padding: "12px 18px",
             borderRadius: "10px",
@@ -1972,7 +1975,7 @@ export default function CandidatesPage() {
         >
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{
-              background: "#2563eb",
+              background: "#017846",
               color: "#fff",
               padding: "4px 10px",
               borderRadius: "14px",
@@ -2175,7 +2178,7 @@ export default function CandidatesPage() {
                     checked={selectedIds.size === candidates.length && candidates.length > 0} 
                     onChange={handleToggleSelectAll}
                     title="Select / Deselect all visible candidates"
-                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#2563EB" }}
+                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#017846" }}
                   />
                 </th>
                 <th 
@@ -2284,11 +2287,11 @@ export default function CandidatesPage() {
                           type="checkbox" 
                           checked={isSelected}
                           onChange={() => handleToggleSelectCandidate(cand.id)}
-                          style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#2563EB" }}
+                          style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#017846" }}
                         />
                       </td>
                       <td>
-                        <b style={{ color: "#2563EB", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
+                        <b style={{ color: "#017846", fontFamily: "JetBrains Mono, monospace", fontSize: "13px" }}>
                           {cand.registrationNumber || index + 1}
                         </b>
                       </td>
@@ -2301,8 +2304,8 @@ export default function CandidatesPage() {
                           <span 
                             className="admin-dept-chip"
                             style={{
-                              background: "#eff6ff",
-                              color: "#1d4ed8",
+                              background: "#eaf6ef",
+                              color: "#01663c",
                               border: "1px solid #bfdbfe",
                               fontWeight: 600,
                               fontSize: "12px",
@@ -2593,7 +2596,7 @@ export default function CandidatesPage() {
                 justifyContent: "center", 
                 gap: "8px", 
                 padding: "16px", 
-                color: "#2563EB", 
+                color: "#017846", 
                 fontSize: "13px", 
                 fontWeight: 600,
                 background: "#f8fafc",
@@ -2747,7 +2750,7 @@ export default function CandidatesPage() {
               Supported Formats: PDF, DOCS, Word (.doc, .docx), Spreadsheets (.xlsx, .xls, .csv)
             </p>
             <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 14px 0" }}>
-              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode]</code>
+              Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode], [Slot/Batch]</code>
             </p>
             <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
               <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
@@ -2758,10 +2761,28 @@ export default function CandidatesPage() {
                 value={csvExamDate} 
                 onChange={e => setCsvExamDate(e.target.value)} 
                 required 
-                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff" }} 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", boxSizing: "border-box" }} 
               />
               <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
                 All imported examinees in this document will be scheduled for <strong>{formatDateShort(csvExamDate)} {formatDateYear(csvExamDate)}</strong>
+              </small>
+            </div>
+            <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
+              <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
+                Exam Slot / Batch for Imported Candidates *
+              </label>
+              <select 
+                value={csvBatch} 
+                onChange={e => setCsvBatch(e.target.value)} 
+                required 
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", fontWeight: 500, boxSizing: "border-box" }}
+              >
+                <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
+                <option value="Slot 2">🕒 Slot 2 ({s2ActiveStart} - {s2ActiveCutoff} Entry Cutoff)</option>
+                <option value="Slot 3">🕒 Slot 3 ({s3ActiveStart} - {s3ActiveCutoff} Entry Cutoff)</option>
+              </select>
+              <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "4px" }}>
+                Candidates will be allocated to <strong>{csvBatch}</strong> (or to their row-level Slot column if specified)
               </small>
             </div>
             <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
@@ -2771,7 +2792,7 @@ export default function CandidatesPage() {
               <select
                 value={csvExamId ?? ""}
                 onChange={e => setCsvExamId(e.target.value ? Number(e.target.value) : undefined)}
-                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff" }}
+                style={{ width: "100%", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "6px", fontSize: "13px", background: "#ffffff", boxSizing: "border-box" }}
               >
                 <option value="">-- Auto-Assign (Based on Candidate Departments) --</option>
                 {exams.map(ex => (

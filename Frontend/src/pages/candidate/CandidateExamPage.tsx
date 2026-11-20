@@ -34,7 +34,7 @@ import ExamTimer from "../../components/candidate/ExamTimer";
 import QuestionNavigator from "../../components/candidate/QuestionNavigator";
 import SubmitConfirmationDialog from "../../components/candidate/SubmitConfirmationDialog";
 import FormattedContent from "../../components/common/FormattedContent";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 
 
@@ -753,8 +753,8 @@ export default function CandidateExamPage({
       <header className="exam-top-nav">
         <div className="exam-nav-left">
           <img 
-            src={talentiseLogo} 
-            alt="Talentise Global" 
+            src={kalpanaaLogo} 
+            alt="Kalpanaaa Software Solutions" 
             className="exam-nav-logo" 
           />
           <div className="exam-dept-pill">
@@ -878,9 +878,9 @@ export default function CandidateExamPage({
       {/* Extra Time Granted Banner */}
       {extraTimeNotice && (
         <div style={{
-          background: "#eff6ff",
+          background: "#eaf6ef",
           borderBottom: "1px solid #bfdbfe",
-          color: "#1e40af",
+          color: "#014d32",
           padding: "10px 24px",
           display: "flex",
           alignItems: "center",
@@ -889,7 +889,7 @@ export default function CandidateExamPage({
           fontWeight: 700,
           zIndex: 95
         }}>
-          <Clock3 size={18} color="#2563eb" />
+          <Clock3 size={18} color="#017846" />
           <span>
             <strong>Extra Time Granted!</strong> {extraTimeNotice}. Your timer and deadline have been updated.
           </span>
@@ -906,7 +906,7 @@ export default function CandidateExamPage({
                 <div style={{ width: "110px", height: "26px", borderRadius: "6px", background: "#f1f5f9" }} />
                 <div style={{ width: "140px", height: "26px", borderRadius: "6px", background: "#f1f5f9" }} />
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#2563EB", fontSize: "13px", fontWeight: 600 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#017846", fontSize: "13px", fontWeight: 600 }}>
                 <Loader2 size={16} className="animate-spin" /> Loading questions...
               </div>
             </div>
@@ -1121,7 +1121,7 @@ export default function CandidateExamPage({
                 padding: "10px 20px",
                 fontSize: "13px",
                 fontWeight: 700,
-                background: "linear-gradient(135deg, #1E40AF 0%, #2563EB 60%, #EA580C 115%)",
+                background: "#017846",
                 color: "#ffffff",
                 border: "none",
                 borderRadius: "8px",
@@ -1154,7 +1154,7 @@ export default function CandidateExamPage({
             textAlign: "center",
             boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.35)"
           }}>
-            <Loader2 size={42} className="animate-spin" color="#2563EB" style={{ margin: "0 auto 16px" }} />
+            <Loader2 size={42} className="animate-spin" color="#017846" style={{ margin: "0 auto 16px" }} />
             <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
               Submitting Assessment...
             </h3>

@@ -14,7 +14,7 @@ import DepartmentSelector from "../../components/candidate/DepartmentSelector";
 import { loadCandidateSession, clearCandidateSession } from "../../services/candidateSessionStorage";
 import DemoRestartDialog from "../../components/candidate/DemoRestartDialog";
 import { verifyCandidateEligibility, ApiError } from "../../services/api";
-import talentiseLogo from "../../assets/talentise_logo.png";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 
 interface CandidateEntryPageProps {
   onContinue: (profile: CandidateProfile) => void;
@@ -158,13 +158,13 @@ export default function CandidateEntryPage({
     <main className="welcome">
       {/* 
         Candidate Portal Header:
-        Official Talentise Global logo and Secure Candidate Session indicator.
+        Official Kalpanaaa Software Solutions logo and Secure Candidate Session indicator.
       */}
       <nav className="nav">
         <div className="brand">
           <img 
-            src={talentiseLogo} 
-            alt="Talentise Global" 
+            src={kalpanaaLogo} 
+            alt="Kalpanaaa Software Solutions" 
             className="candidate-portal-logo" 
           />
         </div>
@@ -179,11 +179,11 @@ export default function CandidateEntryPage({
         {/* Left section: Assessment introduction */}
         <div className="intro">
           <div className="eyebrow">
-            <i /> TALENTISE GLOBAL &middot; CANDIDATE ASSESSMENT
+            <i /> KALPANAAA SOFTWARE SOLUTIONS &middot; CANDIDATE ASSESSMENT
           </div>
           <h1>
             Show what<br />
-            <em>you know.</em>
+            <em style={{ color: "#017846" }}>you know.</em>
           </h1>
           <p className="lead">
             Welcome to your technical assessment portal. Enter your registered full name, department, and email address to authenticate and begin your examination.
@@ -223,7 +223,7 @@ export default function CandidateEntryPage({
         <div className="login card">
           <div className="eyebrow">CANDIDATE ACCESS</div>
           <h2>
-            Assessment <span className="entry-brand">Entry</span>
+            Assessment <span className="entry-brand" style={{ color: "#017846" }}>Entry</span>
           </h2>
           <p className="muted">
             Enter your registered candidate details below to begin your assessment.
@@ -432,7 +432,7 @@ export default function CandidateEntryPage({
       </section>
 
       <footer className="welcomefoot">
-        &copy; 2026 Talentise Global &middot; Secure Candidate Examination Portal
+        &copy; 2026 Kalpanaaa Software Solutions &middot; Secure Candidate Examination Portal
         <span>
           <ShieldCheck size={14} /> Safe Exam Browser Verified Flow
         </span>

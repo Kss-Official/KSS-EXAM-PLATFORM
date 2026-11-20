@@ -1,8 +1,11 @@
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, or_
 from fastapi import HTTPException, status
+
+logger = logging.getLogger("ExamSecure.LiveMonitoring")
 
 from app.models import (
     Candidate, ExamAttempt, Exam, Department, College, QuestionSet, AuditLog, ProctorAlert
@@ -283,7 +286,20 @@ class LiveMonitoringService:
         alert_type: str,
         message: str,
         severity: str = "MEDIUM"
-    ) -> ProctorAlert:
+    ) -> Optional[ProctorAlert]:
+        # 1. Verify candidate exists to prevent ForeignKeyViolation crashes
+        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
+        if not cand:
+            logger.warning(f"Candidate id {candidate_id} not found in database; cannot record proctor alert.")
+            return None
+
+        # 2. Verify attempt_id if provided
+        valid_attempt_id = None
+        if attempt_id:
+            att = db.query(ExamAttempt).filter(ExamAttempt.id == attempt_id).first()
+            if att:
+                valid_attempt_id = att.id
+
         # Check for duplicate identical alerts within last 2 seconds to avoid network jitter flooding
         recent = db.query(ProctorAlert).filter(
             ProctorAlert.candidate_id == candidate_id,
@@ -294,31 +310,35 @@ class LiveMonitoringService:
         if recent:
             return recent
 
-        alert = ProctorAlert(
-            candidate_id=candidate_id,
-            attempt_id=attempt_id,
-            alert_type=alert_type.upper(),
-            severity=severity.upper() if severity else "MEDIUM",
-            message=message[:500] if message else "Proctoring incident detected",
-            status="NEW",
-            created_at=datetime.now(timezone.utc)
-        )
-        db.add(alert)
+        try:
+            alert = ProctorAlert(
+                candidate_id=candidate_id,
+                attempt_id=valid_attempt_id,
+                alert_type=alert_type.upper(),
+                severity=severity.upper() if severity else "MEDIUM",
+                message=message[:500] if message else "Proctoring incident detected",
+                status="NEW",
+                created_at=datetime.now(timezone.utc)
+            )
+            db.add(alert)
 
-        # Also add to AuditLog for permanent forensic history
-        cand = db.query(Candidate).filter(Candidate.id == candidate_id).first()
-        cand_str = f"{cand.registration_number} - {cand.full_name}" if cand else f"Candidate #{candidate_id}"
-        db.add(AuditLog(
-            action=f"PROCTOR_{alert_type.upper()}",
-            entity_type="ProctorAlert",
-            entity_id=str(attempt_id or candidate_id),
-            performed_by=f"ProctorClient:{cand_str}",
-            details=message
-        ))
+            # Also add to AuditLog for permanent forensic history
+            cand_str = f"{cand.registration_number} - {cand.full_name}" if cand else f"Candidate #{candidate_id}"
+            db.add(AuditLog(
+                action=f"PROCTOR_{alert_type.upper()}",
+                entity_type="ProctorAlert",
+                entity_id=str(valid_attempt_id or candidate_id),
+                performed_by=f"ProctorClient:{cand_str}",
+                details=message
+            ))
 
-        db.commit()
-        db.refresh(alert)
-        return alert
+            db.commit()
+            db.refresh(alert)
+            return alert
+        except Exception as e:
+            db.rollback()
+            logger.error(f"Error persisting proctor alert for candidate {candidate_id}: {e}")
+            return None
 
     @classmethod
     def get_proctor_alerts(

@@ -129,7 +129,7 @@ export default function AnswerKeyImporter({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
         <div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <FileKey size={16} color="#2563EB" />
+            <FileKey size={16} color="#017846" />
             <strong style={{ fontSize: "13px", color: "#0f172a" }}>
               Answer Key / Official Scoring Document ΓÇö {setKey.replace("_", " ")}
             </strong>
@@ -206,7 +206,7 @@ export default function AnswerKeyImporter({
           }}
         />
 
-        <UploadCloud size={24} color="#2563EB" style={{ margin: "0 auto 6px" }} />
+        <UploadCloud size={24} color="#017846" style={{ margin: "0 auto 6px" }} />
         <strong style={{ display: "block", fontSize: "12px", color: "#0f172a" }}>
           Upload Official Answer Key Document (.pdf, .docx, .txt)
         </strong>
@@ -261,7 +261,7 @@ export default function AnswerKeyImporter({
           </small>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             {Object.entries(currentAnswerKey.entries).map(([qNum, letter]) => (
-              <span key={qNum} style={{ fontSize: "10.5px", padding: "2px 6px", background: "#eff6ff", color: "#1e40af", borderRadius: "4px", border: "1px solid #bfdbfe" }}>
+              <span key={qNum} style={{ fontSize: "10.5px", padding: "2px 6px", background: "#eaf6ef", color: "#014d32", borderRadius: "4px", border: "1px solid #bfdbfe" }}>
                 Q{qNum}: <b>{letter}</b>
               </span>
             ))}

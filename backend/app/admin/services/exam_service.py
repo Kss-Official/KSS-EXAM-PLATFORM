@@ -353,7 +353,18 @@ class ExamService:
                                 )
                                 db.add(new_opt)
 
-        # Multiple active exams supported: activate this exam without deactivating others
+        # Deactivate conflicting active exams for the same department(s) to avoid candidate collision
+        dept_ids = [d.id for d in exam.departments]
+        if dept_ids:
+            conflicting_exams = (
+                db.query(Exam)
+                .join(Exam.departments)
+                .filter(Exam.id != exam_id, Department.id.in_(dept_ids), Exam.status.in_(["ACTIVATED", "PUBLISHED"]))
+                .all()
+            )
+            for c_exam in conflicting_exams:
+                c_exam.status = "DEACTIVATED"
+
         exam.status = "ACTIVATED"
         db.add(AuditLog(
             action="ACTIVATE_EXAM",

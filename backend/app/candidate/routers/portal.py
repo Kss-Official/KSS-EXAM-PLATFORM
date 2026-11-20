@@ -280,6 +280,8 @@ def record_candidate_proctor_alert(
         message=str(message),
         severity=str(severity)
     )
+    if not alert:
+        return {"success": False, "message": "Proctor alert could not be recorded (candidate or session not found)."}
     return {"success": True, "alertId": alert.id, "alertType": alert.alert_type}
 
 @router.post("/proctor/warning")
