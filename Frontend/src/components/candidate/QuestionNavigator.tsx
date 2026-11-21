@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, Send, ChevronDown, ChevronRight } from "lucide-react";
-import LiveProctorFeed from "./LiveProctorFeed";
 
 interface QuestionNavigatorProps {
   total: number;
@@ -86,9 +85,6 @@ function QuestionNavigatorComponent({
       className={`qnav-palette-card ${isOpen ? "open" : ""}`}
       aria-label="Question Navigator Palette"
     >
-      {/* Top: Live Proctor Feed */}
-      <LiveProctorFeed />
-
       {/* Navigator Main Card */}
       <div className="qnav-body-card">
         <div className="qnav-header-row">

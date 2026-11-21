@@ -277,6 +277,8 @@ export default function CandidatesPage() {
   const [newCollegeName, setNewCollegeName] = useState("");
   const [newDeptId, setNewDeptId] = useState<number | undefined>(undefined);
   const [newExamId, setNewExamId] = useState<number | undefined>(undefined);
+  const [isCreatingCandidate, setIsCreatingCandidate] = useState(false);
+  const [newModalError, setNewModalError] = useState<string | null>(null);
 
   // CSV Import Modal
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -802,13 +804,15 @@ export default function CandidatesPage() {
   // Handle manual candidate creation
   const handleCreateCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNewModalError(null);
     if (!newName.trim() || !newEmail.trim()) {
-      setNotice({ text: "Full Name and Email are required.", type: "error" });
+      setNewModalError("Full Name and Email Address are required.");
       return;
     }
 
     const regUpper = newRegNum.trim() ? newRegNum.trim().toUpperCase() : `CAND-${Date.now().toString().slice(-6)}`;
 
+    setIsCreatingCandidate(true);
     try {
       const targetDate = newExamDate.trim() || todayIst;
       const created = await createCandidate({
@@ -823,19 +827,30 @@ export default function CandidatesPage() {
         examDate: targetDate
       });
 
-      setCandidates(prev => [created, ...prev]);
+      // Synchronize active date tab so the new candidate is immediately visible on screen
+      if (selectedDate !== "ALL" && selectedDate !== targetDate) {
+        setSelectedDate(targetDate);
+        setCustomDatePicker(targetDate);
+      }
+      setSearchTerm("");
+      setDebouncedSearch("");
+      if (batchFilter !== "ALL" && newBatch && batchFilter !== newBatch) {
+        setBatchFilter("ALL");
+      }
+
+      // Prepend to visible table list immediately
+      setCandidates(prev => [created, ...prev.filter(c => c.id !== created.id)]);
       setTotalCandidates(prev => prev + 1);
+
       setNotice({
         text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully for ${targetDate} under ${newBatch || "Unassigned"}.`,
         type: "success"
       });
-      fetchPage1();
+
       loadAvailableDates();
-      refreshSlotCounts(selectedDate);
-    } catch (err: unknown) {
-      const errorObj = err as Error;
-      setNotice({ text: "Candidate registration failed: " + errorObj.message, type: "error" });
-    } finally {
+      refreshSlotCounts(targetDate);
+
+      // Close modal and reset form ONLY on success
       setIsNewModalOpen(false);
       setNewRegNum("");
       setNewName("");
@@ -845,6 +860,14 @@ export default function CandidatesPage() {
       setNewCollegeName("");
       setNewDeptId(undefined);
       setNewExamId(undefined);
+      setNewModalError(null);
+    } catch (err: unknown) {
+      const errorObj = err as Error;
+      const msg = errorObj.message || "Failed to register candidate";
+      setNewModalError(msg);
+      setNotice({ text: "Candidate registration failed: " + msg, type: "error" });
+    } finally {
+      setIsCreatingCandidate(false);
     }
   };
 
@@ -1080,6 +1103,7 @@ export default function CandidatesPage() {
             className="primary" 
             onClick={() => {
               setNewExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
+              setNewModalError(null);
               setIsNewModalOpen(true);
             }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
@@ -2627,24 +2651,85 @@ export default function CandidatesPage() {
 
       {/* New Candidate Modal */}
       {isNewModalOpen && (
-        <div className="admin-modal-backdrop" onClick={() => setIsNewModalOpen(false)}>
+        <div className="admin-modal-backdrop" onClick={() => !isCreatingCandidate && setIsNewModalOpen(false)}>
           <div className="admin-modal-box" onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
               <h3 style={{ margin: 0, fontSize: "16px" }}>Register Candidate</h3>
-              <button type="button" onClick={() => setIsNewModalOpen(false)} style={{ background: "none", border: "none", cursor: "pointer" }}>✕</button>
+              <button 
+                type="button" 
+                disabled={isCreatingCandidate}
+                onClick={() => setIsNewModalOpen(false)} 
+                style={{ background: "none", border: "none", cursor: isCreatingCandidate ? "not-allowed" : "pointer", fontSize: "16px", color: "#64748b" }}
+              >
+                ✕
+              </button>
             </div>
+
+            {newModalError && (
+              <div style={{
+                padding: "10px 12px",
+                marginBottom: "12px",
+                backgroundColor: "#fef2f2",
+                border: "1px solid #f87171",
+                borderRadius: "6px",
+                color: "#991b1b",
+                fontSize: "12.5px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px"
+              }}>
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{newModalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleCreateCandidate} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <label style={{ fontSize: "12px", fontWeight: 600 }}>Register No. / SL. No. *</label>
-                <input type="text" placeholder="e.g. 1, 2, ... or REG-101" value={newRegNum} onChange={e => setNewRegNum(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
+                  <label style={{ fontSize: "12px", fontWeight: 600 }}>Register No. / SL. No.</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setNewRegNum(`REG-${Date.now().toString().slice(-6)}`)}
+                    style={{ background: "none", border: "none", color: "#017846", fontSize: "11px", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                  >
+                    ⚡ Auto-Generate
+                  </button>
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="e.g. REG-101 or leave blank to auto-generate" 
+                  value={newRegNum} 
+                  onChange={e => setNewRegNum(e.target.value)} 
+                  disabled={isCreatingCandidate}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
+                />
+                <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
+                  Must be unique across all candidates. Leave blank to auto-generate.
+                </small>
               </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Full Name *</label>
-                <input type="text" placeholder="e.g. Aarav Sharma" value={newName} onChange={e => setNewName(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
+                <input 
+                  type="text" 
+                  placeholder="e.g. Aarav Sharma" 
+                  value={newName} 
+                  onChange={e => setNewName(e.target.value)} 
+                  required 
+                  disabled={isCreatingCandidate}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
+                />
               </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Email Address *</label>
-                <input type="email" placeholder="e.g. aarav@campus.edu" value={newEmail} onChange={e => setNewEmail(e.target.value)} required style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} />
+                <input 
+                  type="email" 
+                  placeholder="e.g. aarav@campus.edu" 
+                  value={newEmail} 
+                  onChange={e => setNewEmail(e.target.value)} 
+                  required 
+                  disabled={isCreatingCandidate}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
+                />
               </div>
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
@@ -2656,6 +2741,7 @@ export default function CandidatesPage() {
                   list="colleges-datalist"
                   placeholder="Type college name or select from list..." 
                   value={newCollegeName} 
+                  disabled={isCreatingCandidate}
                   onChange={e => {
                     const val = e.target.value;
                     setNewCollegeName(val);
@@ -2677,7 +2763,12 @@ export default function CandidatesPage() {
               </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Academic Department / Specialization Track</label>
-                <select value={newDeptId || ""} onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}>
+                <select 
+                  value={newDeptId || ""} 
+                  onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} 
+                  disabled={isCreatingCandidate}
+                  style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
+                >
                   <option value="">-- Select Department Track (Optional) --</option>
                   {departments.map(d => (
                     <option key={d.id} value={d.id}>{d.code ? `[${d.code}] ` : ""}{d.name}</option>
@@ -2689,6 +2780,7 @@ export default function CandidatesPage() {
                 <select 
                   value={newExamId || ""} 
                   onChange={e => setNewExamId(e.target.value ? Number(e.target.value) : undefined)} 
+                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
                   <option value="">-- Auto-Assign (Based on Department) --</option>
@@ -2709,6 +2801,7 @@ export default function CandidatesPage() {
                   value={newExamDate} 
                   onChange={e => setNewExamDate(e.target.value)} 
                   required 
+                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
                 />
                 <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
@@ -2721,6 +2814,7 @@ export default function CandidatesPage() {
                   value={newBatch} 
                   onChange={e => setNewBatch(e.target.value)} 
                   required 
+                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
                   <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
@@ -2730,8 +2824,29 @@ export default function CandidatesPage() {
                 </select>
               </div>
               <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "10px" }}>
-                <button type="button" className="secondary" onClick={() => setIsNewModalOpen(false)}>Cancel</button>
-                <button type="submit" className="primary">Register</button>
+                <button 
+                  type="button" 
+                  className="secondary" 
+                  disabled={isCreatingCandidate}
+                  onClick={() => setIsNewModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="primary"
+                  disabled={isCreatingCandidate}
+                  style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
+                >
+                  {isCreatingCandidate ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      <span>Registering...</span>
+                    </>
+                  ) : (
+                    <span>Register Candidate</span>
+                  )}
+                </button>
               </div>
             </form>
           </div>

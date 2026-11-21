@@ -17,7 +17,7 @@ class CandidateAccessCodeDto(CamelModel):
 
 class CandidateDto(CamelModel):
     id: Optional[int] = None
-    registration_number: str
+    registration_number: Optional[str] = None
     full_name: str
     email: str
     department_id: Optional[int] = None

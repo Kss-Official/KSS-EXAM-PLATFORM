@@ -2,6 +2,7 @@ import csv
 import io
 import re
 import secrets
+import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, or_, and_, text
@@ -15,6 +16,7 @@ from app.models import (
 from app.schemas import CandidateDto, CandidateAccessCodeDto, PaginatedCandidatesResponse
 from app.core import EmailService
 
+logger = logging.getLogger("ExamSecure.CandidateService")
 IST = timezone(timedelta(hours=5, minutes=30))
 
 def normalize_set_code(raw: Optional[str]) -> Optional[str]:
@@ -457,18 +459,27 @@ class CandidateService:
 
     @classmethod
     def create_candidate(cls, db: Session, dto: CandidateDto, performed_by: str) -> CandidateDto:
-        reg_num = dto.registration_number.strip().upper()
-        if db.query(Candidate).filter(Candidate.registration_number.ilike(reg_num)).first():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Candidate with Registration Number '{reg_num}' already exists"
-            )
+        raw_reg = (dto.registration_number or "").strip().upper() if getattr(dto, "registration_number", None) else ""
+        if not raw_reg:
+            # Auto-generate a guaranteed unique registration number
+            while True:
+                candidate_code = f"CAND-{datetime.now(timezone.utc).strftime('%y%m%d')}-{secrets.randbelow(10000):04d}"
+                if not db.query(Candidate).filter(Candidate.registration_number.ilike(candidate_code)).first():
+                    reg_num = candidate_code
+                    break
+        else:
+            reg_num = raw_reg
+            if db.query(Candidate).filter(Candidate.registration_number.ilike(reg_num)).first():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Candidate with Registration Number '{reg_num}' already exists. Please choose a different number or let it auto-generate."
+                )
 
         email = dto.email.strip().lower()
         if db.query(Candidate).filter(Candidate.email.ilike(email)).first():
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Candidate with email '{email}' already exists"
+                detail=f"Candidate with email '{email}' already exists in the system."
             )
 
         dept = None
@@ -498,14 +509,8 @@ class CandidateService:
 
         IST = timezone(timedelta(hours=5, minutes=30))
         today_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
-        cand_exam_date = (dto.exam_date or "").strip() if getattr(dto, "exam_date", None) else today_ist
-
-        # Auto-default exam_date to today (IST) so candidate can give the exam immediately
-        from datetime import timedelta as _td
-        _IST = timezone(_td(hours=5, minutes=30))
-        today_ist_str = datetime.now(timezone.utc).astimezone(_IST).strftime("%Y-%m-%d")
-        cand_exam_date = dto.exam_date.strip() if dto.exam_date else today_ist_str
-        cand_batch = dto.batch.strip() if dto.batch else "Slot 1"
+        cand_exam_date = dto.exam_date.strip() if getattr(dto, "exam_date", None) and dto.exam_date.strip() else today_ist
+        cand_batch = dto.batch.strip() if getattr(dto, "batch", None) and dto.batch.strip() else "Slot 1"
 
         c = Candidate(
             registration_number=reg_num,
@@ -514,22 +519,24 @@ class CandidateService:
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
             assigned_exam_id=getattr(dto, "assigned_exam_id", None),
-            batch=dto.batch.strip() if dto.batch else cand_batch,
+            batch=cand_batch,
             exam_date=cand_exam_date,
             assigned_set="A",
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
         db.add(c)
-        db.flush()
+        # Commit candidate creation immediately so it is permanently recorded in DB
+        db.commit()
+        db.refresh(c)
 
         # 1. Automatically generate active access code so candidate can log in immediately
         try:
             cls.generate_access_code(db, c.id, performed_by=performed_by, round_name="ROUND_1")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning(f"Auto-generate access code for {c.id} skipped: {exc}")
 
-        # 2. Automatically assign to currently active exam if one exists
+        # 2. Automatically assign to assigned exam or active exam if one exists
         try:
             target_exam_id = c.assigned_exam_id
             if not target_exam_id:
@@ -538,18 +545,21 @@ class CandidateService:
                     target_exam_id = active_exam.id
             if target_exam_id:
                 cls.assign_candidate_to_exam(db, c.id, target_exam_id, slot_id=None, set_code="A", performed_by=performed_by)
+        except Exception as exc:
+            logger.warning(f"Auto-assign candidate {c.id} to exam skipped: {exc}")
+
+        try:
+            db.add(AuditLog(
+                action="CREATE_CANDIDATE",
+                entity_type="Candidate",
+                entity_id=str(c.id),
+                performed_by=performed_by,
+                details=f"Registered candidate: {c.full_name} ({reg_num}) ready for live exam on {cand_exam_date}"
+            ))
+            db.commit()
         except Exception:
             pass
 
-        db.add(AuditLog(
-            action="CREATE_CANDIDATE",
-            entity_type="Candidate",
-            entity_id=str(c.id),
-            performed_by=performed_by,
-            details=f"Registered candidate: {c.full_name} ({reg_num}) ready for live exam on {cand_exam_date}"
-        ))
-        db.commit()
-        db.refresh(c)
         return cls._to_dto(c)
 
     @classmethod
