@@ -43,11 +43,7 @@
         "asyncRoutes": {
           "web": true
         }
-      },
-      "eas": {
-        "projectId": "a1bda3e6-e537-4012-9db5-21805d7b8e78"
       }
-    },
-    "owner": "d.koushik"
+    }
   }
 }
