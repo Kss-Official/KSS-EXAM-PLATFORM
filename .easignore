@@ -6,3 +6,7 @@ jmeter_tests
 scratch
 documents
 private-storage
+
+ExamSecureMobile/android/.gradle
+ExamSecureMobile/android/build
+ExamSecureMobile/android/app/build
