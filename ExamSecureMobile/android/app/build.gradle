@@ -1,9 +1,9 @@
+// AGP 9+ has built-in Kotlin support — do NOT apply org.jetbrains.kotlin.android
 apply plugin: 'com.android.application'
-apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace "in.kalpanaaasoftwaresolutions.examsecure"
-    compileSdk 35
+    compileSdkVersion 35
 
     defaultConfig {
         applicationId "in.kalpanaaasoftwaresolutions.examsecure"
@@ -85,8 +85,7 @@ dependencies {
     implementation "org.tensorflow:tensorflow-lite-task-vision:0.4.4"
     implementation "org.tensorflow:tensorflow-lite-support:0.4.4"
 
-    // Kotlin stdlib + coroutines
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+    // Kotlin coroutines (stdlib provided by AGP 9 built-in Kotlin)
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
 
     // React Native modules
