@@ -9,6 +9,7 @@ from app.admin.routers.candidates import router as candidates_router
 from app.admin.routers.results import router as results_router
 from app.admin.routers.coding_exams import router as coding_exams_router
 from app.admin.routers.live_monitoring import router as live_monitoring_router
+from app.admin.routers.ai import router as ai_router
 
 from app.admin.services.exam_service import ExamService
 from app.admin.services.question_service import QuestionService
@@ -31,6 +32,7 @@ admin_router.include_router(questions_router)
 admin_router.include_router(candidates_router)
 admin_router.include_router(results_router)
 admin_router.include_router(live_monitoring_router)
+admin_router.include_router(ai_router)
 
 __all__ = [
     "admin_router",

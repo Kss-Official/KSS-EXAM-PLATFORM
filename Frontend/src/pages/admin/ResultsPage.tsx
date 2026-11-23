@@ -168,7 +168,43 @@ export default function ResultsPage() {
     } else {
       setSelectedExamId(undefined);
     }
+
+    try {
+      const searchStr = path.includes("?") 
+        ? path.slice(path.indexOf("?")) 
+        : (typeof window !== "undefined" ? window.location.search : "");
+      const params = new URLSearchParams(searchStr);
+      const sortParam = params.get("sort");
+      if (sortParam === "SCORE_DESC" || sortParam === "SCORE_ASC") {
+        setScoreSort(sortParam);
+      }
+    } catch {}
   }, [path]);
+
+  // 🧠 Listen to AI Copilot client action bus to dynamically sort & control Results page
+  useEffect(() => {
+    const handleAiAction = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail;
+      if (!detail) return;
+
+      if (detail.action === "APPLY_SORT") {
+        if (detail.direction === "asc" || detail.direction === "low_to_high") {
+          setScoreSort("SCORE_ASC");
+        } else {
+          setScoreSort("SCORE_DESC");
+        }
+      }
+      if (detail.action === "NAVIGATE" && detail.params?.examId) {
+        setSelectedExamId(Number(detail.params.examId));
+      }
+      if (detail.action === "SEARCH" && detail.search) {
+        setSearchQuery(detail.search);
+      }
+    };
+
+    window.addEventListener("examsecure:ai-action", handleAiAction);
+    return () => window.removeEventListener("examsecure:ai-action", handleAiAction);
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [collegeFilter, setCollegeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");

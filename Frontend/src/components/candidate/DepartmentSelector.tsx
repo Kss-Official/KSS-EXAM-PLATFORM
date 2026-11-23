@@ -8,6 +8,29 @@ interface DepartmentSelectorProps {
   disabled?: boolean;
 }
 
+export function isNonTechnicalDepartment(d?: { name?: string; code?: string; category?: string } | null): boolean {
+  if (!d) return false;
+  if ((d.category || "").toUpperCase() === "NON_TECHNICAL") return true;
+  const code = (d.code || "").toUpperCase().trim();
+  const name = (d.name || "").toLowerCase().trim();
+  const nonTechCodes = ["HR", "HR_2", "HR_DEPT", "SALES", "SALES_MKT", "MKT", "NON_TECH", "MGMT", "FIN", "FINANCE", "OPS"];
+  if (nonTechCodes.includes(code)) return true;
+  if (
+    name === "hr" ||
+    name.startsWith("hr ") ||
+    name.endsWith(" hr") ||
+    name.includes("human resource") ||
+    name.includes("sales") ||
+    name.includes("marketing") ||
+    name.includes("management") ||
+    name.includes("non-technical") ||
+    name.includes("non technical")
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export const FALLBACK_DEPARTMENTS: DepartmentDto[] = [
   { id: 3, name: "Computer Science & Engineering (CSE)", code: "CSE", category: "TECHNICAL", active: true },
   { id: 19, name: "Information Science & Engineering (ISE)", code: "ISE", category: "TECHNICAL", active: true },
@@ -15,7 +38,9 @@ export const FALLBACK_DEPARTMENTS: DepartmentDto[] = [
   { id: 4, name: "Information Technology (IT)", code: "IT", category: "TECHNICAL", active: true },
   { id: 17, name: "AI & Machine Learning (CSE-AIML)", code: "CSE-AIML", category: "TECHNICAL", active: true },
   { id: 22, name: "Data Science (CSE-DS)", code: "CSE-DS", category: "TECHNICAL", active: true },
-  { id: 18, name: "IoT & Cyber Security (CSE-IOT)", code: "CSE-IOT", category: "TECHNICAL", active: true }
+  { id: 18, name: "IoT & Cyber Security (CSE-IOT)", code: "CSE-IOT", category: "TECHNICAL", active: true },
+  { id: 32, name: "HR", code: "HR", category: "NON_TECHNICAL", active: true },
+  { id: 13, name: "Sales & Marketing", code: "SALES_MKT", category: "NON_TECHNICAL", active: true }
 ];
 
 export default function DepartmentSelector({
@@ -45,14 +70,15 @@ export default function DepartmentSelector({
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selectedName = e.target.value;
     const matched = departments.find(d => d.name === selectedName);
-    const cat = matched 
-      ? ((matched.category || "").toUpperCase() === "NON_TECHNICAL" ? "NON_TECHNICAL" : "TECHNICAL") 
-      : undefined;
+    const isNonTech = matched 
+      ? isNonTechnicalDepartment(matched)
+      : isNonTechnicalDepartment({ name: selectedName });
+    const cat = isNonTech ? "NON_TECHNICAL" : "TECHNICAL";
     onChange(selectedName, matched ? matched.id : undefined, cat);
   };
 
-  const technicalDepts = departments.filter(d => (d.category || "").toUpperCase() !== "NON_TECHNICAL");
-  const nonTechnicalDepts = departments.filter(d => (d.category || "").toUpperCase() === "NON_TECHNICAL");
+  const technicalDepts = departments.filter(d => !isNonTechnicalDepartment(d));
+  const nonTechnicalDepts = departments.filter(d => isNonTechnicalDepartment(d));
 
   return (
     <div className="dept-field-wrapper">

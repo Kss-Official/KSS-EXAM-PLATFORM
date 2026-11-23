@@ -577,6 +577,7 @@ export default function CreateExamPage() {
             const createdDept = await createDepartment({
               name: sub.name,
               code: sub.code,
+              category: sub.category,
               description: sub.description,
               active: true
             });

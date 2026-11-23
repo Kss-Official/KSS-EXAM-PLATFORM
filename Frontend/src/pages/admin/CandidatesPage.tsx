@@ -8,6 +8,7 @@ import {
   Users,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
   Info,
   ArrowUpDown,
   ArrowUp,
@@ -671,6 +672,54 @@ export default function CandidatesPage() {
     };
   }, [hasMore, loading, loadingMore, loadMoreCandidates]);
 
+  // 🧠 Listen to AI Copilot client action bus to dynamically filter & control the live webpage
+  useEffect(() => {
+    const handleAiAction = (event: Event) => {
+      const detail = (event as CustomEvent<any>).detail;
+      if (!detail) return;
+
+      if (detail.action === "SET_CANDIDATE_FILTER") {
+        if (detail.date) {
+          const dLower = String(detail.date).toLowerCase();
+          if (dLower === "today") setSelectedDate(todayIst);
+          else if (dLower === "yesterday") setSelectedDate(yesterdayIst);
+          else if (dLower === "all") setSelectedDate("ALL");
+          else setSelectedDate(detail.date);
+        }
+        if (detail.slot) {
+          const sLower = String(detail.slot).toLowerCase();
+          if (sLower === "all") setBatchFilter("ALL");
+          else if (sLower.includes("slot 1") || sLower === "1") setBatchFilter("Slot 1");
+          else if (sLower.includes("slot 2") || sLower === "2") setBatchFilter("Slot 2");
+          else if (sLower.includes("slot 3") || sLower === "3") setBatchFilter("Slot 3");
+          else setBatchFilter(detail.slot);
+        }
+        if (detail.status) {
+          const s = String(detail.status).toUpperCase();
+          if (["ALL", "COMPLETED", "GOING ON", "PENDING"].includes(s)) {
+            setStatusFilter(s);
+          }
+        }
+        if (detail.search) {
+          setSearchTerm(detail.search);
+        }
+      }
+
+      if (detail.action === "OPEN_MODAL") {
+        if (detail.modal === "add_document" || detail.modal === "csv") {
+          setIsCsvModalOpen(true);
+        }
+      }
+
+      if (detail.action === "SEARCH" && detail.search) {
+        setSearchTerm(detail.search);
+      }
+    };
+
+    window.addEventListener("examsecure:ai-action", handleAiAction);
+    return () => window.removeEventListener("examsecure:ai-action", handleAiAction);
+  }, [todayIst, yesterdayIst]);
+
   // Format status badge
   const formatStatus = (rawStatus?: string) => {
     const s = (rawStatus || "").toUpperCase().replace(/_/g, " ");
@@ -838,19 +887,15 @@ export default function CandidatesPage() {
         setBatchFilter("ALL");
       }
 
-      // Prepend to visible table list immediately
       setCandidates(prev => [created, ...prev.filter(c => c.id !== created.id)]);
       setTotalCandidates(prev => prev + 1);
-
       setNotice({
         text: `Candidate ${created.fullName} (${created.registrationNumber}) registered successfully for ${targetDate} under ${newBatch || "Unassigned"}.`,
         type: "success"
       });
-
       loadAvailableDates();
       refreshSlotCounts(targetDate);
 
-      // Close modal and reset form ONLY on success
       setIsNewModalOpen(false);
       setNewRegNum("");
       setNewName("");
@@ -879,9 +924,13 @@ export default function CandidatesPage() {
       const targetDate = csvExamDate.trim() || todayIst;
       const targetBatch = csvBatch.trim() || "Slot 1";
       const res = await uploadCandidatesCsv(csvFile, targetDate, csvExamId, targetBatch);
+      const isSuccess = res.totalImported > 0;
+      const errorSummary = res.errors && res.errors.length > 0 ? ` (${res.errors.length} skipped)` : "";
       setNotice({
-        text: `Roster processed successfully. Imported ${res.totalImported} candidates for ${targetDate} into ${targetBatch}.`,
-        type: "success"
+        text: isSuccess
+          ? `Roster processed successfully. ${res.totalImported} candidates scheduled for ${targetDate} into ${targetBatch}${errorSummary}.`
+          : `No candidates imported from document.${res.errors && res.errors.length ? ` Reasons: ${res.errors.slice(0, 3).join("; ")}` : ""}`,
+        type: isSuccess ? "success" : "error"
       });
       setIsCsvModalOpen(false);
       setCsvFile(null);
@@ -1103,7 +1152,6 @@ export default function CandidatesPage() {
             className="primary" 
             onClick={() => {
               setNewExamDate(selectedDate !== "ALL" ? selectedDate : todayIst);
-              setNewModalError(null);
               setIsNewModalOpen(true);
             }}
             style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}
@@ -2659,53 +2707,41 @@ export default function CandidatesPage() {
                 type="button" 
                 disabled={isCreatingCandidate}
                 onClick={() => setIsNewModalOpen(false)} 
-                style={{ background: "none", border: "none", cursor: isCreatingCandidate ? "not-allowed" : "pointer", fontSize: "16px", color: "#64748b" }}
+                style={{ background: "none", border: "none", cursor: "pointer", opacity: isCreatingCandidate ? 0.4 : 1 }}
               >
                 ✕
               </button>
             </div>
 
             {newModalError && (
-              <div style={{
-                padding: "10px 12px",
+              <div style={{ 
+                background: "#fef2f2", 
+                border: "1px solid #fecaca", 
+                borderRadius: "6px", 
+                padding: "8px 12px", 
+                color: "#dc2626", 
+                fontSize: "12px", 
                 marginBottom: "12px",
-                backgroundColor: "#fef2f2",
-                border: "1px solid #f87171",
-                borderRadius: "6px",
-                color: "#991b1b",
-                fontSize: "12.5px",
                 display: "flex",
                 alignItems: "center",
-                gap: "8px"
+                gap: "6px"
               }}>
-                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <AlertTriangle size={14} style={{ flexShrink: 0 }} />
                 <span>{newModalError}</span>
               </div>
             )}
 
             <form onSubmit={handleCreateCandidate} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
               <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "4px" }}>
-                  <label style={{ fontSize: "12px", fontWeight: 600 }}>Register No. / SL. No.</label>
-                  <button 
-                    type="button" 
-                    onClick={() => setNewRegNum(`REG-${Date.now().toString().slice(-6)}`)}
-                    style={{ background: "none", border: "none", color: "#017846", fontSize: "11px", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
-                  >
-                    ⚡ Auto-Generate
-                  </button>
-                </div>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Register No. / SL. No. (Optional)</label>
                 <input 
                   type="text" 
-                  placeholder="e.g. REG-101 or leave blank to auto-generate" 
+                  placeholder="e.g. 1, 2, ... or leave empty to auto-generate" 
                   value={newRegNum} 
-                  onChange={e => setNewRegNum(e.target.value)} 
                   disabled={isCreatingCandidate}
+                  onChange={e => setNewRegNum(e.target.value)} 
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
                 />
-                <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
-                  Must be unique across all candidates. Leave blank to auto-generate.
-                </small>
               </div>
               <div>
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Full Name *</label>
@@ -2713,9 +2749,9 @@ export default function CandidatesPage() {
                   type="text" 
                   placeholder="e.g. Aarav Sharma" 
                   value={newName} 
+                  disabled={isCreatingCandidate}
                   onChange={e => setNewName(e.target.value)} 
                   required 
-                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
                 />
               </div>
@@ -2725,9 +2761,9 @@ export default function CandidatesPage() {
                   type="email" 
                   placeholder="e.g. aarav@campus.edu" 
                   value={newEmail} 
+                  disabled={isCreatingCandidate}
                   onChange={e => setNewEmail(e.target.value)} 
                   required 
-                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
                 />
               </div>
@@ -2765,8 +2801,8 @@ export default function CandidatesPage() {
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Academic Department / Specialization Track</label>
                 <select 
                   value={newDeptId || ""} 
-                  onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} 
                   disabled={isCreatingCandidate}
+                  onChange={e => setNewDeptId(e.target.value ? Number(e.target.value) : undefined)} 
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
                   <option value="">-- Select Department Track (Optional) --</option>
@@ -2779,8 +2815,8 @@ export default function CandidatesPage() {
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Assigned Examination</label>
                 <select 
                   value={newExamId || ""} 
-                  onChange={e => setNewExamId(e.target.value ? Number(e.target.value) : undefined)} 
                   disabled={isCreatingCandidate}
+                  onChange={e => setNewExamId(e.target.value ? Number(e.target.value) : undefined)} 
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
                   <option value="">-- Auto-Assign (Based on Department) --</option>
@@ -2799,9 +2835,9 @@ export default function CandidatesPage() {
                 <input 
                   type="date" 
                   value={newExamDate} 
+                  disabled={isCreatingCandidate}
                   onChange={e => setNewExamDate(e.target.value)} 
                   required 
-                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }} 
                 />
                 <small style={{ color: "#64748b", fontSize: "11px", display: "block", marginTop: "3px" }}>
@@ -2812,9 +2848,9 @@ export default function CandidatesPage() {
                 <label style={{ fontSize: "12px", fontWeight: 600 }}>Exam Slot / Batch *</label>
                 <select 
                   value={newBatch} 
+                  disabled={isCreatingCandidate}
                   onChange={e => setNewBatch(e.target.value)} 
                   required 
-                  disabled={isCreatingCandidate}
                   style={{ width: "100%", padding: "8px", border: "1px solid #cbd5e1", borderRadius: "6px" }}
                 >
                   <option value="Slot 1">🕒 Slot 1 ({s1ActiveStart} - {s1ActiveCutoff} Entry Cutoff)</option>
@@ -2864,9 +2900,21 @@ export default function CandidatesPage() {
             <p style={{ fontSize: "12px", color: "#334155", margin: "0 0 6px 0", fontWeight: 600 }}>
               Supported Formats: PDF, DOCS, Word (.doc, .docx), Spreadsheets (.xlsx, .xls, .csv)
             </p>
-            <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 14px 0" }}>
+            <p style={{ fontSize: "11.5px", color: "#64748b", margin: "0 0 10px 0" }}>
               Expected columns: <code>SL.No / RegNumber, FullName, Email, [CollegeCode], [Slot/Batch]</code>
             </p>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", background: "#f0fdf4", padding: "8px 12px", borderRadius: "6px", border: "1px solid #bbf7d0" }}>
+              <span style={{ fontSize: "11.5px", color: "#166534", fontWeight: 600 }}>
+                Need the standardized client template?
+              </span>
+              <a 
+                href="/Candidate_Import_Template.xlsx" 
+                download="Candidate_Import_Template.xlsx"
+                style={{ fontSize: "11.5px", color: "#017846", fontWeight: 700, textDecoration: "underline", display: "inline-flex", alignItems: "center", gap: "4px" }}
+              >
+                📥 Download Excel Template (.xlsx)
+              </a>
+            </div>
             <div style={{ marginBottom: "14px", background: "#f8fafc", padding: "10px 12px", borderRadius: "8px", border: "1px solid #e2e8f0" }}>
               <label style={{ fontSize: "12px", fontWeight: 700, display: "block", marginBottom: "4px", color: "#1e293b" }}>
                 Scheduled Exam Date for Imported Candidates *

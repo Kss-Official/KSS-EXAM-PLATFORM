@@ -1346,3 +1346,32 @@ export function setAdminCredentials(_u: string, _p: string): void {}
 export function clearAdminCredentials(): void {}
 export function hasAdminCredentials(): boolean { return false; }
 
+/* 🧠 AI Copilot Assistant Service */
+export interface AIChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface AIChatRequest {
+  message: string;
+  history?: AIChatMessage[];
+  currentPage?: string;
+  currentParams?: Record<string, any>;
+}
+
+export interface AIChatResponse {
+  success: boolean;
+  reply: string;
+  client_actions: any[];
+  tool_calls: Array<{ tool: string; arguments: any; summary: string }>;
+}
+
+export async function sendAIChat(payload: AIChatRequest): Promise<AIChatResponse> {
+  return request<AIChatResponse>("admin/ai/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
+

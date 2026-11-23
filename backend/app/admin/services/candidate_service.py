@@ -2,7 +2,6 @@ import csv
 import io
 import re
 import secrets
-import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, or_, and_, text
@@ -16,7 +15,6 @@ from app.models import (
 from app.schemas import CandidateDto, CandidateAccessCodeDto, PaginatedCandidatesResponse
 from app.core import EmailService
 
-logger = logging.getLogger("ExamSecure.CandidateService")
 IST = timezone(timedelta(hours=5, minutes=30))
 
 def normalize_set_code(raw: Optional[str]) -> Optional[str]:
@@ -509,8 +507,7 @@ class CandidateService:
 
         IST = timezone(timedelta(hours=5, minutes=30))
         today_ist = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
-        cand_exam_date = dto.exam_date.strip() if getattr(dto, "exam_date", None) and dto.exam_date.strip() else today_ist
-        cand_batch = dto.batch.strip() if getattr(dto, "batch", None) and dto.batch.strip() else "Slot 1"
+        cand_exam_date = (dto.exam_date or "").strip() if getattr(dto, "exam_date", None) else today_ist
 
         c = Candidate(
             registration_number=reg_num,
@@ -519,47 +516,23 @@ class CandidateService:
             department_id=dept.id if dept else None,
             college_id=college.id if college else None,
             assigned_exam_id=getattr(dto, "assigned_exam_id", None),
-            batch=cand_batch,
+            batch=dto.batch.strip() if dto.batch else None,
             exam_date=cand_exam_date,
-            assigned_set="A",
             status="ACTIVE",
             created_at=datetime.now(timezone.utc)
         )
         db.add(c)
-        # Commit candidate creation immediately so it is permanently recorded in DB
+        db.flush()
+
+        db.add(AuditLog(
+            action="CREATE_CANDIDATE",
+            entity_type="Candidate",
+            entity_id=str(c.id),
+            performed_by=performed_by,
+            details=f"Registered candidate: {c.full_name} ({reg_num})"
+        ))
         db.commit()
         db.refresh(c)
-
-        # 1. Automatically generate active access code so candidate can log in immediately
-        try:
-            cls.generate_access_code(db, c.id, performed_by=performed_by, round_name="ROUND_1")
-        except Exception as exc:
-            logger.warning(f"Auto-generate access code for {c.id} skipped: {exc}")
-
-        # 2. Automatically assign to assigned exam or active exam if one exists
-        try:
-            target_exam_id = c.assigned_exam_id
-            if not target_exam_id:
-                active_exam = db.query(Exam).filter(Exam.status.in_(["ACTIVATED", "PUBLISHED"])).order_by(Exam.id.desc()).first()
-                if active_exam:
-                    target_exam_id = active_exam.id
-            if target_exam_id:
-                cls.assign_candidate_to_exam(db, c.id, target_exam_id, slot_id=None, set_code="A", performed_by=performed_by)
-        except Exception as exc:
-            logger.warning(f"Auto-assign candidate {c.id} to exam skipped: {exc}")
-
-        try:
-            db.add(AuditLog(
-                action="CREATE_CANDIDATE",
-                entity_type="Candidate",
-                entity_id=str(c.id),
-                performed_by=performed_by,
-                details=f"Registered candidate: {c.full_name} ({reg_num}) ready for live exam on {cand_exam_date}"
-            ))
-            db.commit()
-        except Exception:
-            pass
-
         return cls._to_dto(c)
 
     @classmethod
@@ -660,10 +633,29 @@ class CandidateService:
             try:
                 import openpyxl
                 wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                # Prioritize active/data sheet; ignore instructions or reference sheets if multiple sheets exist
+                target_sheets = []
                 for ws in wb.worksheets:
+                    t_low = ws.title.lower()
+                    if any(ign in t_low for ign in ["instruction", "guideline", "reference", "help", "readme", "allowed"]):
+                        continue
+                    target_sheets.append(ws)
+                if not target_sheets:
+                    target_sheets = [wb.worksheets[0]]
+
+                for ws in target_sheets:
                     for r in ws.iter_rows(values_only=True):
                         if any(r):
-                            rows.append([str(cell).replace('\n', ' ').strip() if cell is not None else "" for cell in r])
+                            cleaned_row = []
+                            for cell in r:
+                                if cell is None:
+                                    cleaned_row.append("")
+                                elif isinstance(cell, float) and cell.is_integer():
+                                    cleaned_row.append(str(int(cell)))
+                                else:
+                                    cleaned_row.append(str(cell).replace('\n', ' ').strip())
+                            if any(cleaned_row):
+                                rows.append(cleaned_row)
             except Exception as e:
                 raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Excel file: {e}")
 
@@ -680,7 +672,9 @@ class CandidateService:
                     for p in doc.paragraphs:
                         text_line = p.text.strip()
                         if text_line:
-                            parts = [pt.strip() for pt in re.split(r'\t+|\s{2,}', text_line) if pt.strip()]
+                            parts = [pt.strip() for pt in re.split(r'[\t|;]+|\s{2,}', text_line) if pt.strip()]
+                            if len(parts) < 2 and "," in text_line and "@" in text_line:
+                                parts = [pt.strip() for pt in text_line.split(",") if pt.strip()]
                             rows.append(parts if len(parts) >= 2 else [text_line])
             except Exception as e:
                 try:
@@ -690,7 +684,9 @@ class CandidateService:
                     lines = re.split(r'[\r\n]+', raw_text)
                     for line in lines:
                         if "@" in line:
-                            parts = [pt.strip() for pt in re.split(r'\t+|\s{2,}', line.strip()) if pt.strip()]
+                            parts = [pt.strip() for pt in re.split(r'[\t|;]+|\s{2,}', line.strip()) if pt.strip()]
+                            if len(parts) < 2 and "," in line:
+                                parts = [pt.strip() for pt in line.split(",") if pt.strip()]
                             rows.append(parts if len(parts) >= 2 else [line.strip()])
                 except Exception:
                     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse Word document: {e}")
@@ -772,26 +768,41 @@ class CandidateService:
                 rows = [[str(c).replace('\n', ' ').strip() for c in r] for r in reader if any(r)]
 
         created_list: List[CandidateDto] = []
+        updated_list: List[CandidateDto] = []
         errors: List[str] = []
 
-        # Pre-cache existing registration numbers, emails, and departments
-        existing_regs = {r[0].upper() for r in db.query(Candidate.registration_number).all() if r[0]}
-        existing_emails = {e[0].lower() for e in db.query(Candidate.email).all() if e[0]}
-        dept_map = {d.code.upper(): d.id for d in db.query(Department).all() if d.code}
+        # Pre-cache existing registration numbers, emails, colleges, and departments
+        existing_cands_by_email = {c.email.lower(): c for c in db.query(Candidate).all() if c.email}
+        existing_regs = {c.registration_number.upper() for c in db.query(Candidate).all() if c.registration_number}
+
+        dept_map = {}
+        for d in db.query(Department).all():
+            if d.code:
+                dept_map[d.code.upper()] = d.id
+            if d.name:
+                dept_map[d.name.upper()] = d.id
+
+        college_cache = {}
+        for col in db.query(College).all():
+            if col.name:
+                college_cache[col.name.upper()] = col
+            if col.code:
+                college_cache[col.code.upper()] = col
 
         default_batch = (batch or "").strip() or "Slot 1"
 
-        # Detect Header Row in top 15 rows
-        reg_idx, name_idx, email_idx, college_idx, slot_idx = None, None, None, None, None
+        # Detect Header Row in top 20 rows
+        reg_idx, name_idx, email_idx, college_idx, dept_idx, slot_idx = None, None, None, None, None, None
         header_row_idx = -1
 
-        for idx, r in enumerate(rows[:15]):
-            if len(r) < 3:
+        for idx, r in enumerate(rows[:20]):
+            non_empty_cells = [str(c).strip() for c in r if str(c).strip()]
+            if len(non_empty_cells) < 3:
                 continue
-            r_clean = [re.sub(r'\s+', ' ', cell.lower().strip()) for cell in r]
+            r_clean = [re.sub(r'\s+', ' ', str(cell).lower().strip()) for cell in r]
             has_email = any("email" in c or "e-mail" in c or "mail" in c for c in r_clean)
-            has_name = any("name" in c and "institute" not in c and "college" not in c for c in r_clean)
-            has_reg = any("reg" in c or "sl" in c or "s.no" in c or "roll" in c or "id" in c for c in r_clean)
+            has_name = any(("candidate name" in c or "full name" in c or "student name" in c or c == "name") and "institute" not in c and "college" not in c for c in r_clean)
+            has_reg = any(any(kw in c for kw in ["reg", "sl.no", "sl no", "s.no", "roll", "serial"]) for c in r_clean)
 
             if has_email or (has_name and has_reg):
                 header_row_idx = idx
@@ -800,20 +811,39 @@ class CandidateService:
                         email_idx = c_idx
                     elif ("candidate name" in cell or "full name" in cell or "student name" in cell or ("name" in cell and "institute" not in cell and "college" not in cell)) and name_idx is None:
                         name_idx = c_idx
-                    elif ("sl" in cell or "s.no" in cell or "reg" in cell or "roll" in cell or "serial" in cell) and reg_idx is None:
+                    elif any(kw in cell for kw in ["reg", "sl.no", "sl no", "s.no", "roll", "serial", "usn", "enrollment", "id"]) and reg_idx is None and "mail" not in cell and "valid" not in cell:
                         reg_idx = c_idx
-                    elif ("institute" in cell or "college" in cell or "dept" in cell or "department" in cell or "branch" in cell) and college_idx is None:
+                    elif any(kw in cell for kw in ["institute", "college", "university", "campus", "school"]) and college_idx is None:
                         college_idx = c_idx
+                    elif any(kw in cell for kw in ["subject", "stream", "department", "dept", "branch", "specialization", "position", "track", "course", "program"]) and dept_idx is None:
+                        dept_idx = c_idx
                     elif ("slot" in cell or "batch" in cell or "shift" in cell) and slot_idx is None:
                         slot_idx = c_idx
                 if email_idx is not None:
                     break
 
-        email_regex = re.compile(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+')
-        college_keywords = ["COLLEGE", "INSTITUTE", "ENGINEERING", "TECHNOLOGY", "UNIVERSITY", "POLYTECHNIC"]
         start_idx = header_row_idx + 1 if header_row_idx >= 0 else 0
 
+        today_str = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
+        raw_date = (exam_date or "").strip()
+        cand_exam_date = today_str
+        if raw_date:
+            if re.match(r'^\d{4}-\d{2}-\d{2}$', raw_date):
+                cand_exam_date = raw_date
+            else:
+                d_parts = re.split(r'[/.-]', raw_date)
+                if len(d_parts) == 3:
+                    try:
+                        if len(d_parts[0]) == 4:
+                            cand_exam_date = f"{int(d_parts[0]):04d}-{int(d_parts[1]):02d}-{int(d_parts[2]):02d}"
+                        elif len(d_parts[2]) == 4:
+                            p0, p1, y = int(d_parts[0]), int(d_parts[1]), int(d_parts[2])
+                            cand_exam_date = f"{y:04d}-{p1:02d}-{p0:02d}" if p0 > 12 else f"{y:04d}-{p0:02d}-{p1:02d}"
+                    except Exception:
+                        cand_exam_date = today_str
+
         new_candidates = []
+        seen_file_emails = set()
         line_num = 0
 
         for r in rows[start_idx:]:
@@ -821,231 +851,205 @@ class CandidateService:
             if not r or all(not str(col).strip() for col in r):
                 continue
 
-            # Case A: Single concatenated line from word clustering or OCR text
-            if len(r) == 1 or (len(r) < 3 and '@' in r[0]):
-                line = ' '.join(r) if len(r) > 1 else r[0]
+            email = None
+            full_name = None
+            reg_num = None
+            college_name = None
+            dept_name = None
+            row_slot = None
+
+            if len(r) == 1 or (len(r) < 3 and '@' in str(r[0])):
+                line = ' '.join(r) if len(r) > 1 else str(r[0])
                 m = email_regex.search(line)
                 if not m:
                     continue
                 email = m.group(0).lower()
-
-                left_part = line[:m.start()].strip()
-                right_part = line[m.end():].strip()
-                college_or_dept = right_part if right_part else None
+                left_part = line[:m.start()].strip(' ,|-')
+                right_part = line[m.end():].strip(' ,|-')
 
                 left_tokens = left_part.split()
                 if len(left_tokens) >= 2:
-                    first_tok = left_tokens[0]
+                    first_tok = left_tokens[0].rstrip('.,-')
                     if any(ch.isdigit() for ch in first_tok) or first_tok.upper().startswith(('REG', 'SL', 'ID', 'NO')):
                         reg_num = first_tok.upper()
-                        full_name = ' '.join(left_tokens[1:])
+                        full_name = ' '.join(left_tokens[1:]).strip(' ,|-')
                     else:
-                        reg_num = str(len(new_candidates) + 1)
                         full_name = left_part
                 elif len(left_tokens) == 1:
                     full_name = left_tokens[0]
-                    reg_num = str(len(new_candidates) + 1)
                 else:
                     full_name = email.split('@')[0].replace('.', ' ').title()
-                    reg_num = str(len(new_candidates) + 1)
 
-                # Check if line explicitly mentions a Slot
-                line_lower = line.lower()
-                if "slot 1" in line_lower or "slot-1" in line_lower:
-                    row_slot = "Slot 1"
-                elif "slot 2" in line_lower or "slot-2" in line_lower:
-                    row_slot = "Slot 2"
-                elif "slot 3" in line_lower or "slot-3" in line_lower:
-                    row_slot = "Slot 3"
-                else:
-                    row_slot = default_batch
-
-            # Case B: Multi-column row (from Excel, CSV, or PDF table)
+                if right_part:
+                    dept_name = right_part
+                row_slot = default_batch
             else:
-                email = None
-                if email_idx is not None and email_idx < len(r) and "@" in r[email_idx]:
-                    m = email_regex.search(r[email_idx])
+                # Multi-column row
+                if email_idx is not None and email_idx < len(r) and "@" in str(r[email_idx]):
+                    m = email_regex.search(str(r[email_idx]))
                     if m:
                         email = m.group(0).lower()
                 if not email:
                     for cell in r:
-                        if "@" in cell:
-                            m = email_regex.search(cell)
+                        if "@" in str(cell):
+                            m = email_regex.search(str(cell))
                             if m:
                                 email = m.group(0).lower()
                                 break
-
                 if not email:
                     continue
 
                 # Extract Name
-                full_name = None
                 if name_idx is not None and name_idx < len(r) and r[name_idx]:
-                    val = r[name_idx].strip()
-                    if "@" not in val and not val.isdigit() and len(val) >= 2:
-                        full_name = val
+                    val = str(r[name_idx]).strip()
+                    if "@" not in val and not val.replace('.', '').isdigit() and len(val) >= 2:
+                        full_name = val.strip(' ,|-')
                 if not full_name:
-                    for cell in r:
-                        c_clean = cell.strip()
-                        if c_clean and "@" not in c_clean and not c_clean.isdigit() and len(c_clean) >= 2:
+                    for c_idx, cell in enumerate(r):
+                        c_clean = str(cell).strip()
+                        if c_clean and "@" not in c_clean and not c_clean.replace('.', '').isdigit() and len(c_clean) >= 2:
                             c_up = c_clean.upper()
-                            if not any(kw in c_up for kw in college_keywords + ["MALE", "FEMALE"]):
-                                full_name = c_clean
+                            if not any(kw in c_up for kw in ["MALE", "FEMALE", "B.TECH", "MCA", "BCA", "M.TECH", "DRIVE.GOOGLE"]):
+                                full_name = c_clean.strip(' ,|-')
                                 break
                 if not full_name:
                     full_name = email.split("@")[0].replace(".", " ").title()
 
                 # Extract Reg / Sl. No
-                reg_num = None
                 if reg_idx is not None and reg_idx < len(r) and r[reg_idx]:
-                    reg_num = r[reg_idx].strip().upper()
-                if not reg_num:
-                    for cell in r:
-                        c_clean = cell.strip()
-                        if c_clean and (c_clean.isdigit() or c_clean.upper().startswith("REG")):
-                            reg_num = c_clean.upper()
-                            break
-                if not reg_num:
-                    reg_num = str(len(new_candidates) + 1)
+                    val = str(r[reg_idx]).strip().upper()
+                    if val and val.lower() not in ["none", "n/a", "null", "-"]:
+                        reg_num = val
 
-                # Extract College / Department
-                college_or_dept = None
+                # Extract College
                 if college_idx is not None and college_idx < len(r) and r[college_idx]:
-                    college_or_dept = r[college_idx].strip()
-                if not college_or_dept:
-                    for cell in r:
-                        c_clean = cell.strip()
-                        c_up = c_clean.upper()
-                        if any(kw in c_up for kw in college_keywords):
-                            college_or_dept = c_clean
-                            break
+                    val = str(r[college_idx]).strip()
+                    if val and val.lower() not in ["none", "n/a", "null", "-"]:
+                        college_name = val
 
-                # Extract Slot / Batch if present in row
-                row_slot = None
+                # Extract Department / Stream / Position
+                if dept_idx is not None and dept_idx < len(r) and r[dept_idx]:
+                    val = str(r[dept_idx]).strip()
+                    if val and val.lower() not in ["none", "n/a", "null", "-"]:
+                        dept_name = val
+
+                # Extract Slot
                 if slot_idx is not None and slot_idx < len(r) and r[slot_idx]:
-                    val = r[slot_idx].strip()
+                    val = str(r[slot_idx]).strip()
                     v_low = val.lower()
-                    if "slot 1" in v_low or v_low == "slot1":
-                        row_slot = "Slot 1"
-                    elif "slot 2" in v_low or v_low == "slot2":
-                        row_slot = "Slot 2"
-                    elif "slot 3" in v_low or v_low == "slot3":
-                        row_slot = "Slot 3"
-                    elif val:
-                        row_slot = val
-
-                if not row_slot:
-                    for cell in r:
-                        c_low = cell.strip().lower()
-                        if c_low in ("slot 1", "slot-1", "slot1"):
-                            row_slot = "Slot 1"
-                            break
-                        elif c_low in ("slot 2", "slot-2", "slot2"):
-                            row_slot = "Slot 2"
-                            break
-                        elif c_low in ("slot 3", "slot-3", "slot3"):
-                            row_slot = "Slot 3"
-                            break
+                    if "slot 1" in v_low or v_low == "slot1": row_slot = "Slot 1"
+                    elif "slot 2" in v_low or v_low == "slot2": row_slot = "Slot 2"
+                    elif "slot 3" in v_low or v_low == "slot3": row_slot = "Slot 3"
+                    elif val: row_slot = val
 
                 if not row_slot:
                     row_slot = default_batch
 
-            if reg_num in existing_regs:
-                errors.append(f"Line {line_num}: Registration number '{reg_num}' is already in use.")
+            # Deduplicate within file (latest row wins)
+            if email in seen_file_emails:
                 continue
+            seen_file_emails.add(email)
 
-            if email in existing_emails:
-                errors.append(f"Line {line_num}: Email '{email}' is already in use.")
-                continue
-
-            # Resolve Department or College Name
-            dept_id = None
+            # Resolve College
             college_id = None
-            if college_or_dept:
-                clean_cd = college_or_dept.strip()
-                # Check College table
-                existing_college = db.query(College).filter(func.lower(College.name) == clean_cd.lower()).first()
-                if not existing_college:
-                    existing_college = db.query(College).filter(func.lower(College.code) == clean_cd.lower()).first()
-                if existing_college:
-                    college_id = existing_college.id
-                elif any(kw in clean_cd.upper() for kw in college_keywords):
-                    code_cand = "".join(p[0] for p in clean_cd.split())[:8].upper()
-                    code_cand = "".join(ch for ch in code_cand if ch.isalnum() or ch == "_") or "CLG"
-                    if db.query(College).filter(College.code == code_cand).first():
-                        code_cand = f"{code_cand[:5]}_{abs(hash(clean_cd)) % 1000}"
-                    new_col = College(name=clean_cd, code=code_cand, active=True, created_at=datetime.now(timezone.utc))
+            resolved_col_code = "SVU"
+            if college_name:
+                c_clean = college_name.strip()
+                c_up = c_clean.upper()
+                if c_up in college_cache:
+                    col_obj = college_cache[c_up]
+                    college_id = col_obj.id
+                    resolved_col_code = col_obj.code or c_clean[:6].upper()
+                else:
+                    code_cand = "".join(p[0] for p in c_clean.split())[:8].upper()
+                    code_cand = "".join(ch for ch in code_cand if ch.isalnum() or ch == "_") or c_clean[:6].upper()
+                    if code_cand in college_cache:
+                        code_cand = f"{code_cand[:4]}_{len(college_cache)+1}"
+                    new_col = College(name=c_clean, code=code_cand, active=True, created_at=datetime.now(timezone.utc))
                     db.add(new_col)
-                    db.commit()
-                    db.refresh(new_col)
+                    db.flush()
                     college_id = new_col.id
+                    resolved_col_code = code_cand
+                    college_cache[c_up] = new_col
+                    college_cache[code_cand.upper()] = new_col
 
-                # Resolve Department
-                if clean_cd.upper() in dept_map:
-                    dept_id = dept_map[clean_cd.upper()]
+            # Resolve Department
+            dept_id = None
+            if dept_name:
+                d_clean = dept_name.strip()
+                d_up = d_clean.upper()
+                if d_up in dept_map:
+                    dept_id = dept_map[d_up]
                 else:
-                    existing_dept = db.query(Department).filter(func.lower(Department.name) == clean_cd.lower()).first()
-                    if existing_dept:
-                        dept_id = existing_dept.id
-                    elif not college_id:
-                        new_dept = Department(
-                            name=clean_cd,
-                            code=re.sub(r'[^A-Z0-9]', '', clean_cd.upper())[:10] or "COLLEGE",
-                            description=f"College: {clean_cd}",
-                            active=True
-                        )
-                        db.add(new_dept)
-                        db.commit()
-                        db.refresh(new_dept)
-                        dept_id = new_dept.id
-                        dept_map[new_dept.code.upper()] = dept_id
-
-            today_str = datetime.now(timezone.utc).astimezone(IST).strftime("%Y-%m-%d")
-            raw_date = (exam_date or "").strip()
-            if raw_date:
-                # Robustly normalize any date format (YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY) to YYYY-MM-DD
-                if re.match(r'^\d{4}-\d{2}-\d{2}$', raw_date):
-                    cand_exam_date = raw_date
-                else:
-                    d_parts = re.split(r'[/.-]', raw_date)
-                    if len(d_parts) == 3:
-                        try:
-                            if len(d_parts[0]) == 4:
-                                cand_exam_date = f"{int(d_parts[0]):04d}-{int(d_parts[1]):02d}-{int(d_parts[2]):02d}"
-                            elif len(d_parts[2]) == 4:
-                                p0, p1, y = int(d_parts[0]), int(d_parts[1]), int(d_parts[2])
-                                if p0 > 12:
-                                    cand_exam_date = f"{y:04d}-{p1:02d}-{p0:02d}"
-                                else:
-                                    cand_exam_date = f"{y:04d}-{p0:02d}-{p1:02d}"
-                            else:
-                                cand_exam_date = raw_date
-                        except Exception:
-                            cand_exam_date = raw_date
+                    matched_id = None
+                    for existing_name, eid in dept_map.items():
+                        if d_up in existing_name or existing_name in d_up:
+                            matched_id = eid
+                            break
+                    if matched_id:
+                        dept_id = matched_id
                     else:
-                        cand_exam_date = raw_date
-            else:
-                cand_exam_date = today_str
-            c = Candidate(
-                registration_number=reg_num,
-                full_name=full_name,
-                email=email,
-                department_id=dept_id,
-                college_id=college_id,
-                assigned_exam_id=exam_id,
-                batch=row_slot,
-                exam_date=cand_exam_date,
-                status="ACTIVE",
-                created_at=datetime.now(timezone.utc)
-            )
-            new_candidates.append(c)
-            existing_regs.add(reg_num)
-            existing_emails.add(email)
+                        d_code = re.sub(r'[^A-Z0-9]', '', d_up)[:10] or "DEPT"
+                        new_dept = Department(name=d_clean, code=d_code, description=d_clean, active=True)
+                        db.add(new_dept)
+                        db.flush()
+                        dept_id = new_dept.id
+                        dept_map[d_up] = dept_id
+                        dept_map[d_code] = dept_id
 
-        if new_candidates:
-            db.add_all(new_candidates)
+            # Generate collision-proof registration number if absent or conflicting
+            current_year = datetime.now().year
+            seq_num = len(existing_regs) + len(new_candidates) + 1
+            if not reg_num or reg_num.lower() in ["none", "null", "n/a", "-", ""]:
+                reg_num = f"{resolved_col_code}-{current_year}-{seq_num:03d}"
+
+            # If reg_num is already in use by a different email, make it unique
+            if reg_num in existing_regs and (email not in existing_cands_by_email or existing_cands_by_email[email].registration_number.upper() != reg_num):
+                suffix = 1
+                base_reg = reg_num
+                while f"{base_reg}-{suffix}" in existing_regs:
+                    suffix += 1
+                reg_num = f"{base_reg}-{suffix}"
+
+            # UPSERT: Update existing candidate or insert new candidate
+            if email in existing_cands_by_email:
+                cand = existing_cands_by_email[email]
+                cand.exam_date = cand_exam_date
+                cand.batch = row_slot
+                if exam_id is not None:
+                    cand.assigned_exam_id = exam_id
+                if college_id and not cand.college_id:
+                    cand.college_id = college_id
+                if dept_id and not cand.department_id:
+                    cand.department_id = dept_id
+                if full_name and len(full_name) > len(cand.full_name or ""):
+                    cand.full_name = full_name
+                cand.status = "ACTIVE"
+                updated_list.append(cand)
+            else:
+                cand = Candidate(
+                    registration_number=reg_num,
+                    full_name=full_name,
+                    email=email,
+                    department_id=dept_id,
+                    college_id=college_id,
+                    assigned_exam_id=exam_id,
+                    batch=row_slot,
+                    exam_date=cand_exam_date,
+                    status="ACTIVE",
+                    created_at=datetime.now(timezone.utc)
+                )
+                db.add(cand)
+                new_candidates.append(cand)
+                existing_cands_by_email[email] = cand
+                existing_regs.add(reg_num)
+
+        if new_candidates or updated_list:
             db.commit()
             for cand in new_candidates:
+                db.refresh(cand)
+                created_list.append(cls._to_dto(cand))
+            for cand in updated_list:
                 db.refresh(cand)
                 created_list.append(cls._to_dto(cand))
 
@@ -1054,13 +1058,15 @@ class CandidateService:
                 entity_type="Candidate",
                 entity_id="BATCH",
                 performed_by=performed_by,
-                details=f"Batch imported {len(new_candidates)} candidates via document (Slot: {default_batch}, Date: {cand_exam_date})"
+                details=f"Batch processed {len(created_list)} candidates (Created: {len(new_candidates)}, Rescheduled/Updated: {len(updated_list)}, Slot: {default_batch}, Date: {cand_exam_date})"
             ))
             db.commit()
 
         return {
             "success": True,
             "totalImported": len(created_list),
+            "createdCount": len(new_candidates),
+            "updatedCount": len(updated_list),
             "errorsCount": len(errors),
             "errors": errors,
             "candidates": [c.model_dump(by_alias=True) for c in created_list]
@@ -1110,15 +1116,6 @@ class CandidateService:
         slot = None
         if slot_id:
             slot = db.query(ExamSlot).filter(ExamSlot.id == slot_id).first()
-
-        # Auto-populate exam_date on the candidate from the exam's scheduled start time (IST)
-        # so the slot time-gate check doesn't block them on the day of the exam.
-        if not candidate.exam_date and exam.scheduled_start_time:
-            from datetime import timezone as _tz, timedelta as _td
-            IST = _tz(timedelta(hours=5, minutes=30))
-            exam_date_ist = exam.scheduled_start_time.astimezone(IST).strftime("%Y-%m-%d")
-            candidate.exam_date = exam_date_ist
-            db.flush()
 
         try:
             attempt = ExamAttempt(
