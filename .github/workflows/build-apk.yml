@@ -1,0 +1,49 @@
+name: Build ExamSecure Android APK
+
+on:
+  push:
+    branches: [ Akash, main ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: ExamSecureMobile/package-lock.json
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        working-directory: ExamSecureMobile
+        run: |
+          npm ci
+
+      - name: Build Android Release APK
+        working-directory: ExamSecureMobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --stacktrace
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExamSecure-Release-APK
+          path: ExamSecureMobile/android/app/build/outputs/apk/release/*.apk
+          retention-days: 30
