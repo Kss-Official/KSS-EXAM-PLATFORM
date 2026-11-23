@@ -26,6 +26,7 @@ import {
 import { useRouter, Link } from "../../router";
 import type { AdminDashboardResponse } from "../../types";
 import { logoutAdmin, type AuthUser } from "../../services/api";
+import AICopilotWidget from "./AICopilotWidget";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -633,6 +634,9 @@ export default function AdminLayout({
         <main className="admin-content" ref={contentRef}>
           {children}
         </main>
+
+        {/* 🧠 Enterprise AI Assistant Copilot */}
+        <AICopilotWidget />
       </div>
     </div>
   );

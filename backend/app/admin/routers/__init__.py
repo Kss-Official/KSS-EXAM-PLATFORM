@@ -6,6 +6,7 @@ from app.admin.routers.exams import router as exams_router
 from app.admin.routers.questions import router as questions_router
 from app.admin.routers.candidates import router as candidates_router
 from app.admin.routers.results import router as results_router
+from app.admin.routers.ai import router as ai_router
 
 __all__ = [
     "auth_router",
@@ -16,4 +17,5 @@ __all__ = [
     "questions_router",
     "candidates_router",
     "results_router",
+    "ai_router",
 ]

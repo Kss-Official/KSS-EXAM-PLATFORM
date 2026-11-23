@@ -32,15 +32,23 @@ def is_academic_department(d: Department) -> bool:
 def to_dto(d: Department, cand_counts: Optional[dict] = None) -> DepartmentDto:
     assoc_count = len(d.exams) if d.exams else 0
     c_count = (cand_counts or {}).get(d.id, 0)
-    # Deduce category if not set: HR, Sales, Marketing, etc. are NON_TECHNICAL
-    raw_cat = getattr(d, "category", None)
-    if not raw_cat:
-        c_upper = (d.code or "").upper()
-        n_lower = (d.name or "").lower()
-        if any(k in c_upper for k in ["HR", "SALES", "MKT", "MGMT", "NON_TECH", "FIN"]) or any(k in n_lower for k in ["human resource", "sales", "marketing", "management", "non-technical"]):
-            raw_cat = "NON_TECHNICAL"
-        else:
-            raw_cat = "TECHNICAL"
+    # Deduce category: HR, Sales, Marketing, etc. are ALWAYS NON_TECHNICAL
+    c_upper = (d.code or "").upper().strip()
+    n_lower = (d.name or "").lower().strip()
+    raw_cat = (getattr(d, "category", None) or "").strip().upper()
+    
+    if (
+        c_upper in ("HR", "HR_2", "HR_DEPT", "SALES", "SALES_MKT", "MKT", "NON_TECH", "MGMT", "FIN", "FINANCE", "OPS")
+        or c_upper.startswith("HR_")
+        or c_upper.startswith("SALES_")
+        or n_lower == "hr"
+        or n_lower.startswith("hr ")
+        or n_lower.endswith(" hr")
+        or any(k in n_lower for k in ["human resource", "sales", "marketing", "management", "non-technical", "non technical", "finance"])
+    ):
+        raw_cat = "NON_TECHNICAL"
+    elif raw_cat != "NON_TECHNICAL":
+        raw_cat = "TECHNICAL"
     return DepartmentDto(
         id=d.id,
         name=d.name,
@@ -158,8 +166,21 @@ def create_department(
             new_code = f"{base_code}_{counter}"
         code = new_code
 
-    cat_val = (dto.category or "TECHNICAL").strip().upper()
-    if cat_val not in ("TECHNICAL", "NON_TECHNICAL"):
+    c_upper = code.strip().upper()
+    n_lower = dto.name.strip().lower()
+    is_non_tech = (
+        c_upper in ("HR", "HR_2", "HR_DEPT", "SALES", "SALES_MKT", "MKT", "NON_TECH", "MGMT", "FIN", "FINANCE", "OPS")
+        or c_upper.startswith("HR_")
+        or c_upper.startswith("SALES_")
+        or n_lower == "hr"
+        or n_lower.startswith("hr ")
+        or n_lower.endswith(" hr")
+        or any(k in n_lower for k in ["human resource", "sales", "marketing", "management", "non-technical", "non technical", "finance"])
+    )
+    cat_val = (dto.category or "").strip().upper()
+    if is_non_tech:
+        cat_val = "NON_TECHNICAL"
+    elif cat_val not in ("TECHNICAL", "NON_TECHNICAL"):
         cat_val = "TECHNICAL"
     dept = Department(
         name=dto.name.strip(),

@@ -80,16 +80,22 @@ def ensure_indexes_and_constraints():
                 except Exception as e:
                     logger.debug(f"Could not add category to departments: {e}")
             try:
-                # Classify non-technical departments
+                # Classify non-technical departments (strictly includes HR and Sales & Marketing)
                 conn.execute(text("""
                     UPDATE departments 
                     SET category = 'NON_TECHNICAL' 
-                    WHERE UPPER(code) IN ('HR', 'MKT', 'SALES_MKT', 'SALES', 'MARKETING', 'FIN', 'FINANCE', 'OPS', 'MGMT', 'NON_TECH')
+                    WHERE UPPER(TRIM(code)) IN ('HR', 'HR_2', 'HR_DEPT', 'MKT', 'SALES_MKT', 'SALES', 'MARKETING', 'FIN', 'FINANCE', 'OPS', 'MGMT', 'NON_TECH')
+                       OR UPPER(TRIM(code)) LIKE 'HR_%'
+                       OR UPPER(TRIM(code)) LIKE 'SALES_%'
+                       OR UPPER(TRIM(name)) = 'HR'
+                       OR UPPER(TRIM(name)) LIKE 'HR %'
+                       OR UPPER(TRIM(name)) LIKE '% HR'
                        OR LOWER(name) LIKE '%human resource%'
                        OR LOWER(name) LIKE '%sales%'
                        OR LOWER(name) LIKE '%marketing%'
                        OR LOWER(name) LIKE '%management%'
-                       OR LOWER(name) LIKE '%non-technical%';
+                       OR LOWER(name) LIKE '%non-technical%'
+                       OR LOWER(name) LIKE '%non technical%';
                 """))
             except Exception as e:
                 logger.debug(f"Notice updating department categories: {e}")

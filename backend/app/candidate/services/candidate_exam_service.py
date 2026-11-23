@@ -70,14 +70,122 @@ def check_name_match(input_n: str, db_n: str) -> bool:
 
 def get_department_category(dept_name: str, dept_code: str) -> str:
     code_upper = (dept_code or "").strip().upper()
-    if code_upper in NON_TECHNICAL_CODES:
+    if code_upper in NON_TECHNICAL_CODES or code_upper.startswith("HR_") or code_upper.startswith("SALES_"):
         return "NON_TECHNICAL"
     name_clean = (dept_name or "").strip().lower()
     name_clean = re.sub(r'\s*&\s*', ' and ', name_clean)
+    if name_clean == "hr" or name_clean.startswith("hr ") or name_clean.endswith(" hr"):
+        return "NON_TECHNICAL"
     for kw in NON_TECHNICAL_KEYWORDS:
         if re.search(r'\b' + re.escape(kw) + r'\b', name_clean):
             return "NON_TECHNICAL"
     return "TECHNICAL"
+
+def resolve_exam_question_sets_for_candidate(
+    db: Session,
+    exam_id: int,
+    cand_dept_id: Optional[int],
+    cand_dept_name: Optional[str],
+    chosen_track: str,
+    chosen_category: str
+) -> List[QuestionSet]:
+    """
+    Authoritative question set selection ensuring candidates receive sets strictly matching
+    their academic track and category (TECHNICAL vs NON_TECHNICAL).
+    Guarantees NON_TECHNICAL candidates (e.g. HR, Sales & Marketing) NEVER receive technical questions.
+    """
+    track_lower = (chosen_track or cand_dept_name or "").strip().lower()
+    all_exam_sets = db.query(QuestionSet).options(
+        joinedload(QuestionSet.department)
+    ).filter(QuestionSet.exam_id == exam_id).order_by(QuestionSet.set_code.asc()).all()
+
+    if not all_exam_sets:
+        return []
+
+    # Priority 1: Match by candidate's exact department ID
+    if cand_dept_id:
+        direct = [s for s in all_exam_sets if s.department_id == cand_dept_id]
+        if direct:
+            return direct
+
+    # Priority 2: Match by department / track name in QuestionSet.name
+    # For HR candidates: match 'HR' or 'Human Resource'
+    if "hr" in track_lower or "human resource" in track_lower:
+        hr_sets = [
+            s for s in all_exam_sets
+            if s.name and (
+                "hr" in s.name.lower().split()
+                or "human resource" in s.name.lower()
+                or s.name.lower().startswith("hr -")
+                or s.name.lower().startswith("hr-")
+            )
+        ]
+        if hr_sets:
+            return hr_sets
+
+    # For Sales & Marketing candidates: match 'sales' or 'marketing'
+    if "sales" in track_lower or "marketing" in track_lower:
+        sales_sets = [
+            s for s in all_exam_sets
+            if s.name and ("sales" in s.name.lower() or "marketing" in s.name.lower())
+        ]
+        if sales_sets:
+            return sales_sets
+
+    # For technical tracks
+    if "ai" in track_lower or "ml" in track_lower:
+        aiml_sets = [s for s in all_exam_sets if s.name and ("ai/ml" in s.name.lower() or "aiml" in s.name.lower())]
+        if aiml_sets:
+            return aiml_sets
+    if "devops" in track_lower:
+        devops_sets = [s for s in all_exam_sets if s.name and "devops" in s.name.lower()]
+        if devops_sets:
+            return devops_sets
+    if "tester" in track_lower or "qa" in track_lower or "quality" in track_lower:
+        tester_sets = [s for s in all_exam_sets if s.name and ("tester" in s.name.lower() or "qa" in s.name.lower() or "quality" in s.name.lower())]
+        if tester_sets:
+            return tester_sets
+    if "ui" in track_lower or "ux" in track_lower or "design" in track_lower:
+        uiux_sets = [s for s in all_exam_sets if s.name and ("ui/ux" in s.name.lower() or "uiux" in s.name.lower() or "design" in s.name.lower())]
+        if uiux_sets:
+            return uiux_sets
+    if "dev" in track_lower or "software" in track_lower or "cse" in track_lower:
+        dev_sets = [s for s in all_exam_sets if s.name and ("developer" in s.name.lower() or "software" in s.name.lower())]
+        if dev_sets:
+            return dev_sets
+
+    # Priority 3: Match by category (NON_TECHNICAL vs TECHNICAL)
+    if chosen_category == "NON_TECHNICAL":
+        non_tech_sets = [
+            s for s in all_exam_sets
+            if get_department_category(s.name or "", "") == "NON_TECHNICAL"
+            or (s.department and get_department_category(s.department.name or "", s.department.code or "") == "NON_TECHNICAL")
+        ]
+        if non_tech_sets:
+            return non_tech_sets
+
+    if chosen_category == "TECHNICAL":
+        tech_sets = [
+            s for s in all_exam_sets
+            if get_department_category(s.name or "", "") == "TECHNICAL"
+            and not any(k in (s.name or "").lower() for k in ["hr", "sales", "marketing", "human resource"])
+        ]
+        if tech_sets:
+            return tech_sets
+
+    # Priority 4: Category-guarded universal sets
+    if chosen_category == "NON_TECHNICAL":
+        # Strictly exclude any technical sets
+        return [
+            s for s in all_exam_sets
+            if not any(k in (s.name or "").lower() for k in ["developer", "aiml", "ai/ml", "devops", "tester", "uiux", "ui/ux", "engineering", "cse", "it"])
+        ]
+    else:
+        # Strictly exclude non-technical sets
+        return [
+            s for s in all_exam_sets
+            if not any(k in (s.name or "").lower() for k in ["hr", "human resource", "sales", "marketing"])
+        ]
 
 def _ensure_utc(dt: Optional[datetime]) -> Optional[datetime]:
     if dt is None:
@@ -376,7 +484,9 @@ class CandidateExamService:
             matched_db_dept = db.query(Department).filter(Department.name.ilike(input_dept_name.strip())).first()
 
         if matched_db_dept:
-            cat = getattr(matched_db_dept, "category", None) or get_department_category(matched_db_dept.name, matched_db_dept.code or "")
+            cat = get_department_category(matched_db_dept.name, matched_db_dept.code or "")
+            if getattr(matched_db_dept, "category", None) == "NON_TECHNICAL":
+                cat = "NON_TECHNICAL"
             chosen_category = cat
             chosen_track = matched_db_dept.name
             if candidate.department_id != matched_db_dept.id:
@@ -384,13 +494,8 @@ class CandidateExamService:
                 db.commit()
                 db.refresh(candidate)
         else:
-            input_d = (input_dept_name or "").strip().lower()
-            if "non" in input_d:
-                chosen_track = "Non-Technical Department"
-                chosen_category = "NON_TECHNICAL"
-            else:
-                chosen_track = "Technical Department"
-                chosen_category = "TECHNICAL"
+            chosen_category = get_department_category(input_dept_name or "", "")
+            chosen_track = input_dept_name or ("Non-Technical Department" if chosen_category == "NON_TECHNICAL" else "Technical Department")
 
         # Store validated details
         resp.candidate_id = candidate.id
@@ -548,39 +653,15 @@ class CandidateExamService:
                 # Target exam in pool
                 exam = candidate_pool[0]
 
-            # Set allocation across A, B, C, D
-            sets = []
-
-            # 1. Prioritize candidate's exact assigned department if configured in this exam
-            if candidate.department_id:
-                direct_sets = db.query(QuestionSet).filter(
-                    QuestionSet.exam_id == exam.id,
-                    QuestionSet.department_id == candidate.department_id
-                ).order_by(QuestionSet.set_code.asc()).all()
-                if direct_sets:
-                    sets = direct_sets
-
-            # 2. Track category match: query all departments in the system matching chosen_category (DEV_2, AIML, DEVOPS, QA_2, UIUX_2)
-            if not sets:
-                all_depts = db.query(Department).all()
-                track_dept_ids = [
-                    d.id for d in all_depts
-                    if get_department_category(d.name, d.code or "") == chosen_category
-                ]
-                if track_dept_ids:
-                    track_sets = db.query(QuestionSet).filter(
-                        QuestionSet.exam_id == exam.id,
-                        QuestionSet.department_id.in_(track_dept_ids)
-                    ).order_by(QuestionSet.set_code.asc()).all()
-                    if track_sets:
-                        sets = track_sets
-
-            # 3. Only fall back to universal sets (department_id is None) - NEVER cross track category
-            if not sets:
-                sets = db.query(QuestionSet).filter(
-                    QuestionSet.exam_id == exam.id,
-                    QuestionSet.department_id == None
-                ).order_by(QuestionSet.set_code.asc()).all()
+            # Set allocation across A, B, C, D strictly honoring candidate department and category
+            sets = resolve_exam_question_sets_for_candidate(
+                db=db,
+                exam_id=exam.id,
+                cand_dept_id=candidate.department_id or (matched_db_dept.id if matched_db_dept else None),
+                cand_dept_name=candidate.department.name if candidate.department else None,
+                chosen_track=chosen_track,
+                chosen_category=chosen_category
+            )
 
             if not sets:
                 resp.message = "Examination sets are not configured. Please contact administrator."
@@ -750,34 +831,15 @@ class CandidateExamService:
                             detail="Access denied: Candidate's assigned department is not authorized for this examination."
                         )
 
-                sets = []
-                if dept_id:
-                    direct_sets = db.query(QuestionSet).filter(
-                        QuestionSet.exam_id == target_exam.id,
-                        QuestionSet.department_id == dept_id
-                    ).order_by(QuestionSet.set_code.asc()).all()
-                    if direct_sets:
-                        sets = direct_sets
-
-                # Track category match: query all departments in the system matching cand_cat (DEV_2, AIML, DEVOPS, QA_2, UIUX_2)
-                if not sets:
-                    all_depts = db.query(Department).all()
-                    track_dept_ids = [
-                        d.id for d in all_depts
-                        if get_department_category(d.name, d.code or "") == cand_cat
-                    ]
-                    if track_dept_ids:
-                        sets = db.query(QuestionSet).filter(
-                            QuestionSet.exam_id == target_exam.id,
-                            QuestionSet.department_id.in_(track_dept_ids)
-                        ).order_by(QuestionSet.set_code.asc()).all()
-
-                # Only fall back to universal sets if no department-specific sets exist - NEVER cross track category
-                if not sets:
-                    sets = db.query(QuestionSet).filter(
-                        QuestionSet.exam_id == target_exam.id,
-                        QuestionSet.department_id == None
-                    ).order_by(QuestionSet.set_code.asc()).all()
+                cand_track_name = cand.department.name if cand.department else ""
+                sets = resolve_exam_question_sets_for_candidate(
+                    db=db,
+                    exam_id=target_exam.id,
+                    cand_dept_id=dept_id,
+                    cand_dept_name=cand_track_name,
+                    chosen_track=cand_track_name,
+                    chosen_category=cand_cat
+                )
 
                 target_qs = None
                 if cand.assigned_set and sets:

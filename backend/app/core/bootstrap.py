@@ -43,19 +43,20 @@ def init_super_admin(db: Session) -> AppUser:
     return user
 
 DEFAULT_DEPARTMENTS = [
-    {"name": "Developer", "code": "DEV", "description": "Software Engineering & Full Stack Development"},
-    {"name": "AI/ML Developer", "code": "AIML", "description": "Machine Learning, Deep Learning, NLP & AI Model Architecture"},
-    {"name": "Computer Science and Engineering", "code": "CSE", "description": "Core Computing, Algorithms, Systems & Software"},
-    {"name": "Information Technology", "code": "IT", "description": "Network Systems, Cloud Infrastructure & IT Solutions"},
-    {"name": "Electronics & Communication Engineering", "code": "ECE", "description": "Embedded Systems, Signals, IoT & Hardware"},
-    {"name": "Electrical & Electronics Engineering", "code": "EEE", "description": "Power Systems, Circuits & Instrumentation"},
-    {"name": "Mechanical Engineering", "code": "MECH", "description": "Applied Mechanics, Design, Manufacturing & Robotics"},
-    {"name": "Civil Engineering", "code": "CIVIL", "description": "Structural Analysis, Planning & Infrastructure Engineering"},
-    {"name": "Quality Assurance & Testing", "code": "QA", "description": "Automated Testing, Test Scenarios & Quality Control"},
-    {"name": "DevOps", "code": "DEVOPS", "description": "Cloud Infrastructure, CI/CD Automations, Kubernetes & SRE"},
-    {"name": "UI/UX Design & Product", "code": "UIUX", "description": "User Interface Design, Interaction Design & Prototyping"},
-    {"name": "Human Resources", "code": "HR", "description": "Talent Acquisition, People Operations & Candidate Engagement"},
-    {"name": "Sales & Marketing", "code": "SALES_MKT", "description": "Enterprise Sales, Digital Marketing, Growth & Account Strategy"},
+    {"name": "Developer", "code": "DEV", "description": "Software Engineering & Full Stack Development", "category": "TECHNICAL"},
+    {"name": "AI/ML Developer", "code": "AIML", "description": "Machine Learning, Deep Learning, NLP & AI Model Architecture", "category": "TECHNICAL"},
+    {"name": "Computer Science and Engineering", "code": "CSE", "description": "Core Computing, Algorithms, Systems & Software", "category": "TECHNICAL"},
+    {"name": "Information Technology", "code": "IT", "description": "Network Systems, Cloud Infrastructure & IT Solutions", "category": "TECHNICAL"},
+    {"name": "Electronics & Communication Engineering", "code": "ECE", "description": "Embedded Systems, Signals, IoT & Hardware", "category": "TECHNICAL"},
+    {"name": "Electrical & Electronics Engineering", "code": "EEE", "description": "Power Systems, Circuits & Instrumentation", "category": "TECHNICAL"},
+    {"name": "Mechanical Engineering", "code": "MECH", "description": "Applied Mechanics, Design, Manufacturing & Robotics", "category": "TECHNICAL"},
+    {"name": "Civil Engineering", "code": "CIVIL", "description": "Structural Analysis, Planning & Infrastructure Engineering", "category": "TECHNICAL"},
+    {"name": "Quality Assurance & Testing", "code": "QA", "description": "Automated Testing, Test Scenarios & Quality Control", "category": "TECHNICAL"},
+    {"name": "DevOps", "code": "DEVOPS", "description": "Cloud Infrastructure, CI/CD Automations, Kubernetes & SRE", "category": "TECHNICAL"},
+    {"name": "UI/UX Design & Product", "code": "UIUX", "description": "User Interface Design, Interaction Design & Prototyping", "category": "TECHNICAL"},
+    {"name": "Human Resources", "code": "HR", "description": "Talent Acquisition, People Operations & Candidate Engagement", "category": "NON_TECHNICAL"},
+    {"name": "HR", "code": "HR_2", "description": "Human Resources, Talent Acquisition, People Ops & Compliance", "category": "NON_TECHNICAL"},
+    {"name": "Sales & Marketing", "code": "SALES_MKT", "description": "Enterprise Sales, Digital Marketing, Growth & Account Strategy", "category": "NON_TECHNICAL"},
 ]
 
 def init_default_departments(db: Session) -> None:
@@ -70,10 +71,13 @@ def init_default_departments(db: Session) -> None:
             dept = Department(
                 name=item["name"],
                 code=item["code"],
+                category=item.get("category", "TECHNICAL"),
                 description=item["description"],
                 active=True
             )
             db.add(dept)
+        elif existing.category != item.get("category", "TECHNICAL") and item.get("category") == "NON_TECHNICAL":
+            existing.category = "NON_TECHNICAL"
     try:
         db.commit()
     except Exception as exc:

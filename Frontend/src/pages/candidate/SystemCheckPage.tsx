@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import type { CandidateProfile } from "../../types/candidate";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
-
+import { useFaceDetection } from "../../hooks/useFaceDetection";
 
 interface SystemCheckPageProps {
   profile: CandidateProfile;
@@ -228,8 +228,17 @@ export default function SystemCheckPage({
 
   const isCameraGranted = cameraStatus === "granted";
   const isMicrophoneGranted = microphoneStatus === "granted";
-  // Camera and microphone are OPTIONAL — exam center does not have these devices
-  const canContinueToExam = rulesAgreed;
+  const canContinueToExam = isCameraGranted && isMicrophoneGranted && rulesAgreed;
+
+  // Real-time proctor verification preview on SystemCheckPage
+  const {
+    severity: faceSeverity,
+    warningTitle: faceWarningTitle,
+    warningText: faceWarningText,
+  } = useFaceDetection(videoRef, {
+    enabled: isCameraGranted,
+    intervalMs: 200,
+  });
 
   return (
     <main className="welcome system-check-view">
@@ -260,8 +269,8 @@ export default function SystemCheckPage({
             Verify Device <span className="compat-accent">Compatibility</span>
           </h1>
           <p className="compat-subtitle">
-            Before starting the timed assessment, verify that your browser environment and system
-            satisfy the required operational requirements.
+            Before starting the timed assessment, verify that your browser environment, webcam, and
+            microphone satisfy the required operational requirements.
           </p>
         </div>
 
@@ -381,8 +390,8 @@ export default function SystemCheckPage({
                       <small>Enable camera to verify your identity.</small>
                     </div>
                   </div>
-                  <span className={`compat-req-pill ${isCameraGranted ? "granted" : "optional"}`}>
-                    {isCameraGranted ? "GRANTED" : "OPTIONAL"}
+                  <span className={`compat-req-pill ${isCameraGranted ? "granted" : "required"}`}>
+                    {isCameraGranted ? "GRANTED" : "REQUIRED"}
                   </span>
                 </div>
 
@@ -393,14 +402,33 @@ export default function SystemCheckPage({
                       <div className="compat-live-status-tag">
                         <span className="compat-dot-pulse" /> Camera Active
                       </div>
+
+                      <div className={`system-check-face-pill ${faceSeverity}`}>
+                        {faceSeverity === "red" ? (
+                          <>
+                            <AlertTriangle size={13} color="#dc2626" style={{ flexShrink: 0 }} />
+                            <span><strong>{faceWarningTitle}:</strong> {faceWarningText}</span>
+                          </>
+                        ) : faceSeverity === "amber" ? (
+                          <>
+                            <AlertTriangle size={13} color="#d97706" style={{ flexShrink: 0 }} />
+                            <span><strong>{faceWarningTitle}:</strong> {faceWarningText}</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={13} color="#16a34a" style={{ flexShrink: 0 }} />
+                            <span>1 Candidate face visible — Optimal framing verified</span>
+                          </>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="compat-perm-empty-state">
                       <span className="compat-big-icon-circle">
                         <Camera size={22} color="#64748b" />
                       </span>
-                      <strong className="compat-box-title">Camera access is optional</strong>
-                      <p className="compat-box-sub">You may enable camera, but it is not required for this exam.</p>
+                      <strong className="compat-box-title">Camera access is required</strong>
+                      <p className="compat-box-sub">Click the button below to allow camera access.</p>
                       
                       {cameraError && (
                         <div className="compat-error-msg">{cameraError}</div>
@@ -469,8 +497,8 @@ export default function SystemCheckPage({
                       <small>Enable microphone to check audio input.</small>
                     </div>
                   </div>
-                  <span className={`compat-req-pill ${isMicrophoneGranted ? "granted" : "optional"}`}>
-                    {isMicrophoneGranted ? "GRANTED" : "OPTIONAL"}
+                  <span className={`compat-req-pill ${isMicrophoneGranted ? "granted" : "required"}`}>
+                    {isMicrophoneGranted ? "GRANTED" : "REQUIRED"}
                   </span>
                 </div>
 
@@ -495,8 +523,8 @@ export default function SystemCheckPage({
                       <span className="compat-big-icon-circle">
                         <Mic size={22} color="#64748b" />
                       </span>
-                      <strong className="compat-box-title">Microphone access is optional</strong>
-                      <p className="compat-box-sub">You may enable microphone, but it is not required for this exam.</p>
+                      <strong className="compat-box-title">Microphone access is required</strong>
+                      <p className="compat-box-sub">Click the button below to allow microphone access.</p>
                       
                       {microphoneError && (
                         <div className="compat-error-msg">{microphoneError}</div>
@@ -573,16 +601,16 @@ export default function SystemCheckPage({
             <div className="compat-rule-item">
               <span className="compat-rule-num">3</span>
               <div>
-                <strong>Maintain a stable and focused environment</strong>
-                <p>Sit in a quiet place, avoid distractions, and keep your attention on the exam screen at all times.</p>
+                <strong>Allow camera and microphone access</strong>
+                <p>You must enable both camera and microphone permissions when prompted.</p>
               </div>
             </div>
 
             <div className="compat-rule-item">
               <span className="compat-rule-num">7</span>
               <div>
-                <strong>Do not share your exam access credentials</strong>
-                <p>Your login details are unique to you. Do not share them with anyone.</p>
+                <strong>Keep your face visible throughout the exam</strong>
+                <p>Your face must be clearly visible to ensure continuous proctoring.</p>
               </div>
             </div>
 
@@ -622,9 +650,9 @@ export default function SystemCheckPage({
         <div className="compat-warning-callout">
           <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0, marginTop: "2px" }} />
           <div>
-            <strong>Important Assessment Notice</strong>
+            <strong>Proctored Assessment Verification Notice</strong>
             <p>
-              This is a monitored assessment. Please do not switch tabs, use external resources, or seek assistance from others. Camera and microphone are not required at this exam venue.
+              This assessment is proctored. Camera and microphone checks are required during the exam. Please ensure both permissions remain enabled throughout the assessment. Disabling them may lead to termination of the exam.
             </p>
           </div>
         </div>
@@ -636,12 +664,12 @@ export default function SystemCheckPage({
               <Check size={13} strokeWidth={3} /> SYSTEM: 4/4 COMPATIBLE
             </span>
 
-            <span className={`compat-pill-badge ${isCameraGranted ? "green" : "grey"}`}>
-              <Camera size={13} /> CAMERA: {isCameraGranted ? "GRANTED" : "OPTIONAL"}
+            <span className={`compat-pill-badge ${isCameraGranted ? "green" : "amber"}`}>
+              <Camera size={13} /> CAMERA: {isCameraGranted ? "GRANTED" : "REQUIRED"}
             </span>
 
-            <span className={`compat-pill-badge ${isMicrophoneGranted ? "green" : "grey"}`}>
-              <Mic size={13} /> MICROPHONE: {isMicrophoneGranted ? "GRANTED" : "OPTIONAL"}
+            <span className={`compat-pill-badge ${isMicrophoneGranted ? "green" : "amber"}`}>
+              <Mic size={13} /> MICROPHONE: {isMicrophoneGranted ? "GRANTED" : "REQUIRED"}
             </span>
           </div>
 
@@ -658,7 +686,7 @@ export default function SystemCheckPage({
               className="compat-btn-continue"
               disabled={!canContinueToExam || isStartingExam}
               onClick={onStartExam}
-              title={!canContinueToExam ? "Please read and agree to the instructions to proceed" : "Start your examination"}
+              title={!canContinueToExam ? "Please enable camera, microphone, and agree to instructions to proceed" : "Start your examination"}
             >
               {isStartingExam ? (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
