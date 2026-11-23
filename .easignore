@@ -1,0 +1,8 @@
+# Root .easignore to prevent EAS CLI from copying non-mobile monorepo folders
+Frontend
+backend
+secure-exam-frontend
+jmeter_tests
+scratch
+documents
+private-storage
