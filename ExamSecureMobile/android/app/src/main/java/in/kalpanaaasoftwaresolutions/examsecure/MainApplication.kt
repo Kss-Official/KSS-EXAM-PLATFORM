@@ -14,9 +14,9 @@ import `in`.kalpanaaasoftwaresolutions.examsecure.proctoring.ProctoringPackage
 class MainApplication : Application(), ReactApplication {
 
     override val reactNativeHost: ReactNativeHost =
-        object : DefaultReactNativeHost(this@MainApplication) {
+        object : DefaultReactNativeHost(this) {
             override fun getPackages(): List<ReactPackage> =
-                PackageList(application).packages.apply {
+                PackageList(this).packages.apply {
                     // Proctoring native module
                     add(ProctoringPackage())
                 }

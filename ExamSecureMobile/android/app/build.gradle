@@ -1,5 +1,10 @@
 // AGP 9+ has built-in Kotlin support — do NOT apply org.jetbrains.kotlin.android
 apply plugin: 'com.android.application'
+apply plugin: 'com.facebook.react'
+
+react {
+    autolinkLibrariesWithApp()
+}
 
 android {
     namespace "in.kalpanaaasoftwaresolutions.examsecure"
@@ -87,11 +92,6 @@ dependencies {
 
     // Kotlin coroutines (stdlib provided by AGP 9 built-in Kotlin)
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
-
-    // React Native modules
-    implementation project(':react-native-safe-area-context')
-    implementation project(':react-native-screens')
-    implementation project(':react-native-async-storage_async-storage')
 }
 
 // Ensure React Native finds its native libs
