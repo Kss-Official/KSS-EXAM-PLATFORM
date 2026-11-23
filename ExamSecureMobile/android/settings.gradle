@@ -1,3 +1,10 @@
+pluginManagement {
+    includeBuild(new File(rootDir, "../node_modules/@react-native/gradle-plugin"))
+}
+plugins {
+    id("com.facebook.react.settings")
+}
+
 rootProject.name = 'examsecure'
 include ':app'
 
