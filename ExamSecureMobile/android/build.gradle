@@ -27,4 +27,13 @@ allprojects {
         mavenCentral()
         maven { url "https://jitpack.io" }
     }
+    configurations.all {
+        resolutionStrategy {
+            force "com.facebook.react:react-android:0.88.1"
+            dependencySubstitution {
+                substitute module("com.facebook.react:react-native") using module("com.facebook.react:react-android:0.88.1") because "React Native 0.71+ publishes under react-android"
+                substitute module("com.facebook.react:hermes-android") using module("com.facebook.react:react-android:0.88.1") because "Hermes is bundled into react-android in RN 0.88"
+            }
+        }
+    }
 }
