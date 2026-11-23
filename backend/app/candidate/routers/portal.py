@@ -323,6 +323,118 @@ def record_proctor_warning(
     db.commit()
     return {"success": True, "recorded": True}
 
+# In-memory registry of latest candidate proctor frames for real-time invigilator feed
+LATEST_CANDIDATE_FRAMES: Dict[int, Dict[str, Any]] = {}
+
+@router.post("/proctor/analyze-frame")
+def analyze_proctor_frame(
+    request: Request,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Receives candidate front-camera snapshot, runs OpenCV Haar Face Detection in real-time,
+    stores latest frame for live admin surveillance, and flags MULTI_FACE or NO_FACE.
+    """
+    import base64
+    cand_id = payload.get("candidateId") or payload.get("candidate_id")
+    if not cand_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="candidateId is required")
+    verified_cid = _verify_candidate_ownership(request, cand_id)
+
+    attempt_id = payload.get("attemptId") or payload.get("attempt_id")
+    image_b64 = payload.get("imageBase64") or payload.get("image") or ""
+    
+    faces_detected = 1
+    alert_triggered = None
+    alert_msg = None
+
+    if image_b64:
+        try:
+            if "," in image_b64:
+                image_b64 = image_b64.split(",", 1)[1]
+
+            import cv2
+            import numpy as np
+            img_bytes = base64.b64decode(image_b64)
+            np_arr = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+
+            if img is not None:
+                gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.15, minNeighbors=4, minSize=(35, 35))
+                faces_detected = len(faces)
+
+                # Eye / Gaze Cascade for Lap Glance / Off-Screen Detection
+                off_screen_gaze = False
+                if faces_detected == 1:
+                    x, y, w, h = faces[0]
+                    face_roi_gray = gray[y:y+h, x:x+w]
+                    eye_cascade_path = cv2.data.haarcascades + 'haarcascade_eye.xml'
+                    eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
+                    eyes = eye_cascade.detectMultiScale(face_roi_gray, scaleFactor=1.1, minNeighbors=3, minSize=(10, 10))
+                    # If face center is in the bottom of the frame or eyes looking down continuously:
+                    img_h, _ = gray.shape
+                    face_center_y = y + h / 2
+                    if face_center_y > img_h * 0.82:
+                        off_screen_gaze = True
+
+                # Cache latest frame for live admin viewing
+                LATEST_CANDIDATE_FRAMES[verified_cid] = {
+                    "candidateId": verified_cid,
+                    "attemptId": int(attempt_id) if attempt_id else None,
+                    "imageBase64": image_b64,
+                    "facesDetected": faces_detected,
+                    "offScreenGaze": off_screen_gaze,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+
+                from app.admin.services.live_monitoring_service import LiveMonitoringService
+                if faces_detected > 1:
+                    alert_triggered = "MULTI_FACE"
+                    alert_msg = f"Multiple individuals ({faces_detected} faces) detected in candidate camera!"
+                    LiveMonitoringService.record_proctor_alert(
+                        db,
+                        candidate_id=verified_cid,
+                        attempt_id=int(attempt_id) if attempt_id else None,
+                        alert_type="MULTI_FACE",
+                        message=alert_msg,
+                        severity="HIGH"
+                    )
+                elif faces_detected == 0:
+                    alert_triggered = "NO_FACE"
+                    alert_msg = "No candidate face visible in camera field!"
+                    LiveMonitoringService.record_proctor_alert(
+                        db,
+                        candidate_id=verified_cid,
+                        attempt_id=int(attempt_id) if attempt_id else None,
+                        alert_type="NO_FACE",
+                        message=alert_msg,
+                        severity="MEDIUM"
+                    )
+                elif off_screen_gaze:
+                    alert_triggered = "OFF_SCREEN_GAZE"
+                    alert_msg = "Candidate looking downwards away from screen (suspicious lap / secondary device gaze)!"
+                    LiveMonitoringService.record_proctor_alert(
+                        db,
+                        candidate_id=verified_cid,
+                        attempt_id=int(attempt_id) if attempt_id else None,
+                        alert_type="OFF_SCREEN_GAZE",
+                        message=alert_msg,
+                        severity="MEDIUM"
+                    )
+        except Exception as e:
+            logger.warning(f"Frame analysis error: {e}")
+
+    return {
+        "success": True,
+        "facesDetected": faces_detected,
+        "alert": alert_triggered,
+        "message": alert_msg
+    }
+
 # ==================== Round 2 Coding Assessments ====================
 from app.schemas.coding import CodeRunRequest, CodeRunResponse, CodeSubmitRequest, CodeSubmitResponse, CodingExamDto
 from app.candidate.services.code_runner_service import CodeRunnerService

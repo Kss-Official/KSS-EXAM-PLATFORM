@@ -379,6 +379,10 @@ class CandidateExamService:
             cat = getattr(matched_db_dept, "category", None) or get_department_category(matched_db_dept.name, matched_db_dept.code or "")
             chosen_category = cat
             chosen_track = matched_db_dept.name
+            if candidate.department_id != matched_db_dept.id:
+                candidate.department_id = matched_db_dept.id
+                db.commit()
+                db.refresh(candidate)
         else:
             input_d = (input_dept_name or "").strip().lower()
             if "non" in input_d:
@@ -423,6 +427,17 @@ class CandidateExamService:
             existing_attempt.exam.status in ("ACTIVATED", "PUBLISHED") and
             (not candidate.assigned_exam_id or existing_attempt.exam_id == candidate.assigned_exam_id)
         ):
+            # Track category consistency guard:
+            # If attempt's question set belongs to the wrong track category (e.g. Non-Technical for a Technical candidate),
+            # invalidate this unstarted attempt so the candidate is cleanly routed to their correct track.
+            qs_dept = existing_attempt.question_set.department if existing_attempt.question_set else None
+            qs_cat = get_department_category(qs_dept.name if qs_dept else "", qs_dept.code if qs_dept else "") if qs_dept else None
+            if existing_attempt.status == "ASSIGNED" and qs_cat and qs_cat != chosen_category:
+                db.delete(existing_attempt)
+                db.commit()
+                existing_attempt = None
+
+        if existing_attempt:
             exam = existing_attempt.exam
             # If candidate has an assigned set and attempt has not started yet (ASSIGNED),
             # synchronize the attempt's question set to match candidate's assigned set
@@ -545,32 +560,26 @@ class CandidateExamService:
                 if direct_sets:
                     sets = direct_sets
 
-            # 2. If candidate is in Computer Science and Engineering (dept 2) or generic technical,
-            # map to Software Developer track (dept 1) in Exam 101
-            if not sets and chosen_category == "TECHNICAL":
-                dev_sets = db.query(QuestionSet).filter(
-                    QuestionSet.exam_id == exam.id,
-                    QuestionSet.department_id == 1
-                ).order_by(QuestionSet.set_code.asc()).all()
-                if dev_sets:
-                    sets = dev_sets
-
-            # 3. Track department match
+            # 2. Track category match: query all departments in the system matching chosen_category (DEV_2, AIML, DEVOPS, QA_2, UIUX_2)
             if not sets:
+                all_depts = db.query(Department).all()
                 track_dept_ids = [
-                    d.id for d in exam.departments
+                    d.id for d in all_depts
                     if get_department_category(d.name, d.code or "") == chosen_category
                 ]
                 if track_dept_ids:
-                    sets = db.query(QuestionSet).filter(
+                    track_sets = db.query(QuestionSet).filter(
                         QuestionSet.exam_id == exam.id,
                         QuestionSet.department_id.in_(track_dept_ids)
                     ).order_by(QuestionSet.set_code.asc()).all()
+                    if track_sets:
+                        sets = track_sets
 
-            # 4. Fallback: Any question sets in this exam
+            # 3. Only fall back to universal sets (department_id is None) - NEVER cross track category
             if not sets:
                 sets = db.query(QuestionSet).filter(
-                    QuestionSet.exam_id == exam.id
+                    QuestionSet.exam_id == exam.id,
+                    QuestionSet.department_id == None
                 ).order_by(QuestionSet.set_code.asc()).all()
 
             if not sets:
@@ -750,17 +759,11 @@ class CandidateExamService:
                     if direct_sets:
                         sets = direct_sets
 
-                if not sets and cand_cat == "TECHNICAL":
-                    dev_sets = db.query(QuestionSet).filter(
-                        QuestionSet.exam_id == target_exam.id,
-                        QuestionSet.department_id == 1
-                    ).order_by(QuestionSet.set_code.asc()).all()
-                    if dev_sets:
-                        sets = dev_sets
-
+                # Track category match: query all departments in the system matching cand_cat (DEV_2, AIML, DEVOPS, QA_2, UIUX_2)
                 if not sets:
+                    all_depts = db.query(Department).all()
                     track_dept_ids = [
-                        d.id for d in target_exam.departments
+                        d.id for d in all_depts
                         if get_department_category(d.name, d.code or "") == cand_cat
                     ]
                     if track_dept_ids:
@@ -769,7 +772,7 @@ class CandidateExamService:
                             QuestionSet.department_id.in_(track_dept_ids)
                         ).order_by(QuestionSet.set_code.asc()).all()
 
-                # Only fall back to universal sets if no department-specific sets exist
+                # Only fall back to universal sets if no department-specific sets exist - NEVER cross track category
                 if not sets:
                     sets = db.query(QuestionSet).filter(
                         QuestionSet.exam_id == target_exam.id,
@@ -868,9 +871,13 @@ class CandidateExamService:
                 Question.question_set_id == attempt.question_set_id
             ).order_by(Question.display_order.asc()).all()
 
-            # Resilient fallback: if the assigned set has 0 questions, fallback to another populated set
+            # Resilient fallback: if the assigned set has 0 questions, fallback to another populated set STRICTLY within candidate's track category!
             if not raw_questions:
                 dept_id = attempt.question_set.department_id if attempt.question_set else None
+                cand_cat = get_department_category(
+                    attempt.candidate.department.name if attempt.candidate and attempt.candidate.department else "",
+                    attempt.candidate.department.code if attempt.candidate and attempt.candidate.department else ""
+                )
                 fallback_set = None
                 if dept_id:
                     fallback_set = db.query(QuestionSet).join(Question).filter(
@@ -878,8 +885,19 @@ class CandidateExamService:
                         QuestionSet.department_id == dept_id
                     ).first()
                 if not fallback_set:
+                    track_dept_ids = [
+                        d.id for d in db.query(Department).all()
+                        if get_department_category(d.name, d.code or "") == cand_cat
+                    ]
+                    if track_dept_ids:
+                        fallback_set = db.query(QuestionSet).join(Question).filter(
+                            QuestionSet.exam_id == exam.id,
+                            QuestionSet.department_id.in_(track_dept_ids)
+                        ).first()
+                if not fallback_set:
                     fallback_set = db.query(QuestionSet).join(Question).filter(
-                        QuestionSet.exam_id == exam.id
+                        QuestionSet.exam_id == exam.id,
+                        QuestionSet.department_id == None
                     ).first()
 
                 if fallback_set:

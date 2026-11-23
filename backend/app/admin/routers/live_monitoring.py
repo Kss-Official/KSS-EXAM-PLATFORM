@@ -101,3 +101,18 @@ def get_candidate_alert_history(
     """
     return LiveMonitoringService.get_proctor_alerts(db, candidate_id=candidate_id, limit=200)
 
+@router.get("/feed/{candidate_id}")
+def get_candidate_live_camera_feed(
+    candidate_id: int,
+    current_user: AppUser = Depends(require_super_admin)
+):
+    """
+    Returns the real-time front-camera snapshot of an examinee for live invigilator viewing.
+    """
+    from app.candidate.routers.portal import LATEST_CANDIDATE_FRAMES
+    frame = LATEST_CANDIDATE_FRAMES.get(candidate_id)
+    if not frame:
+        return {"online": False, "message": "No live camera frame received yet from this candidate."}
+    return {"online": True, **frame}
+
+

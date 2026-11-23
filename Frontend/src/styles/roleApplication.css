@@ -32,7 +32,8 @@
   width: auto;
   height: auto;
   max-height: 44px;
-  max-width: 260px;
+  max-width: 240px;
+  aspect-ratio: 1024 / 253;
   object-fit: contain;
   display: block;
 }
@@ -542,7 +543,9 @@ input.role-app-skills-input:focus-visible,
   }
 
   .role-app-logo {
-    width: 185px;
+    width: auto;
+    max-width: 185px;
+    max-height: 40px;
   }
 
   .role-app-hero-title {
@@ -568,6 +571,8 @@ input.role-app-skills-input:focus-visible,
   }
 
   .role-app-logo {
-    width: 165px;
+    width: auto;
+    max-width: 155px;
+    max-height: 35px;
   }
 }
