@@ -25,7 +25,7 @@ class ProctoringModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun startProctoring(configMap: ReadableMap?, promise: Promise) {
-        val activity = currentActivity as? AppCompatActivity
+        val activity = reactApplicationContext.currentActivity as? AppCompatActivity
         if (activity == null) {
             promise.reject("ACTIVITY_NULL", "Cannot start proctoring without an active AppCompatActivity.")
             return
@@ -51,7 +51,7 @@ class ProctoringModule(private val reactContext: ReactApplicationContext) :
 
     @ReactMethod
     fun stopProctoring(promise: Promise) {
-        val activity = currentActivity
+        val activity = reactApplicationContext.currentActivity
         val stopAction = {
             try {
                 cameraManager?.stop()
