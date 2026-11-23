@@ -1,0 +1,12 @@
+# Allow gradle wrapper jar specifically
+!gradle-wrapper.jar
+!android/gradle/wrapper/gradle-wrapper.jar
+!ExamSecureMobile/android/gradle/wrapper/gradle-wrapper.jar
+
+node_modules
+.expo
+.gradle
+ios
+android/.gradle
+android/app/build
+android/build

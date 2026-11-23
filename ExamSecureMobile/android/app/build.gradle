@@ -1,0 +1,103 @@
+apply plugin: 'com.android.application'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+android {
+    namespace "in.kalpanaaasoftwaresolutions.examsecure"
+    compileSdk 35
+
+    defaultConfig {
+        applicationId "in.kalpanaaasoftwaresolutions.examsecure"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+        multiDexEnabled true
+
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            debuggable true
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    packagingOptions {
+        resources {
+            excludes += [
+                'META-INF/DEPENDENCIES',
+                'META-INF/LICENSE',
+                'META-INF/LICENSE.txt',
+                'META-INF/license.txt',
+                'META-INF/NOTICE',
+                'META-INF/NOTICE.txt',
+                'META-INF/notice.txt',
+                'META-INF/*.kotlin_module'
+            ]
+        }
+    }
+
+    // TFLite — do not compress model files
+    aaptOptions {
+        noCompress "tflite"
+    }
+}
+
+dependencies {
+    // React Native core
+    implementation("com.facebook.react:react-android:0.88.1")
+    implementation("com.facebook.react:hermes-android:0.88.1")
+
+    // Android core
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation "androidx.core:core-ktx:1.15.0"
+    implementation "com.google.android.material:material:1.12.0"
+    implementation "androidx.multidex:multidex:2.0.1"
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.7"
+
+    // CameraX — image capture and analysis pipeline
+    def camerax_version = "1.4.1"
+    implementation "androidx.camera:camera-core:${camerax_version}"
+    implementation "androidx.camera:camera-camera2:${camerax_version}"
+    implementation "androidx.camera:camera-lifecycle:${camerax_version}"
+    implementation "androidx.camera:camera-view:${camerax_version}"
+
+    // Google ML Kit — face detection, landmarks, Euler angles, eye-open classification
+    implementation "com.google.mlkit:face-detection:16.1.7"
+
+    // TensorFlow Lite — on-device phone/object detection (SSD MobileNet)
+    implementation "org.tensorflow:tensorflow-lite:2.16.1"
+    implementation "org.tensorflow:tensorflow-lite-task-vision:0.4.4"
+    implementation "org.tensorflow:tensorflow-lite-support:0.4.4"
+
+    // Kotlin stdlib + coroutines
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.24"
+    implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
+
+    // React Native modules
+    implementation project(':react-native-safe-area-context')
+    implementation project(':react-native-screens')
+    implementation project(':react-native-async-storage_async-storage')
+}
+
+// Ensure React Native finds its native libs
+configurations.all {
+    resolutionStrategy {
+        force "com.facebook.react:react-android:0.88.1"
+    }
+}

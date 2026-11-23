@@ -3,6 +3,7 @@
 # =============================================================================
 
 # Credentials & Environment Files
+.expo/
 .env
 .env.*
 !.env.example
@@ -56,6 +57,7 @@ pnpm-debug.log*
 target/
 *.class
 *.jar
+!gradle-wrapper.jar
 *.war
 *.nar
 *.ear

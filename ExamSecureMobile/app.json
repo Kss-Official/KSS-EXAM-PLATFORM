@@ -1,0 +1,57 @@
+{
+  "expo": {
+    "name": "ExamSecure",
+    "slug": "examsecure-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.kalpanaaasoftwaresolutions.examsecure",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is required for proctored exam identity verification.",
+        "NSMicrophoneUsageDescription": "Microphone is required for proctored exam audio monitoring.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#017846"
+      },
+      "package": "in.kalpanaaasoftwaresolutions.examsecure",
+      "permissions": [
+        "CAMERA",
+        "RECORD_AUDIO",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "WAKE_LOCK",
+        "VIBRATE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      "expo-asset",
+      "expo-font"
+    ],
+    "scheme": "examsecure",
+    "extra": {
+      "router": {
+        "origin": false,
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "a1bda3e6-e537-4012-9db5-21805d7b8e78"
+      }
+    },
+    "owner": "d.koushik"
+  }
+}
