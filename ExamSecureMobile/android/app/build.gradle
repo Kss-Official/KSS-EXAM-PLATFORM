@@ -77,8 +77,6 @@ dependencies {
 
     // TensorFlow Lite — on-device phone/object detection (SSD MobileNet)
     implementation "org.tensorflow:tensorflow-lite:2.16.1"
-    implementation "org.tensorflow:tensorflow-lite-task-vision:0.4.4"
-    implementation "org.tensorflow:tensorflow-lite-support:0.4.4"
 
     // Kotlin coroutines (stdlib provided by AGP 9 built-in Kotlin)
     implementation "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1"
