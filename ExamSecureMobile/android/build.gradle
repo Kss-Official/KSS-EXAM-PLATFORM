@@ -4,7 +4,7 @@ buildscript {
     ext {
         buildToolsVersion = "35.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 35
+        compileSdkVersion = 36
         targetSdkVersion = 34
         ndkVersion = "26.1.10909125"
         kotlinVersion = "2.2.0"
@@ -30,6 +30,8 @@ allprojects {
     configurations.all {
         resolutionStrategy {
             force "com.facebook.react:react-android:0.88.1"
+            force "androidx.core:core:1.15.0"
+            force "androidx.core:core-ktx:1.15.0"
             dependencySubstitution {
                 substitute module("com.facebook.react:react-native") using module("com.facebook.react:react-android:0.88.1") because "React Native 0.71+ publishes under react-android"
                 substitute module("com.facebook.react:hermes-android") using module("com.facebook.react:react-android:0.88.1") because "Hermes is bundled into react-android in RN 0.88"

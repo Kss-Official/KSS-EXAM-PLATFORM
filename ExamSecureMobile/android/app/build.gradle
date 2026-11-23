@@ -3,7 +3,7 @@ apply plugin: 'com.android.application'
 
 android {
     namespace "in.kalpanaaasoftwaresolutions.examsecure"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId "in.kalpanaaasoftwaresolutions.examsecure"
