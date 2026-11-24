@@ -1,4 +1,11 @@
 pluginManagement {
+    resolutionStrategy {
+        eachPlugin {
+            if (requested.id.id == "com.facebook.react.settings") {
+                useModule("com.facebook.react:settings-plugin")
+            }
+        }
+    }
     includeBuild(new File(rootDir, "../node_modules/@react-native/gradle-plugin"))
 }
 plugins {
