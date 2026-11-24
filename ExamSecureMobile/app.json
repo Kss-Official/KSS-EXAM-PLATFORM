@@ -43,7 +43,11 @@
         "asyncRoutes": {
           "web": true
         }
+      },
+      "eas": {
+        "projectId": "9bcea989-afc2-40b9-9623-54f25d30036e"
       }
-    }
+    },
+    "owner": "kss-kalpanaaa"
   }
 }
