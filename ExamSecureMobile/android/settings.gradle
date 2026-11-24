@@ -2,7 +2,7 @@ pluginManagement {
     resolutionStrategy {
         eachPlugin {
             if (requested.id.id == "com.facebook.react.settings") {
-                useModule("com.facebook.react:settings-plugin")
+                useModule("com.facebook.react:settings-plugin:0.88.1")
             }
         }
     }
