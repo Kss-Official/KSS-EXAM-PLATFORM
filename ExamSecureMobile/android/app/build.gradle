@@ -1,9 +1,5 @@
 apply plugin: 'com.android.application'
-apply plugin: 'com.facebook.react'
-
-react {
-    autolinkLibrariesWithApp()
-}
+apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace "in.kalpanaaasoftwaresolutions.examsecure"
@@ -50,6 +46,10 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     buildFeatures {
         buildConfig true
     }
@@ -75,9 +75,14 @@ android {
 }
 
 dependencies {
-    // React Native core (react-android includes Hermes in RN 0.71+)
-    implementation("com.facebook.react:react-android")
-    implementation("com.facebook.react:hermes-android")
+    // React Native core (0.71+ publishes as react-android with Hermes bundled)
+    implementation("com.facebook.react:react-android:0.88.1")
+    implementation("com.facebook.react:hermes-android:0.88.1")
+
+    // Autolinking replacements — manually linked subprojects
+    implementation project(':react-native-async-storage_async-storage')
+    implementation project(':react-native-safe-area-context')
+    implementation project(':react-native-screens')
 
     // Android core
     implementation "androidx.appcompat:appcompat:1.7.0"

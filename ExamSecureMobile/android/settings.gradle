@@ -1,17 +1,12 @@
-pluginManagement {
-    includeBuild(new File(rootDir, "../node_modules/@react-native/gradle-plugin"))
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-plugins {
-    id("com.facebook.react.settings")
-}
-extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
-    ex.autolinkLibrariesFromCommand(["npx", "--yes", "@react-native-community/cli", "config"])
-}
-
 rootProject.name = 'examsecure'
 include ':app'
+
+// Manual subproject includes — no com.facebook.react.settings needed
+include ':react-native-async-storage_async-storage'
+project(':react-native-async-storage_async-storage').projectDir = new File(rootDir, '../node_modules/@react-native-async-storage/async-storage/android')
+
+include ':react-native-safe-area-context'
+project(':react-native-safe-area-context').projectDir = new File(rootDir, '../node_modules/react-native-safe-area-context/android')
+
+include ':react-native-screens'
+project(':react-native-screens').projectDir = new File(rootDir, '../node_modules/react-native-screens/android')
