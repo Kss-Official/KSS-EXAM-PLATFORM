@@ -1,19 +1,20 @@
 // Project-level build.gradle — ExamSecure React Native Android
+// Compatible with React Native 0.88.1 / Expo SDK 58 / AGP 9.2.1 / Gradle 9.4.1
 buildscript {
     ext {
         buildToolsVersion = "35.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 35
+        compileSdkVersion = 36
         targetSdkVersion = 34
         ndkVersion = "26.1.10909125"
-        kotlinVersion = "1.9.25"
+        kotlinVersion = "2.2.0"
     }
     repositories {
         google()
         mavenCentral()
     }
     dependencies {
-        classpath("com.android.tools.build:gradle:8.7.3")
+        classpath("com.android.tools.build:gradle:9.2.1")
         classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
     }
 }
@@ -23,5 +24,28 @@ allprojects {
         google()
         mavenCentral()
         maven { url "https://jitpack.io" }
+    }
+    configurations.all {
+        resolutionStrategy {
+            force "com.facebook.react:react-android:0.88.1"
+            force "com.facebook.hermes:hermes-android:260318099.0.5"
+            force "androidx.core:core:1.15.0"
+            force "androidx.core:core-ktx:1.15.0"
+            dependencySubstitution {
+                substitute module("com.facebook.react:react-native") using module("com.facebook.react:react-android:0.88.1") because "React Native 0.71+ publishes under react-android"
+                substitute module("com.facebook.react:hermes-android") using module("com.facebook.hermes:hermes-android:260318099.0.5") because "Hermes moved to com.facebook.hermes in RN 0.88"
+            }
+        }
+    }
+}
+
+subprojects { subproject ->
+    afterEvaluate {
+        if (subproject.name == 'react-native-async-storage_async-storage') {
+            subproject.dependencies {
+                implementation "androidx.room:room-runtime:2.6.1"
+                implementation "androidx.room:room-ktx:2.6.1"
+            }
+        }
     }
 }

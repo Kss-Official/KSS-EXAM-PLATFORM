@@ -1,9 +1,9 @@
+// AGP 9+ has built-in Kotlin support — do NOT apply org.jetbrains.kotlin.android
 apply plugin: 'com.android.application'
-apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
     namespace "in.kalpanaaasoftwaresolutions.examsecure"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId "in.kalpanaaasoftwaresolutions.examsecure"
@@ -41,13 +41,16 @@ android {
         }
     }
 
+    sourceSets {
+        release {
+            assets.srcDirs += ["build/generated/assets/react/release"]
+            res.srcDirs += ["build/generated/res/react/release"]
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     buildFeatures {
@@ -74,12 +77,39 @@ android {
     }
 }
 
-dependencies {
-    // React Native core (0.71+ publishes as react-android with Hermes bundled)
-    implementation("com.facebook.react:react-android:0.88.1")
-    implementation("com.facebook.react:hermes-android:0.88.1")
+def bundleAssetsDir = file("$buildDir/generated/assets/react/release")
+def bundleResDir = file("$buildDir/generated/res/react/release")
 
-    // Autolinking replacements — manually linked subprojects
+tasks.register("bundleReleaseJsAndAssets", Exec) {
+    workingDir = file("../..")
+    doFirst {
+        bundleAssetsDir.mkdirs()
+        bundleResDir.mkdirs()
+    }
+    commandLine(
+        "node",
+        "./node_modules/expo/bin/cli",
+        "export:embed",
+        "--platform", "android",
+        "--dev", "false",
+        "--entry-file", "./node_modules/expo-router/entry.js",
+        "--bundle-output", "${bundleAssetsDir}/index.android.bundle",
+        "--assets-dest", "${bundleResDir}"
+    )
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name == "mergeReleaseAssets" || task.name == "mergeReleaseResources" || task.name == "generateReleaseResources") {
+        task.dependsOn("bundleReleaseJsAndAssets")
+    }
+}
+
+dependencies {
+    // React Native core & Hermes (RN 0.88.1)
+    implementation("com.facebook.react:react-android:0.88.1")
+    implementation("com.facebook.hermes:hermes-android:260318099.0.5")
+
+    // Manually linked subprojects
     implementation project(':react-native-async-storage_async-storage')
     implementation project(':react-native-safe-area-context')
     implementation project(':react-native-screens')

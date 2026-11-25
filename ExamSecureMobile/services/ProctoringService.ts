@@ -7,7 +7,14 @@ import {
 import { reportProctorAlert } from "./api";
 
 const { ProctoringModule } = NativeModules;
-const proctorEventEmitter = ProctoringModule ? new NativeEventEmitter(ProctoringModule) : null;
+let proctorEventEmitter: NativeEventEmitter | null = null;
+try {
+  if (ProctoringModule && ProctoringModule.addListener && ProctoringModule.removeListeners) {
+    proctorEventEmitter = new NativeEventEmitter(ProctoringModule);
+  }
+} catch (_e) {
+  // Not available in Expo Go or on this platform
+}
 
 type ProctorEventListener = (event: ProctoringEvent) => void;
 
