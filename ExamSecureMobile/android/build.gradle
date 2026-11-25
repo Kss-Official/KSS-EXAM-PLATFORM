@@ -22,3 +22,16 @@ allprojects {
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
+
+// async-storage@2.2.0 gates androidx.room behind AsyncStorage_useNextStorage,
+// but AGP 9.2.1 built-in Kotlin still compiles src/main/.../next/StorageSupplier.kt.
+subprojects { subproject ->
+  afterEvaluate {
+    if (subproject.name == 'react-native-async-storage_async-storage') {
+      subproject.dependencies {
+        implementation "androidx.room:room-runtime:2.6.1"
+        implementation "androidx.room:room-ktx:2.6.1"
+      }
+    }
+  }
+}
