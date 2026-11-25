@@ -19,6 +19,10 @@ buildscript {
     }
 }
 
+plugins {
+    id("com.facebook.react") apply false
+}
+
 allprojects {
     repositories {
         google()
