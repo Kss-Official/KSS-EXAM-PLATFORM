@@ -1,5 +1,6 @@
 pluginManagement {
     includeBuild("../node_modules/@react-native/gradle-plugin")
+    includeBuild("../node_modules/expo-modules-autolinking/android/expo-gradle-plugin")
     repositories {
         google()
         mavenCentral()
@@ -7,10 +8,18 @@ pluginManagement {
     }
 }
 
+plugins {
+    id("expo-autolinking-settings")
+}
+
+expoAutolinking {
+    useExpoModules()
+}
+
 rootProject.name = 'examsecure'
 include ':app'
 
-// Manual subproject includes — no com.facebook.react.settings needed
+// Manual subproject includes for React Native packages not covered by Expo autolinking
 include ':react-native-async-storage_async-storage'
 project(':react-native-async-storage_async-storage').projectDir = new File(rootDir, '../node_modules/@react-native-async-storage/async-storage/android')
 
@@ -19,3 +28,12 @@ project(':react-native-safe-area-context').projectDir = new File(rootDir, '../no
 
 include ':react-native-screens'
 project(':react-native-screens').projectDir = new File(rootDir, '../node_modules/react-native-screens/android')
+
+include ':react-native-gesture-handler'
+project(':react-native-gesture-handler').projectDir = new File(rootDir, '../node_modules/react-native-gesture-handler/android')
+
+include ':react-native-reanimated'
+project(':react-native-reanimated').projectDir = new File(rootDir, '../node_modules/react-native-reanimated/android')
+
+include ':react-native-worklets'
+project(':react-native-worklets').projectDir = new File(rootDir, '../node_modules/react-native-worklets/android')

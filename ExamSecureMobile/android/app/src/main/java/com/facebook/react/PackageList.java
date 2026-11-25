@@ -35,9 +35,15 @@ public class PackageList {
   public ArrayList<ReactPackage> getPackages() {
     return new ArrayList<>(Arrays.<ReactPackage>asList(
       new MainReactPackage(mConfig),
+      // Expo modules — provides all expo-* native modules
+      new expo.modules.ExpoModulesPackage(),
+      // React Native community packages
       new com.reactnativecommunity.asyncstorage.AsyncStoragePackage(),
       new com.th3rdwave.safeareacontext.SafeAreaContextPackage(),
-      new com.swmansion.rnscreens.RNScreensPackage()
+      new com.swmansion.rnscreens.RNScreensPackage(),
+      new com.swmansion.gesturehandler.RNGestureHandlerPackage(),
+      new com.swmansion.reanimated.ReanimatedPackage(),
+      new com.swmansion.worklets.WorkletsPackage()
     ));
   }
 }
