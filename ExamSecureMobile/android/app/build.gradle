@@ -1,24 +1,42 @@
-// AGP 9+ has built-in Kotlin support — do NOT apply org.jetbrains.kotlin.android
-apply plugin: 'com.android.application'
+apply plugin: "com.android.application"
+apply plugin: "com.facebook.react"
+
+def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+
+/**
+ * This is the configuration block to customize your React Native Android app.
+ * By default you don't need to apply any configuration, just uncomment the lines you need.
+ */
+react {
+    entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
+    reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+    hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermes-engine/%OS-BIN%/hermes"
+    codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
+
+    enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
+    // Use Expo CLI to bundle the app, this ensures the Metro config
+    // works correctly with Expo projects.
+    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+    bundleCommand = "export:embed"
+
+    /* Autolinking */
+    autolinkLibrariesWithApp()
+}
 
 android {
+    ndkVersion rootProject.ext.ndkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+    compileSdk rootProject.ext.compileSdkVersion
+
     namespace "in.kalpanaaasoftwaresolutions.examsecure"
-    compileSdk = 36
 
     defaultConfig {
         applicationId "in.kalpanaaasoftwaresolutions.examsecure"
-        minSdk 24
-        targetSdk 34
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
         multiDexEnabled true
-
-        buildConfigField("boolean", "IS_NEW_ARCHITECTURE_ENABLED", "false")
-        buildConfigField("boolean", "IS_HERMES_ENABLED", "true")
-
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-        }
     }
 
     signingConfigs {
@@ -41,22 +59,6 @@ android {
         }
     }
 
-    sourceSets {
-        release {
-            assets.srcDirs += ["build/generated/assets/react/release"]
-            res.srcDirs += ["build/generated/res/react/release"]
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-
-    buildFeatures {
-        buildConfig true
-    }
-
     packagingOptions {
         resources {
             excludes += [
@@ -72,50 +74,14 @@ android {
         }
     }
 
-    aaptOptions {
-        noCompress "tflite"
-    }
-}
-
-def bundleAssetsDir = file("$buildDir/generated/assets/react/release")
-def bundleResDir = file("$buildDir/generated/res/react/release")
-
-tasks.register("bundleReleaseJsAndAssets", Exec) {
-    workingDir = file("../..")
-    doFirst {
-        bundleAssetsDir.mkdirs()
-        bundleResDir.mkdirs()
-    }
-    commandLine(
-        "node",
-        "./node_modules/expo/bin/cli",
-        "export:embed",
-        "--platform", "android",
-        "--dev", "false",
-        "--entry-file", "./node_modules/expo-router/entry.js",
-        "--bundle-output", "${bundleAssetsDir}/index.android.bundle",
-        "--assets-dest", "${bundleResDir}"
-    )
-}
-
-tasks.whenTaskAdded { task ->
-    if (task.name == "mergeReleaseAssets" || task.name == "mergeReleaseResources" || task.name == "generateReleaseResources") {
-        task.dependsOn("bundleReleaseJsAndAssets")
+    androidResources {
+        noCompress 'tflite'
     }
 }
 
 dependencies {
-    // React Native core & Hermes (RN 0.88.1)
-    implementation("com.facebook.react:react-android:0.88.1")
-    implementation("com.facebook.hermes:hermes-android:260318099.0.5")
-
-    // Manually linked subprojects
-    implementation project(':react-native-async-storage_async-storage')
-    implementation project(':react-native-safe-area-context')
-    implementation project(':react-native-screens')
-    implementation project(':react-native-gesture-handler')
-    implementation project(':react-native-reanimated')
-    implementation project(':react-native-worklets')
+    // The version of react-native is set by the React Native Gradle Plugin
+    implementation("com.facebook.react:react-android")
 
     // Android core
     implementation "androidx.appcompat:appcompat:1.7.0"
