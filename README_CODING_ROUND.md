@@ -1,0 +1,85 @@
+# Round 2: Coding Round — Setup, Scaling & Exam-Day Runbook
+
+## 1. Architecture Summary
+- **Frontend (`Frontend/`)**: Lazy-loaded `CodingRoundPage` (`@monaco-editor/react`), gated by `VITE_CODING_ROUND_ENABLED=true`. Zero impact on Round 1 bundles.
+- **API (`backend/app/coding/`)**: Stateless FastAPI endpoints (`/api/coding/*`) behind Nginx (`nginx/conf.d/exam_portal.conf`), gated by `CODING_ROUND_ENABLED=true`. Never executes code.
+- **Queue & Backpressure**: Redis + ARQ (`backend/worker/coding_worker.py`). All rate limits, concurrency caps, and queue depth checks live in Redis (`CodingRedisGuard`) so multiple Uvicorn workers share state.
+- **Sandbox**: Self-hosted **Judge0 CE `v1.13.1`** (`isolate` cgroup sandbox) in `docker-compose.coding.yml` on an isolated `sandbox_net` (`internal: true`, zero internet or DB access). Local dev/tests use `CODING_SANDBOX_DRIVER=mock`.
+
+---
+
+## 2. Environment Variables
+
+### Backend (`backend/.env`)
+```env
+CODING_ROUND_ENABLED=true
+CODING_REQUIRE_ROUND1_QUALIFIED=true
+CODING_SANDBOX_DRIVER=judge0          # "mock" locally, "judge0" in staging/prod
+REDIS_URL=redis://127.0.0.1:6379/0
+JUDGE0_URL=http://127.0.0.1:2358
+JUDGE0_AUTH_TOKEN=                    # Set strong token in production
+CODING_MAX_CODE_BYTES=65536
+CODING_MAX_INPUT_BYTES=65536
+CODING_MAX_QUEUE_DEPTH=5000
+CODING_USER_RATE_LIMIT_PER_MIN=12
+CODING_USER_MAX_CONCURRENT=2
+CODING_JOB_TIMEOUT_SECONDS=30
+```
+
+### Frontend (`Frontend/.env`)
+```env
+VITE_CODING_ROUND_ENABLED=true
+```
+
+---
+
+## 3. Host OS Requirements for Judge0 CE (`v1.13.1`)
+Judge0 CE `v1.13.1` uses `isolate`, which **requires cgroup v1** on the Linux host:
+- Recommended OS: **Ubuntu 22.04 LTS** or **Ubuntu 20.04 LTS** with kernel parameter `systemd.unified_cgroup_hierarchy=0` in `/etc/default/grub` (`GRUB_CMDLINE_LINUX="systemd.unified_cgroup_hierarchy=0"` -> `sudo update-grub && sudo reboot`).
+- Verify before starting Docker: `stat -fc %T /sys/fs/cgroup/` should report `tmpfs` (cgroup v1), not `cgroup2fs`.
+- If the host cannot enable cgroup v1, deploy **Piston** as an HTTP sandbox fallback behind `SandboxExecutor`.
+
+---
+
+## 4. Database Migration & Pool Size Math
+
+### Reversible Migration
+```bash
+cd backend
+python migrations/add_coding_round_v2.py --up
+# Rollback if needed:
+python migrations/add_coding_round_v2.py --down
+```
+
+### DB Connection Pool Math (10,000 Users)
+- With `8` Uvicorn API workers + `8` ARQ coding workers = `16` Python processes.
+- Set `DB_POOL_SIZE=10` and `DB_MAX_OVERFLOW=10` per process -> max `16 * 20 = 320` app connections.
+- Always point `DATABASE_URL` to **Neon's PgBouncer pooler** (`-pooler` endpoint) so 320 app connections multiplex cleanly onto `<= 60` physical PostgreSQL connections.
+
+---
+
+## 5. Capacity Math for 10,000 Concurrent Users
+- **Traffic Mix**: 10,000 concurrent candidates:
+  - ~70% reading/typing (`GET /api/coding/problems/:id` served from TTL cache).
+  - ~20% running sample tests (~1 run per 90s -> ~111 runs/sec).
+  - ~10% submitting (~33 submits/sec average, up to ~150 jobs/sec in end-of-exam bursts).
+- **Concurrency Needed**: `150 jobs/s * 2.5s avg execution = 375` concurrent Judge0 sandbox slots.
+- **Worker Sizing**: Run `docker compose -f docker-compose.coding.yml up -d --scale coding-worker=8 --scale judge0-worker=12` across dedicated worker nodes (4–8 vCPU each).
+- **Backpressure**: When queue depth reaches `CODING_MAX_QUEUE_DEPTH=5000`, the API returns `429 Too Many Requests` with `Retry-After` instead of crashing.
+
+---
+
+## 6. Staging Deployment & k6 Load Test
+1. Apply migration: `python backend/migrations/add_coding_round_v2.py --up`
+2. Start Redis, Judge0 CE, and coding workers:
+   `docker compose -f docker-compose.coding.yml up -d --scale coding-worker=4 --scale judge0-worker=6`
+3. Start API cluster (`scripts/start_cluster.py --workers 8`) behind Nginx (`nginx/conf.d/exam_portal.conf`).
+4. Run k6 10,000-VU test:
+   `k6 run -e BASE_URL=https://staging.example.com -e EXAM_ID=1 -e QUESTION_ID=q1 -e TOKEN=<candidate_jwt> scripts/k6_coding_10k.js`
+
+---
+
+## 7. Exam-Day Runbook
+- **Pre-Exam (T-30m)**: Verify `GET /api/coding/health` (`redisConnected: true`, `queueDepth: 0`) and `GET /api/coding/metrics`.
+- **During Exam**: Watch `coding_queue_depth`, `coding_rate_limited_total`, and `coding_failed_total` at `/api/coding/metrics`. Scale workers if `coding_queue_depth > 1000`.
+- **Emergency Kill Switch**: Set `CODING_ROUND_ENABLED=false` and reload Uvicorn workers to immediately return `503` without affecting Round 1.
