@@ -22,6 +22,8 @@ const DepartmentsPage = lazy(() => import("./pages/admin/DepartmentsPage"));
 const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
 const CandidatePortal = lazy(() => import("./pages/candidate/CandidatePortal"));
+const CodingRoundPage = lazy(() => import("./pages/candidate/CodingRoundPage"));
+const CODING_ROUND_ENABLED = import.meta.env.VITE_CODING_ROUND_ENABLED === "true";
 
 function PageLoading() {
   return (
@@ -117,6 +119,15 @@ function AppContent() {
       return () => clearTimeout(prefetchTimer);
     }
   }, [fetchDashboard, path, dashboardData]);
+
+  // Route 1b: Round 2 Coding Round (feature-flagged, lazy-loaded)
+  if (CODING_ROUND_ENABLED && path.startsWith("/candidate/coding")) {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <CodingRoundPage />
+      </Suspense>
+    );
+  }
 
   // Route 1: Candidate Examination Portal & Root Landing
   if (path.startsWith("/candidate") || path === "/" || path === "") {
