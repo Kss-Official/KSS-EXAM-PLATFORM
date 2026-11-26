@@ -244,7 +244,108 @@ class MockSandboxExecutor(SandboxExecutor):
         )
 
 
+class LocalPythonDemoExecutor(SandboxExecutor):
+    """
+    Local-dev-only Python subprocess executor for manual testing when Judge0 is unavailable.
+    Strictly forbidden when DEBUG is False or ENVIRONMENT is production.
+    Strips environment secrets and enforces timeout + output cap in an isolated temp dir.
+    """
+
+    def __init__(self) -> None:
+        if not settings.DEBUG or settings.ENVIRONMENT.lower() == "production":
+            raise RuntimeError("LOCAL_DEMO_SANDBOX is forbidden when DEBUG is False or in production.")
+
+    async def execute(
+        self,
+        language: str,
+        source_code: str,
+        stdin: str,
+        expected_output: Optional[str] = None,
+        cpu_time_limit_s: float = 2.0,
+        wall_time_limit_s: float = 5.0,
+        memory_limit_kb: int = 262144,
+        max_processes: int = 32,
+        max_file_size_kb: int = 1024,
+    ) -> SandboxResult:
+        if not settings.DEBUG or settings.ENVIRONMENT.lower() == "production":
+            raise RuntimeError("LOCAL_DEMO_SANDBOX is forbidden when DEBUG is False or in production.")
+        if language.lower() not in ("python", "python3", "py"):
+            return SandboxResult(
+                verdict="INTERNAL_ERROR",
+                stderr="LOCAL_DEMO_SANDBOX supports python3 only. Use Judge0 CE on Docker for other languages.",
+            )
+
+        import asyncio
+        import os
+        import subprocess
+        import sys
+        import tempfile
+        import time
+
+        def _run_sync() -> SandboxResult:
+            t0 = time.time()
+            with tempfile.TemporaryDirectory() as tmpdir:
+                script_path = os.path.join(tmpdir, "main.py")
+                with open(script_path, "w", encoding="utf-8") as f:
+                    f.write(source_code or "")
+
+                # Minimal environment: strip all DB/secret env vars
+                safe_env = {"PATH": os.environ.get("PATH", ""), "PYTHONNOUSERSITE": "1"}
+                preexec = None
+                if os.name != "nt":
+                    import resource
+                    def _limits():
+                        mem_bytes = int(memory_limit_kb) * 1024
+                        resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
+                        resource.setrlimit(resource.RLIMIT_CPU, (int(cpu_time_limit_s) + 1, int(cpu_time_limit_s) + 1))
+                    preexec = _limits
+
+                try:
+                    proc = subprocess.run(
+                        [sys.executable, "-I", script_path],
+                        input=stdin or "",
+                        capture_output=True,
+                        text=True,
+                        timeout=float(cpu_time_limit_s),
+                        cwd=tmpdir,
+                        env=safe_env,
+                        preexec_fn=preexec,
+                    )
+                except subprocess.TimeoutExpired:
+                    return SandboxResult(
+                        verdict="TIME_LIMIT_EXCEEDED",
+                        stderr=f"Time Limit Exceeded (>{cpu_time_limit_s}s)",
+                        runtime_ms=int(cpu_time_limit_s * 1000),
+                        memory_kb=0,
+                    )
+
+                elapsed_ms = int((time.time() - t0) * 1000)
+                stdout = (proc.stdout or "")[:65536]
+                stderr = (proc.stderr or "")[:16384]
+                if proc.returncode != 0:
+                    if "MemoryError" in stderr:
+                        return SandboxResult(verdict="MEMORY_LIMIT_EXCEEDED", stdout=stdout, stderr=stderr, runtime_ms=elapsed_ms)
+                    if "SyntaxError" in stderr or "IndentationError" in stderr:
+                        return SandboxResult(verdict="COMPILE_ERROR", compile_output=stderr, runtime_ms=elapsed_ms)
+                    return SandboxResult(verdict="RUNTIME_ERROR", stdout=stdout, stderr=stderr, runtime_ms=elapsed_ms)
+
+                if expected_output is not None:
+                    passed = stdout.strip() == expected_output.strip()
+                    return SandboxResult(
+                        verdict="ACCEPTED" if passed else "WRONG_ANSWER",
+                        stdout=stdout,
+                        runtime_ms=elapsed_ms,
+                        memory_kb=16384,
+                    )
+                return SandboxResult(verdict="ACCEPTED", stdout=stdout, runtime_ms=elapsed_ms, memory_kb=16384)
+
+        return await asyncio.to_thread(_run_sync)
+
+
 def get_sandbox_executor() -> SandboxExecutor:
-    if settings.CODING_SANDBOX_DRIVER.lower() == "judge0":
+    driver = settings.CODING_SANDBOX_DRIVER.lower()
+    if driver == "judge0":
         return Judge0SandboxExecutor()
+    if driver == "local_python" and settings.LOCAL_DEMO_SANDBOX:
+        return LocalPythonDemoExecutor()
     return MockSandboxExecutor()
