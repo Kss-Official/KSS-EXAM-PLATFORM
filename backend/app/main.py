@@ -79,7 +79,7 @@ from starlette.middleware.gzip import GZipMiddleware
 @app.middleware("http")
 async def normalize_api_paths(request: Request, call_next):
     path = request.url.path
-    for prefix in ["/candidate", "/admin", "/auth", "/health"]:
+    for prefix in ["/candidate", "/admin", "/auth", "/health", "/coding"]:
         if path == prefix or path.startswith(f"{prefix}/"):
             request.scope["path"] = f"/api{path}"
             break
@@ -175,6 +175,10 @@ app.include_router(admin_router)
 
 # 3. 🎓 Candidate Examination Portal Endpoints (/api/candidate/*)
 app.include_router(candidate_router)
+
+# 4. 💻 Round 2 Coding Assessment Endpoints (/api/coding/*, gated by CODING_ROUND_ENABLED)
+from app.coding.router import router as coding_router
+app.include_router(coding_router)
 
 @app.get("/")
 @app.get("/api")
