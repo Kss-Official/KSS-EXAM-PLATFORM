@@ -59,11 +59,20 @@ python migrations/add_coding_round_v2.py --down
 ---
 
 ## 5. Capacity Math for 10,000 Concurrent Users
-- **Traffic Mix**: 10,000 concurrent candidates:
-  - ~70% reading/typing (`GET /api/coding/problems/:id` served from TTL cache).
-  - ~20% running sample tests (~1 run per 90s -> ~111 runs/sec).
-  - ~10% submitting (~33 submits/sec average, up to ~150 jobs/sec in end-of-exam bursts).
-- **Concurrency Needed**: `150 jobs/s * 2.5s avg execution = 375` concurrent Judge0 sandbox slots.
+
+### Measured vs Assumed Table
+| Metric / Parameter | Assumed (Design Target) | Measured (Staging k6) |
+|---|---|---|
+| Concurrent Virtual Users | 10,000 | *(pending staging run)* |
+| Traffic Mix (Read / Run / Submit) | 70% / 20% / 10% | *(pending staging run)* |
+| Peak Job Arrival Rate | ~150 jobs/s | *(pending staging run)* |
+| Avg Sandbox Execution Time | 1.5s (run) / 2.5s (submit) | *(pending staging run)* |
+| Concurrent Sandbox Slots Needed | 375 (`150 * 2.5`) | *(pending staging run)* |
+| p95 HTTP Latency | < 1,500 ms | *(pending staging run)* |
+| 5xx Error Rate | < 1.0% | *(pending staging run)* |
+| Max Queue Depth Observed | <= 5,000 (`CODING_MAX_QUEUE_DEPTH`) | *(pending staging run)* |
+| Degradation / Saturation Point | — | *(pending staging run)* |
+
 - **Worker Sizing**: Run `docker compose -f docker-compose.coding.yml up -d --scale coding-worker=8 --scale judge0-worker=12` across dedicated worker nodes (4–8 vCPU each).
 - **Backpressure**: When queue depth reaches `CODING_MAX_QUEUE_DEPTH=5000`, the API returns `429 Too Many Requests` with `Retry-After` instead of crashing.
 

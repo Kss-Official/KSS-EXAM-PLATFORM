@@ -1,21 +1,24 @@
 version: "3.9"
 
-# Round 2 Coding Execution Stack (Separate from DB/API host in production)
+# Round 2 Coding Execution Stack (Separate host/containers from API & Exam DB)
 # Requires Linux host with cgroup v1 enabled for Judge0 CE v1.13.1 isolate sandbox.
 
 networks:
   edge_net:
     driver: bridge
+  judge0_api_net:
+    driver: bridge
+    internal: true  # Only coding-worker <-> judge0-server (no internet, no exam DB)
   sandbox_net:
     driver: bridge
-    internal: true  # No outbound internet or DB network access from sandbox
+    internal: true  # Isolated Judge0 internals (no internet, no app Redis, no exam DB)
 
 services:
   redis:
     image: redis:7.2-alpine
+    restart: unless-stopped
     command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "1gb", "--maxmemory-policy", "noeviction"]
-    ports:
-      - "6379:6379"
+    # No public ports published; reachable only by API & coding-worker on edge_net
     networks:
       - edge_net
     healthcheck:
@@ -23,78 +26,144 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
 
   judge0-db:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: judge0
-      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:-judge0_local_pass}
+      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:?JUDGE0_DB_PASSWORD must be set}
       POSTGRES_DB: judge0
     networks:
       - sandbox_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0 -d judge0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
 
   judge0-redis:
     image: redis:7.2-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     networks:
       - sandbox_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   judge0-server:
     image: judge0/judge0:1.13.1
+    restart: unless-stopped
     volumes:
       - ./judge0.conf:/judge0.conf:ro
-    ports:
-      - "2358:2358"
+    # No public ports published; reachable only via judge0_api_net
     privileged: true
     depends_on:
-      - judge0-db
-      - judge0-redis
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
     environment:
       REDIS_HOST: judge0-redis
       POSTGRES_HOST: judge0-db
       POSTGRES_USER: judge0
-      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:-judge0_local_pass}
+      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:?JUDGE0_DB_PASSWORD must be set}
       POSTGRES_DB: judge0
+      AUTHN_HEADER: X-Auth-Token
+      AUTHN_TOKEN: ${JUDGE0_AUTH_TOKEN:?JUDGE0_AUTH_TOKEN must be set}
     networks:
-      - edge_net
+      - judge0_api_net
       - sandbox_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:2358/about || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
 
   judge0-worker:
     image: judge0/judge0:1.13.1
+    restart: unless-stopped
     command: ["./scripts/workers"]
     volumes:
       - ./judge0.conf:/judge0.conf:ro
     privileged: true
     depends_on:
-      - judge0-db
-      - judge0-redis
+      judge0-db:
+        condition: service_healthy
+      judge0-redis:
+        condition: service_healthy
     environment:
       REDIS_HOST: judge0-redis
       POSTGRES_HOST: judge0-db
       POSTGRES_USER: judge0
-      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:-judge0_local_pass}
+      POSTGRES_PASSWORD: ${JUDGE0_DB_PASSWORD:?JUDGE0_DB_PASSWORD must be set}
       POSTGRES_DB: judge0
     networks:
-      - sandbox_net  # Isolated: no internet, no app DB access
+      - sandbox_net  # Isolated: no internet, no app Redis, no exam DB
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f workers || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4096M
 
   coding-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile.worker
+    restart: unless-stopped
     command: ["python", "-m", "arq", "worker.coding_worker.WorkerSettings"]
     depends_on:
       redis:
         condition: service_healthy
       judge0-server:
-        condition: service_started
+        condition: service_healthy
     environment:
       ENVIRONMENT: ${ENVIRONMENT:-staging}
       CODING_ROUND_ENABLED: "true"
       CODING_SANDBOX_DRIVER: "judge0"
       REDIS_URL: "redis://redis:6379/0"
       JUDGE0_URL: "http://judge0-server:2358"
-      JUDGE0_AUTH_TOKEN: ${JUDGE0_AUTH_TOKEN:-}
-      DATABASE_URL: ${DATABASE_URL}
-      SECRET_KEY: ${SECRET_KEY}
+      JUDGE0_AUTH_TOKEN: ${JUDGE0_AUTH_TOKEN:?JUDGE0_AUTH_TOKEN must be set}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set}
     networks:
       - edge_net
+      - judge0_api_net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f coding_worker || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
