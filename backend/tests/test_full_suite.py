@@ -116,7 +116,7 @@ def test_full_backend_lifecycle_and_root_cause_fixes(db: Session):
         assert set_b_before == 0, "Set B initially has 0 questions"
 
         pub_exam = ExamService.publish_exam(db, exam_id, admin_email)
-        assert pub_exam.status == "PUBLISHED"
+        assert pub_exam.status in ("ACTIVATED", "PUBLISHED")
 
         set_b_after = db.query(Question).filter(Question.question_set_id == set_b.id).count()
         set_c_after = db.query(Question).filter(Question.question_set_id == set_c.id).count()

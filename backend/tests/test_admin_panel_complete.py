@@ -1,13 +1,13 @@
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
-from app.core import SessionLocal, init_super_admin, init_default_departments
+from app.core import SessionLocal, init_super_admin, init_default_departments, settings
 from app.models import AppUser, Department, Exam, QuestionSet, Question, Candidate, CandidateAccessCode, CodingExam
 
 client = TestClient(app)
 
-ADMIN_EMAIL = "d.koushik@kalpanaaasoftwaresolutions.in"
-ADMIN_PASSWORD = "Admin@ExamSecure2026!"
+ADMIN_EMAIL = settings.ADMIN_BOOTSTRAP_EMAIL
+ADMIN_PASSWORD = settings.ADMIN_BOOTSTRAP_PASSWORD
 
 @pytest.fixture(scope="module")
 def admin_token():
