@@ -51,10 +51,15 @@ python migrations/add_coding_round_v2.py --up
 python migrations/add_coding_round_v2.py --down
 ```
 
-### DB Connection Pool Math (10,000 Users)
+### DB Connection Pool & Write Load Math (10,000 Users)
 - With `8` Uvicorn API workers + `8` ARQ coding workers = `16` Python processes.
 - Set `DB_POOL_SIZE=10` and `DB_MAX_OVERFLOW=10` per process -> max `16 * 20 = 320` app connections.
 - Always point `DATABASE_URL` to **Neon's PgBouncer pooler** (`-pooler` endpoint) so 320 app connections multiplex cleanly onto `<= 60` physical PostgreSQL connections.
+- **Draft Autosave Write Load**: `PUT /api/coding/drafts` performs an atomic `ON CONFLICT (attempt_id, question_id, language) DO UPDATE` upsert (never blind inserts). At `1.5s` debounce with 30–50% of 10,000 users actively typing (pausing every 5–10s), steady-state write load is **~300–1,000 upserts/sec** (worst-case simultaneous pause ~3,333/s), bounded per user by `CODING_DRAFT_RATE_LIMIT_PER_MIN=60` in Redis.
+
+### Finalization Precedence on Timer Expiry
+- Explicit `POST /api/coding/submit` calls received before `expires_at + CODING_SUBMIT_GRACE_SECONDS` always count as the candidate's submission.
+- When `finalize_expired_coding_attempts` runs (under Redis lock `coding:lock:finalizer`), it promotes a question's latest saved `CodingDraft` (`updated_at <= expires_at + grace`) **only if** no explicit submission exists with `submitted_at >= draft.updated_at`. Post-deadline drafts are never promoted.
 
 ---
 
@@ -78,12 +83,18 @@ python migrations/add_coding_round_v2.py --down
 
 ---
 
-## 6. Staging Deployment & k6 Load Test
-1. Apply migration: `python backend/migrations/add_coding_round_v2.py --up`
-2. Start Redis, Judge0 CE, and coding workers:
+## 6. Staging Deployment, Compose Validation & k6 Load Test
+1. Validate Compose config (with `.env` populated):
+   `docker compose -f docker-compose.coding.yml config`
+2. Apply migration: `python backend/migrations/add_coding_drafts_v3.py --up`
+3. Start Redis, Judge0 CE, and coding workers:
    `docker compose -f docker-compose.coding.yml up -d --scale coding-worker=4 --scale judge0-worker=6`
-3. Start API cluster (`scripts/start_cluster.py --workers 8`) behind Nginx (`nginx/conf.d/exam_portal.conf`).
-4. Run k6 10,000-VU test:
+4. Verify network isolation & connectivity:
+   - `docker compose -f docker-compose.coding.yml exec coding-worker python -c "import redis; r=redis.from_url('redis://:'+__import__('os').environ['REDIS_PASSWORD']+'@redis:6379/0'); print(r.ping())"` (expects `True`)
+   - `docker compose -f docker-compose.coding.yml exec coding-worker curl -sf -H "X-Auth-Token: $JUDGE0_AUTH_TOKEN" http://judge0-server:2358/about` (expects JSON)
+   - `docker compose -f docker-compose.coding.yml exec judge0-worker curl -sf --max-time 3 https://1.1.1.1` (expects failure — no internet)
+5. Start API cluster (`scripts/start_cluster.py --workers 8`) behind Nginx (`nginx/conf.d/exam_portal.conf`).
+6. Run k6 10,000-VU test:
    `k6 run -e BASE_URL=https://staging.example.com -e EXAM_ID=1 -e QUESTION_ID=q1 -e TOKEN=<candidate_jwt> scripts/k6_coding_10k.js`
 
 ---

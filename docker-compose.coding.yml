@@ -17,10 +17,12 @@ services:
   redis:
     image: redis:7.2-alpine
     restart: unless-stopped
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "1gb", "--maxmemory-policy", "noeviction"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}", "--save", "", "--appendonly", "no", "--maxmemory", "1gb", "--maxmemory-policy", "noeviction"]
     # No public ports published; reachable only by API & coding-worker on edge_net
     networks:
       - edge_net
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD must be set}
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -149,7 +151,7 @@ services:
       ENVIRONMENT: ${ENVIRONMENT:-staging}
       CODING_ROUND_ENABLED: "true"
       CODING_SANDBOX_DRIVER: "judge0"
-      REDIS_URL: "redis://redis:6379/0"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:?REDIS_PASSWORD must be set}@redis:6379/0"
       JUDGE0_URL: "http://judge0-server:2358"
       JUDGE0_AUTH_TOKEN: ${JUDGE0_AUTH_TOKEN:?JUDGE0_AUTH_TOKEN must be set}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set}
