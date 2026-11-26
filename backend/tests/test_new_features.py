@@ -93,56 +93,14 @@ def test_coding_exam_crud_and_publishing(db: Session):
     assert published.status == "PUBLISHED"
 
 def test_code_runner_sandbox_and_grading(db: Session):
-    """Tests sandboxed Python execution and automated test case evaluation."""
-    # 1. Direct Code Run
-    py_code = (
-        "import sys\n"
-        "data = sys.stdin.read().split()\n"
-        "if data:\n"
-        "    n = int(data[0])\n"
-        "    nums = [int(x) for x in data[1:]]\n"
-        "    print(sum(nums))\n"
-    )
+    """Asserts that the legacy unsandboxed CodeRunnerService._execute_code is permanently guarded."""
     run_req = CodeRunRequest(
         language="python3",
-        code=py_code,
+        code="print(100)",
         input="4\n10 20 30 40\n"
     )
-    run_res = CodeRunnerService.run_candidate_code(run_req)
-    assert run_res.status == "SUCCESS"
-    assert run_res.output.strip() == "100"
-    assert run_res.executionTimeMs >= 0
-
-    # 2. Setup candidate and exam for evaluation
-    cand = db.query(Candidate).filter(Candidate.registration_number == "CODE-TEST-CAND-01").first()
-    if not cand:
-        cand = Candidate(
-            registration_number="CODE-TEST-CAND-01",
-            full_name="Algorithm Candidate",
-            email="algocand@secureexam.local",
-            status="ACTIVE"
-        )
-        db.add(cand)
-        db.commit()
-        db.refresh(cand)
-
-    exam = CodingExamService.get_all_coding_exams(db)[0]
-    q = exam.questions[0]
-
-    # Evaluate correct submission
-    sub_req = CodeSubmitRequest(
-        examId=exam.id,
-        questionId=q.id,
-        candidateId=cand.id,
-        language="python3",
-        code=py_code
-    )
-    eval_res = CodeRunnerService.evaluate_and_submit_code(db, sub_req)
-    assert eval_res.success is True
-    assert eval_res.status == "PASSED"
-    assert eval_res.passedCount == 2
-    assert eval_res.totalCount == 2
-    assert eval_res.score == 20.0
+    with pytest.raises(RuntimeError, match="UNSAFE, DO NOT USE"):
+        CodeRunnerService.run_candidate_code(run_req)
 
 def test_round_specific_unique_ids_and_batch_email(db: Session):
     """Verifies Round 1 vs Round 2 unique ID generation, 3-use limits, and batch email service."""

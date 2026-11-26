@@ -13,7 +13,8 @@ from app.models.department import Department
 from app.models.exam import Exam
 from app.models.attempt import ExamAttempt
 from app.models.question import QuestionSet
-from app.models.coding import CodingExam, CodingQuestion, CodingTestCase, CodingAttempt
+from app.models.coding import CodingExam, CodingQuestion, CodingTestCase, CodingAttempt, CodingSubmission
+from app.coding.router import finalize_expired_coding_attempts
 
 client = TestClient(app)
 
@@ -255,3 +256,193 @@ def test_expired_attempt_blocks_run_and_submit(coding_fixtures):
         },
     )
     assert res.status_code == 403
+
+
+def test_server_drafts_save_restore_and_timer_grace_window(coding_fixtures, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(settings, "CODING_SUBMIT_GRACE_SECONDS", 10)
+    fx = coding_fixtures
+    headers = {"Authorization": f"Bearer {fx['tok1']}"}
+
+    # 1. Save draft on server
+    put_res = client.put(
+        "/api/coding/drafts",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('draft-v1')",
+        },
+    )
+    assert put_res.status_code == 200
+    assert put_res.json()["code"] == "print('draft-v1')"
+
+    # 2. Restore draft from server
+    get_res = client.get(
+        f"/api/coding/drafts/{fx['question_id']}?examId={fx['exam_id']}",
+        headers=headers,
+    )
+    assert get_res.status_code == 200
+    assert any(d["code"] == "print('draft-v1')" for d in get_res.json())
+
+    # 3. Submit just before deadline (expires_at = now + 5s) -> 202
+    db = SessionLocal()
+    try:
+        att = db.query(CodingAttempt).filter(
+            CodingAttempt.candidate_id == fx["cand1"].id,
+            CodingAttempt.exam_id == fx["exam_id"],
+        ).first()
+        att.expires_at = datetime.now(timezone.utc) + timedelta(seconds=5)
+        db.commit()
+    finally:
+        db.close()
+
+    sub_before = client.post(
+        "/api/coding/submit",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('before-deadline')",
+            "idempotencyKey": f"before-{int(time.time() * 1000)}",
+        },
+    )
+    assert sub_before.status_code == 202
+
+    # 4. Submit within grace window (expires_at = now - 3s, grace = 10s) -> 202
+    db = SessionLocal()
+    try:
+        att = db.query(CodingAttempt).filter(
+            CodingAttempt.candidate_id == fx["cand1"].id,
+            CodingAttempt.exam_id == fx["exam_id"],
+        ).first()
+        att.expires_at = datetime.now(timezone.utc) - timedelta(seconds=3)
+        db.commit()
+    finally:
+        db.close()
+
+    sub_grace = client.post(
+        "/api/coding/submit",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('in-grace')",
+            "idempotencyKey": f"grace-{int(time.time() * 1000)}",
+        },
+    )
+    assert sub_grace.status_code == 202
+
+    # 5. Submit just after deadline + grace (expires_at = now - 15s) -> 403
+    db = SessionLocal()
+    try:
+        att = db.query(CodingAttempt).filter(
+            CodingAttempt.candidate_id == fx["cand1"].id,
+            CodingAttempt.exam_id == fx["exam_id"],
+        ).first()
+        att.expires_at = datetime.now(timezone.utc) - timedelta(seconds=15)
+        db.commit()
+    finally:
+        db.close()
+
+    sub_after = client.post(
+        "/api/coding/submit",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('after-grace')",
+            "idempotencyKey": f"after-{int(time.time() * 1000)}",
+        },
+    )
+    assert sub_after.status_code == 403
+
+
+def test_disconnected_candidate_draft_auto_submitted_on_expiry(coding_fixtures, monkeypatch):
+    import asyncio
+    monkeypatch.setattr(settings, "CODING_SUBMIT_GRACE_SECONDS", 5)
+    fx = coding_fixtures
+    headers = {"Authorization": f"Bearer {fx['tok1']}"}
+
+    # Candidate saves a draft while online, then disconnects
+    put_res = client.put(
+        "/api/coding/drafts",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('disconnected-final-draft')",
+        },
+    )
+    assert put_res.status_code == 200
+
+    # Time expires past grace window
+    db = SessionLocal()
+    try:
+        att = db.query(CodingAttempt).filter(
+            CodingAttempt.candidate_id == fx["cand1"].id,
+            CodingAttempt.exam_id == fx["exam_id"],
+        ).first()
+        att.expires_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+        db.commit()
+
+        finalized_count = asyncio.run(finalize_expired_coding_attempts(db))
+        assert finalized_count >= 1
+        db.refresh(att)
+        assert att.status == "SUBMITTED"
+
+        auto_sub = db.query(CodingSubmission).filter(
+            CodingSubmission.attempt_id == att.id,
+            CodingSubmission.idempotency_key == f"auto-expire-{att.id}-{fx['question_id']}",
+        ).first()
+        assert auto_sub is not None
+        assert auto_sub.source_code == "print('disconnected-final-draft')"
+        assert auto_sub.is_run_only is False
+    finally:
+        db.close()
+
+
+def test_hidden_data_never_leaked_in_rest_sse_or_websocket(coding_fixtures):
+    fx = coding_fixtures
+    headers = {"Authorization": f"Bearer {fx['tok1']}"}
+
+    # Submit code that triggers runtime error on all test cases (including hidden)
+    sub_res = client.post(
+        "/api/coding/submit",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "x = 1/0",
+            "idempotencyKey": f"hid-leak-{int(time.time() * 1000)}",
+        },
+    )
+    assert sub_res.status_code == 202
+    sub_id = sub_res.json()["submissionId"]
+    time.sleep(0.25)
+
+    # 1. REST check
+    rest_res = client.get(f"/api/coding/submissions/{sub_id}", headers=headers)
+    assert rest_res.status_code == 200
+    assert "SECRET_HIDDEN_INPUT_XYZ" not in rest_res.text
+    assert "SECRET_HIDDEN_OUTPUT_XYZ" not in rest_res.text
+
+    # 2. SSE check
+    sse_res = client.get(f"/api/coding/events/{sub_id}", headers=headers)
+    assert sse_res.status_code == 200
+    assert "SECRET_HIDDEN_INPUT_XYZ" not in sse_res.text
+    assert "SECRET_HIDDEN_OUTPUT_XYZ" not in sse_res.text
+    assert "ZeroDivisionError" not in sse_res.text or rest_res.json()["errorMessage"] is not None
+
+    # 3. WebSocket check
+    with client.websocket_connect(f"/api/coding/ws/{sub_id}?token={fx['tok1']}") as ws:
+        ws_msg = ws.receive_text()
+        assert "SECRET_HIDDEN_INPUT_XYZ" not in ws_msg
+        assert "SECRET_HIDDEN_OUTPUT_XYZ" not in ws_msg
+        assert "ZeroDivisionError" not in ws_msg
