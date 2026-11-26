@@ -23,6 +23,8 @@ const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
 const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
 const CandidatePortal = lazy(() => import("./pages/candidate/CandidatePortal"));
 const CodingRoundPage = lazy(() => import("./pages/candidate/CodingRoundPage"));
+const CodingResultsPage = lazy(() => import("./pages/candidate/CodingResultsPage"));
+const CodingResultsAdminPage = lazy(() => import("./pages/admin/CodingResultsAdminPage"));
 const CODING_ROUND_ENABLED = import.meta.env.VITE_CODING_ROUND_ENABLED === "true";
 
 function PageLoading() {
@@ -120,7 +122,14 @@ function AppContent() {
     }
   }, [fetchDashboard, path, dashboardData]);
 
-  // Route 1b: Round 2 Coding Round (feature-flagged, lazy-loaded)
+  // Route 1b: Round 2 Coding Round & Results (feature-flagged, lazy-loaded)
+  if (CODING_ROUND_ENABLED && path.startsWith("/candidate/coding/results")) {
+    return (
+      <Suspense fallback={<PageLoading />}>
+        <CodingResultsPage />
+      </Suspense>
+    );
+  }
   if (CODING_ROUND_ENABLED && path.startsWith("/candidate/coding")) {
     return (
       <Suspense fallback={<PageLoading />}>
@@ -162,6 +171,8 @@ function AppContent() {
       pageNode = <CandidatesPage />;
     } else if (path.startsWith("/admin/live-monitoring")) {
       pageNode = <LiveMonitoringPage />;
+    } else if (CODING_ROUND_ENABLED && path.startsWith("/admin/coding-results")) {
+      pageNode = <CodingResultsAdminPage />;
     } else if (path.startsWith("/admin/results")) {
       pageNode = <ResultsPage />;
     } else if (path.startsWith("/admin/settings")) {
