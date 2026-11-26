@@ -276,6 +276,7 @@ export default function CandidateLoginScreen() {
                 placeholder="e.g. Jigyansha Sharma"
                 placeholderTextColor={Colors.slate400}
                 value={name}
+                contextMenuHidden
                 onChangeText={(text) => {
                   setName(text);
                   if (errors.name) setErrors((e) => ({ ...e, name: '' }));
@@ -355,6 +356,7 @@ export default function CandidateLoginScreen() {
                 placeholder="candidate@university.edu"
                 placeholderTextColor={Colors.slate400}
                 value={email}
+                contextMenuHidden
                 onChangeText={(text) => {
                   setEmail(text);
                   if (errors.email) setErrors((e) => ({ ...e, email: '' }));

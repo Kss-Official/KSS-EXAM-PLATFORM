@@ -2,6 +2,8 @@ package `in`.kalpanaaasoftwaresolutions.examsecure
 
 import android.os.Build
 import android.os.Bundle
+import android.view.ActionMode
+import android.view.WindowManager
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.fabricEnabled
@@ -15,7 +17,16 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+    // Block screenshots, screen recording, and app-switcher previews
+    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
   }
+
+  /**
+   * Suppress Android's floating Copy/Paste/Cut/Share ActionMode toolbar.
+   */
+  override fun onWindowStartingActionMode(callback: ActionMode.Callback?): ActionMode? = null
+
+  override fun onWindowStartingActionMode(callback: ActionMode.Callback?, type: Int): ActionMode? = null
 
   /**
    * Returns the name of the main component registered from JavaScript. This is used to schedule

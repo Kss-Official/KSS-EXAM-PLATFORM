@@ -167,6 +167,7 @@ export default function RoleApplicationScreen() {
                 placeholder="e.g. Software Engineer, AI/ML Developer"
                 placeholderTextColor={Colors.slate400}
                 value={jobRole}
+                contextMenuHidden
                 onChangeText={setJobRole}
                 returnKeyType="done"
               />
