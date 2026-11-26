@@ -89,6 +89,7 @@ class Settings(BaseSettings):
     CODING_DRAFT_RATE_LIMIT_PER_MIN: int = 60
     CODING_SUBMIT_GRACE_SECONDS: int = 10
     CODING_PASTE_POLICY: str = "flag"  # "flag", "ignore", or "block"
+    CODING_CODE_RETENTION: str = "none"  # "none" | "flagged_only" | "days:N"
     CODING_JOB_TIMEOUT_SECONDS: int = 30
     CODING_ALLOWED_LANGUAGES: List[str] = ["python3", "javascript", "cpp", "c", "java"]
 

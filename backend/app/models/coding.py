@@ -24,6 +24,7 @@ class CodingExam(Base):
     qualification_percentage = Column(Numeric(6, 2), nullable=False, default=60.00)
     total_marks = Column(Numeric(8, 2), nullable=False, default=100.00)
     status = Column(String(20), nullable=False, default="DRAFT")  # DRAFT, PUBLISHED, ARCHIVED
+    results_published = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -84,6 +85,7 @@ class CodingAttempt(Base):
     __tablename__ = "coding_attempts"
     __table_args__ = (
         Index("ix_coding_attempts_status_expires", "status", "expires_at"),
+        Index("ix_coding_attempts_exam_finalized", "exam_id", "finalized_at"),
     )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
@@ -93,11 +95,15 @@ class CodingAttempt(Base):
     score = Column(Numeric(8, 2), nullable=False, default=0.00)
     total_marks = Column(Numeric(8, 2), nullable=False, default=100.00)
     percentage = Column(Numeric(6, 2), nullable=False, default=0.00)
+    total_score = Column(Numeric(8, 2), nullable=False, default=0.00)
+    total_possible = Column(Numeric(8, 2), nullable=False, default=100.00)
+    overall_percent = Column(Numeric(6, 2), nullable=False, default=0.00)
     qualification_status = Column(String(20), default="PENDING")
     started_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     expires_at = Column(DateTime(timezone=True), nullable=True)
     extra_time_minutes = Column(Integer, nullable=False, default=0)
     submitted_at = Column(DateTime(timezone=True), nullable=True)
+    finalized_at = Column(DateTime(timezone=True), nullable=True)
 
     candidate = relationship("Candidate")
     exam = relationship("CodingExam", back_populates="attempts")
@@ -122,7 +128,9 @@ class CodingSubmission(Base):
     candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=True)
     question_id = Column(String(64), ForeignKey("coding_questions.id", ondelete="CASCADE"), nullable=False)
     language = Column(String(30), nullable=False)
-    source_code = Column(Text, nullable=False)
+    source_code = Column(Text, nullable=True)
+    code_hash = Column(String(64), nullable=True)
+    retention_expires_at = Column(DateTime(timezone=True), nullable=True)
     idempotency_key = Column(String(128), nullable=True)
     is_run_only = Column(Boolean, nullable=False, default=False)
     job_id = Column(String(128), nullable=True)
@@ -160,6 +168,45 @@ class CodingDraft(Base):
     language = Column(String(30), nullable=False)
     source_code = Column(Text, nullable=False, default="")
     updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    attempt = relationship("CodingAttempt")
+    question = relationship("CodingQuestion")
+
+
+class CodingQuestionResult(Base):
+    """
+    Compact, durable per-(attempt, question) final result row.
+    Never stores hidden test inputs, outputs, or raw hidden stderr.
+    """
+    __tablename__ = "coding_question_results"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", name="uq_cqr_attempt_question"),
+        Index("ix_cqr_exam_cand", "exam_id", "candidate_id"),
+        Index("ix_cqr_exam_question", "exam_id", "question_id"),
+    )
+
+    id = Column(ID_TYPE, primary_key=True, autoincrement=True)
+    attempt_id = Column(BigInteger, ForeignKey("coding_attempts.id", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    exam_id = Column(BigInteger, ForeignKey("coding_exams.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(String(64), ForeignKey("coding_questions.id", ondelete="CASCADE"), nullable=False)
+    tests_passed = Column(Integer, nullable=False, default=0)
+    tests_total = Column(Integer, nullable=False, default=0)
+    sample_passed = Column(Integer, nullable=False, default=0)
+    hidden_passed = Column(Integer, nullable=False, default=0)
+    score_awarded = Column(Numeric(8, 2), nullable=False, default=0.00)
+    score_possible = Column(Numeric(8, 2), nullable=False, default=0.00)
+    score_percent = Column(Numeric(6, 2), nullable=False, default=0.00)
+    final_verdict = Column(String(40), nullable=False, default="NOT_ATTEMPTED")
+    failure_summary_json = Column(Text, nullable=False, default="{}")
+    first_failure_type = Column(String(40), nullable=True)
+    max_runtime_ms = Column(Integer, nullable=True)
+    max_memory_kb = Column(Integer, nullable=True)
+    language = Column(String(30), nullable=True)
+    attempts_count = Column(Integer, nullable=False, default=0)
+    compile_error_short = Column(String(300), nullable=True)
+    code_hash = Column(String(64), nullable=True)
+    finalized_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     attempt = relationship("CodingAttempt")
     question = relationship("CodingQuestion")
