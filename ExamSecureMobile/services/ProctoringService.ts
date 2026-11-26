@@ -87,7 +87,32 @@ class ProctoringService {
     return this.totalStrikes;
   }
 
+  public async captureSnapshot(): Promise<string | null> {
+    if (Platform.OS === "android" && ProctoringModule?.captureSnapshot) {
+      try {
+        return await ProctoringModule.captureSnapshot();
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  public reportExternalEvent(event: ProctoringEvent): void {
+    this.handleNativeEvent(event);
+  }
+
   private handleNativeEvent = (event: ProctoringEvent) => {
+    // Escalate strikes BEFORE notifying UI listeners so ProctoringStatus reads the updated count
+    if (event.severity === "CRITICAL" || event.type === "PHONE_DETECTED" || event.type === "MULTIPLE_FACES") {
+      const now = Date.now();
+      if (now - this.lastIncidentTime > 3000) {
+        this.totalStrikes += 1;
+        this.lastIncidentTime = now;
+        this.syncIncidentWithBackend(event);
+      }
+    }
+
     // Notify all UI listeners
     this.listeners.forEach((listener) => {
       try {
@@ -96,16 +121,6 @@ class ProctoringService {
         console.error("[ProctoringService] Listener error:", e);
       }
     });
-
-    // Escalate strikes for CRITICAL violations
-    if (event.severity === "CRITICAL" || event.type === "PHONE_DETECTED" || event.type === "MULTIPLE_FACES") {
-      const now = Date.now();
-      if (now - this.lastIncidentTime > 2500) {
-        this.totalStrikes += 1;
-        this.lastIncidentTime = now;
-        this.syncIncidentWithBackend(event);
-      }
-    }
   };
 
   private async syncIncidentWithBackend(event: ProctoringEvent) {

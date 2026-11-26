@@ -90,6 +90,11 @@ class ProctoringModule(private val reactContext: ReactApplicationContext) :
         }
     }
 
+    @ReactMethod
+    fun captureSnapshot(promise: Promise) {
+        promise.resolve(cameraManager?.getLatestSnapshotBase64())
+    }
+
     override fun onProctoringEvent(
         type: String,
         severity: String,

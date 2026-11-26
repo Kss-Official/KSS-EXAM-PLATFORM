@@ -1,6 +1,10 @@
 package `in`.kalpanaaasoftwaresolutions.examsecure.proctoring
 
 import android.annotation.SuppressLint
+import android.graphics.ImageFormat
+import android.graphics.Rect
+import android.graphics.YuvImage
+import android.util.Base64
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
@@ -9,6 +13,7 @@ import androidx.camera.core.Preview
 import androidx.camera.core.UseCase
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -29,6 +34,12 @@ class CameraManager(
     private var cameraProvider: ProcessCameraProvider? = null
     private var previewSurfaceProvider: Preview.SurfaceProvider? = null
     private var isStarted = false
+
+    @Volatile
+    private var latestSnapshotBase64: String? = null
+    private var lastSnapshotTimeMs = 0L
+
+    fun getLatestSnapshotBase64(): String? = latestSnapshotBase64
 
     fun setPreviewSurfaceProvider(provider: Preview.SurfaceProvider?) {
         previewSurfaceProvider = provider
@@ -94,6 +105,13 @@ class CameraManager(
             return
         }
 
+        // Capture compressed JPEG snapshot every 3s for server-side phone/multi-person analysis
+        val now = System.currentTimeMillis()
+        if (now - lastSnapshotTimeMs >= 3000L) {
+            lastSnapshotTimeMs = now
+            latestSnapshotBase64 = encodeYuvToBase64(imageProxy)
+        }
+
         // 2. ML Kit Face Detection → Head Pose + Gaze (async, non-blocking)
         faceDetector.detectFaces(
             mediaImage,
@@ -121,6 +139,30 @@ class CameraManager(
                 }
             }
         )
+    }
+
+    private fun encodeYuvToBase64(imageProxy: ImageProxy): String? {
+        return try {
+            val yPlane = imageProxy.planes[0]
+            val uPlane = imageProxy.planes[1]
+            val vPlane = imageProxy.planes[2]
+
+            val ySize = yPlane.buffer.remaining()
+            val uSize = uPlane.buffer.remaining()
+            val vSize = vPlane.buffer.remaining()
+
+            val nv21 = ByteArray(ySize + uSize + vSize)
+            yPlane.buffer.duplicate().get(nv21, 0, ySize)
+            vPlane.buffer.duplicate().get(nv21, ySize, vSize)
+            uPlane.buffer.duplicate().get(nv21, ySize + vSize, uSize)
+
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, imageProxy.width, imageProxy.height, null)
+            val out = ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, imageProxy.width, imageProxy.height), 55, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        } catch (_: Exception) {
+            null
+        }
     }
 
     fun stop() {

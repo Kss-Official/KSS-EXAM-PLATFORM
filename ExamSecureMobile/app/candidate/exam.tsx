@@ -77,6 +77,8 @@ export default function ExamScreen() {
   const watermarkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appStateRef = useRef<AppStateStatus>((AppState.currentState || 'active') as AppStateStatus);
+  const violationsRef = useRef<number>(0);
+  const lastProctorStrikeRef = useRef<number>(0);
 
   useFocusEffect(
     useCallback(() => {
@@ -209,25 +211,6 @@ export default function ExamScreen() {
     return () => sub.remove();
   }, []);
 
-  // ─── Optical Sentinel & Secondary Device Monitoring Loop (every 12s) ────────
-  useEffect(() => {
-    if (!session?.profile?.dbCandidateId) return;
-
-    const opticalInterval = setInterval(async () => {
-      try {
-        await reportProctorAlert({
-          candidateId: session.profile.dbCandidateId!,
-          attemptId: session.backendAttemptId,
-          alertType: 'OPTICAL_TELEMETRY_HEARTBEAT',
-          message: 'Continuous front camera optical stream active.',
-          severity: 'LOW',
-        });
-      } catch {}
-    }, 12000);
-
-    return () => clearInterval(opticalInterval);
-  }, [session]);
-
   // ─── Proctored Heartbeat (every 30s) ─────────────────────────────────────────
   useEffect(() => {
     if (!session?.profile?.dbCandidateId) return;
@@ -252,7 +235,8 @@ export default function ExamScreen() {
   // ─── Zero-Tolerance Security Violation Engine ───────────────────────────────
   const handleSecurityViolation = useCallback(
     async (type: string, msg: string) => {
-      const newCount = violations + 1;
+      const newCount = violationsRef.current + 1;
+      violationsRef.current = newCount;
       setViolations(newCount);
       setViolationType(type);
       setViolationMessage(msg);
@@ -276,8 +260,50 @@ export default function ExamScreen() {
         }, 1200);
       }
     },
-    [violations, session]
+    [session]
   );
+
+  // ─── Optical Sentinel & Server Frame Analysis Loop (every 6s) ───────────────
+  useEffect(() => {
+    if (!session?.profile?.dbCandidateId) return;
+
+    const opticalInterval = setInterval(async () => {
+      try {
+        const snapshot = await proctoringService.captureSnapshot();
+        if (snapshot) {
+          const res = await analyzeProctorFrame({
+            candidateId: session.profile.dbCandidateId!,
+            attemptId: session.backendAttemptId,
+            imageBase64: snapshot,
+          });
+          const hasMultiFace = typeof res.facesDetected === 'number' && res.facesDetected > 1;
+          if (res.alert || hasMultiFace) {
+            const alertType = res.alert || 'MULTIPLE_FACES';
+            const alertMsg =
+              res.message ||
+              (hasMultiFace
+                ? `Multiple people detected (${res.facesDetected} faces)`
+                : 'Prohibited object or phone detected in camera view');
+            proctoringService.reportExternalEvent({
+              type: alertType as any,
+              severity: 'CRITICAL',
+              confidence: 0.95,
+              timestamp: Date.now(),
+              message: alertMsg,
+              details: { facesDetected: res.facesDetected },
+            });
+            const now = Date.now();
+            if (now - lastProctorStrikeRef.current > 4000) {
+              lastProctorStrikeRef.current = now;
+              handleSecurityViolation(alertType, alertMsg);
+            }
+          }
+        }
+      } catch {}
+    }, 6000);
+
+    return () => clearInterval(opticalInterval);
+  }, [session, handleSecurityViolation]);
 
   // ─── High-Performance On-Device AI Proctoring Engine ───────────────────────
   useEffect(() => {
@@ -294,9 +320,14 @@ export default function ExamScreen() {
       if (
         event.severity === 'CRITICAL' ||
         event.type === 'PHONE_DETECTED' ||
-        event.type === 'MULTIPLE_FACES'
+        event.type === 'MULTIPLE_FACES' ||
+        event.type === 'CAMERA_COVERED'
       ) {
-        handleSecurityViolation(event.type, event.message);
+        const now = Date.now();
+        if (now - lastProctorStrikeRef.current > 4000) {
+          lastProctorStrikeRef.current = now;
+          handleSecurityViolation(event.type, event.message);
+        }
       }
     });
 
