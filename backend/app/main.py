@@ -1,6 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
+
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
@@ -51,7 +52,9 @@ async def lifespan(app: FastAPI):
                     CandidateExamService.auto_finalize_expired_attempts(db_bg)
                     if settings.CODING_ROUND_ENABLED:
                         from app.coding.router import finalize_expired_coding_attempts
+                        from app.coding.results_service import purge_expired_submission_code
                         await finalize_expired_coding_attempts(db_bg)
+                        purge_expired_submission_code(db_bg)
                 finally:
                     db_bg.close()
             except asyncio.CancelledError:

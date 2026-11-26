@@ -205,6 +205,13 @@ async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session
                 db.commit()
         except Exception as exc:
             log_coding_event("auto_expire_enqueue_error", submission_id=sub_id, error=str(exc))
+
+    # Compute durable per-question results & apply code retention
+    try:
+        from app.coding.results_service import finalize_coding_attempt_results
+        finalize_coding_attempt_results(int(attempt.id), db)
+    except Exception as exc:
+        log_coding_event("auto_expire_results_error", attempt_id=attempt.id, error=str(exc))
     return True
 
 
@@ -907,3 +914,7 @@ async def websocket_submission_events(websocket: WebSocket, submission_id: int, 
             await websocket.close()
         except Exception:
             pass
+
+
+from app.coding.results_router import results_router as _results_router
+router.include_router(_results_router)

@@ -14,6 +14,7 @@ from app.core.database import SessionLocal
 from app.models.coding import CodingAttempt, CodingQuestion, CodingSubmission, CodingTestCase
 from app.coding.judge0_client import get_sandbox_executor
 from app.coding.metrics import coding_metrics, log_coding_event
+from app.coding.scoring import compute_code_hash, compute_question_result_metrics
 
 
 def _sanitize_for_client(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -192,11 +193,26 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
             sub.status = "FAILED"
 
         sub.verdict = overall_verdict
-        sub.passed_test_cases = passed_count
-        sub.total_test_cases = total_cases
-        sub.marks_awarded = total_marks_awarded
-        sub.runtime_ms = max_runtime
-        sub.memory_kb = max_memory
+        tc_dicts = [
+            {"id": tc.id, "marks": float(tc.marks or 0), "isHidden": bool(tc.is_hidden)}
+            for tc in cases_to_run
+        ]
+        computed = compute_question_result_metrics(
+            test_cases=tc_dicts,
+            case_results=results,
+            question_max_marks=float(question.max_marks or 0),
+            language=sub.language,
+            attempts_count=1,
+            source_code=sub.source_code,
+            overall_verdict=overall_verdict,
+            compile_error=public_error_msg if overall_verdict == "COMPILE_ERROR" else None,
+        )
+        sub.passed_test_cases = computed.tests_passed
+        sub.total_test_cases = computed.tests_total
+        sub.marks_awarded = Decimal(str(computed.score_awarded))
+        sub.runtime_ms = computed.max_runtime_ms
+        sub.memory_kb = computed.max_memory_kb
+        sub.code_hash = computed.code_hash or compute_code_hash(sub.source_code)
         sub.error_message = public_error_msg
         sub.test_case_results = json.dumps(_sanitize_for_client(results))
         sub.updated_at = datetime.now(timezone.utc)
