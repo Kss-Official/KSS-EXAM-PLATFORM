@@ -172,12 +172,14 @@ async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session
         if existing_auto:
             continue
 
+        from app.coding.scoring import compute_code_hash
         sub = CodingSubmission(
             attempt_id=attempt.id,
             candidate_id=attempt.candidate_id,
             question_id=q_id,
             language=draft.language,
             source_code=draft.source_code,
+            code_hash=compute_code_hash(draft.source_code),
             idempotency_key=idem_key,
             is_run_only=False,
             verdict="QUEUED",

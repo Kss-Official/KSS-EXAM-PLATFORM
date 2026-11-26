@@ -212,7 +212,8 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
         sub.marks_awarded = Decimal(str(computed.score_awarded))
         sub.runtime_ms = computed.max_runtime_ms
         sub.memory_kb = computed.max_memory_kb
-        sub.code_hash = computed.code_hash or compute_code_hash(sub.source_code)
+        if not sub.code_hash:
+            sub.code_hash = computed.code_hash or compute_code_hash(sub.source_code)
         sub.error_message = public_error_msg
         sub.test_case_results = json.dumps(_sanitize_for_client(results))
         sub.updated_at = datetime.now(timezone.utc)

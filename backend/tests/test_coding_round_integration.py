@@ -404,8 +404,10 @@ def test_disconnected_candidate_draft_auto_submitted_on_expiry(coding_fixtures, 
             CodingSubmission.attempt_id == att.id,
             CodingSubmission.idempotency_key == f"auto-expire-{att.id}-{fx['question_id']}",
         ).first()
+        from app.coding.scoring import compute_code_hash
         assert auto_sub is not None
-        assert auto_sub.source_code == "print('disconnected-final-draft')"
+        assert auto_sub.code_hash == compute_code_hash("print('disconnected-final-draft')")
+        assert auto_sub.source_code is None  # Purged after result finalization per CODING_CODE_RETENTION=none
         assert auto_sub.is_run_only is False
     finally:
         db.close()

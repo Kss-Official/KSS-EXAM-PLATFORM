@@ -61,6 +61,20 @@ python migrations/add_coding_round_v2.py --down
 - Explicit `POST /api/coding/submit` calls received before `expires_at + CODING_SUBMIT_GRACE_SECONDS` always count as the candidate's submission.
 - When `finalize_expired_coding_attempts` runs (under Redis lock `coding:lock:finalizer`), it promotes a question's latest saved `CodingDraft` (`updated_at <= expires_at + grace`) **only if** no explicit submission exists with `submitted_at >= draft.updated_at`. Post-deadline drafts are never promoted.
 
+### Neon Storage Estimate (10,000 Candidates × N Questions)
+With `CODING_CODE_RETENTION=none` (default), `coding_drafts` are deleted on finalization and `coding_submissions.source_code` is nulled (retaining only the 64-byte `code_hash`).
+
+**Formula**:
+$$\text{Total Storage} \approx 10{,}000 \times \big(\text{AttemptRow} + N \times \text{ResultRow} + S \times \text{SlimSubmissionRow}\big) \times 1.35\text{ (index overhead)}$$
+
+| Table | Assumed Avg Row + Index Size | 10k × 2 Qs (`N=2, S=4`) | Measured (Staging) |
+|---|---|---|---|
+| `coding_attempts` | ~220 B | ~2.2 MB | *(pending staging run)* |
+| `coding_question_results` | ~380 B | ~7.6 MB | *(pending staging run)* |
+| `coding_submissions` (`source_code=NULL`) | ~320 B | ~12.8 MB | *(pending staging run)* |
+| `coding_drafts` (post-exam) | 0 B (purged on finalize) | 0 MB | *(pending staging run)* |
+| **Total (with ~35% B-tree index overhead)** | — | **~30.5 MB** | *(pending staging run)* |
+
 ---
 
 ## 5. Capacity Math for 10,000 Concurrent Users

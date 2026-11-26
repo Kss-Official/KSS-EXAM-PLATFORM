@@ -243,6 +243,54 @@ def list_coding_exam_results_admin(
     }
 
 
+@results_router.get("/admin/exams/{exam_id}/results/export.csv")
+def export_coding_results_csv_admin(
+    exam_id: int,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    _require_enabled()
+    exam = db.query(CodingExam).options(joinedload(CodingExam.questions)).filter(CodingExam.id == exam_id).first()
+    if not exam:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coding exam not found.")
+
+    attempts = (
+        db.query(CodingAttempt)
+        .options(joinedload(CodingAttempt.candidate))
+        .filter(CodingAttempt.exam_id == exam_id)
+        .order_by(CodingAttempt.overall_percent.desc())
+        .all()
+    )
+    q_results = db.query(CodingQuestionResult).filter(CodingQuestionResult.exam_id == exam_id).all()
+    res_by_att: Dict[int, Dict[str, CodingQuestionResult]] = {}
+    for qr in q_results:
+        res_by_att.setdefault(int(qr.attempt_id), {})[qr.question_id] = qr
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    q_ids = [q.id for q in (exam.questions or [])]
+    writer.writerow(["AttemptID", "CandidateName", "Email", "RegNo", "TotalScore", "TotalPossible", "OverallPercent", "Status", *q_ids])
+    for a in attempts:
+        att_map = res_by_att.get(int(a.id), {})
+        writer.writerow([
+            a.id,
+            a.candidate.full_name if a.candidate else "",
+            a.candidate.email if a.candidate else "",
+            a.candidate.registration_number if a.candidate else "",
+            float(a.total_score or 0),
+            float(a.total_possible or 0),
+            float(a.overall_percent or 0),
+            a.qualification_status,
+            *[float(att_map[qid].score_percent or 0) if qid in att_map else 0.0 for qid in q_ids],
+        ])
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="coding_exam_{exam_id}_results.csv"'},
+    )
+
+
 @results_router.get("/admin/exams/{exam_id}/results/{candidate_id}")
 def get_coding_candidate_result_detail_admin(
     exam_id: int,
@@ -352,51 +400,3 @@ def get_coding_exam_question_analytics_admin(
         })
 
     return {"examId": int(exam.id), "examTitle": exam.title, "questions": stats}
-
-
-@results_router.get("/admin/exams/{exam_id}/results/export.csv")
-def export_coding_results_csv_admin(
-    exam_id: int,
-    current_user: AppUser = Depends(require_super_admin),
-    db: Session = Depends(get_db),
-):
-    _require_enabled()
-    exam = db.query(CodingExam).options(joinedload(CodingExam.questions)).filter(CodingExam.id == exam_id).first()
-    if not exam:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coding exam not found.")
-
-    attempts = (
-        db.query(CodingAttempt)
-        .options(joinedload(CodingAttempt.candidate))
-        .filter(CodingAttempt.exam_id == exam_id)
-        .order_by(CodingAttempt.overall_percent.desc())
-        .all()
-    )
-    q_results = db.query(CodingQuestionResult).filter(CodingQuestionResult.exam_id == exam_id).all()
-    res_by_att: Dict[int, Dict[str, CodingQuestionResult]] = {}
-    for qr in q_results:
-        res_by_att.setdefault(int(qr.attempt_id), {})[qr.question_id] = qr
-
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    q_ids = [q.id for q in (exam.questions or [])]
-    writer.writerow(["AttemptID", "CandidateName", "Email", "RegNo", "TotalScore", "TotalPossible", "OverallPercent", "Status", *q_ids])
-    for a in attempts:
-        att_map = res_by_att.get(int(a.id), {})
-        writer.writerow([
-            a.id,
-            a.candidate.full_name if a.candidate else "",
-            a.candidate.email if a.candidate else "",
-            a.candidate.registration_number if a.candidate else "",
-            float(a.total_score or 0),
-            float(a.total_possible or 0),
-            float(a.overall_percent or 0),
-            a.qualification_status,
-            *[float(att_map[qid].score_percent or 0) if qid in att_map else 0.0 for qid in q_ids],
-        ])
-    buf.seek(0)
-    return StreamingResponse(
-        iter([buf.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f'attachment; filename="coding_exam_{exam_id}_results.csv"'},
-    )
