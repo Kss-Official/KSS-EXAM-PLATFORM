@@ -1,7 +1,10 @@
 import { lazy, Suspense } from "react";
 import { RotateCcw, Sun, Moon } from "lucide-react";
 
-const MonacoEditor = lazy(() => import("@monaco-editor/react"));
+const MonacoEditor = lazy(async () => {
+  await import("./monacoSetup");
+  return import("@monaco-editor/react");
+});
 
 export const DEFAULT_STARTER_TEMPLATES: Record<string, string> = {
   python3: "import sys\n\ndef solve():\n    data = sys.stdin.read().strip()\n    # Write your solution here\n    print(data)\n\nif __name__ == '__main__':\n    solve()\n",

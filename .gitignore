@@ -43,6 +43,7 @@ ENV/
 htmlcov/
 
 # Node.js & Frontend
+Frontend/public/monaco/
 node_modules/
 dist/
 dist-ssr/
