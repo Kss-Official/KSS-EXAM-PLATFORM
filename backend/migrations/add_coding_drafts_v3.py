@@ -22,11 +22,16 @@ def up(bind_engine=None) -> None:
     import app.models  # noqa: F401
 
     Base.metadata.create_all(bind=target_engine)
+    with target_engine.begin() as conn:
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_coding_attempts_status_expires ON coding_attempts (status, expires_at);"
+        ))
 
 
 def down(bind_engine=None) -> None:
     target_engine = bind_engine or default_engine
     with target_engine.begin() as conn:
+        conn.execute(text("DROP INDEX IF EXISTS ix_coding_attempts_status_expires;"))
         insp = inspect(conn)
         if "coding_drafts" in insp.get_table_names():
             conn.execute(text("DROP TABLE coding_drafts;"))

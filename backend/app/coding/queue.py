@@ -24,6 +24,59 @@ class CodingQueueManager:
         self._local_subscribers: Dict[int, list[asyncio.Queue]] = {}
         self._local_queue_depth = 0
         self._init_attempted = False
+        self._local_locks: Dict[str, asyncio.Lock] = {}
+        self._local_tickets: Dict[str, tuple[float, int]] = {}
+
+    async def acquire_lock(self, key: str, ttl_s: int = 20) -> Optional[str]:
+        await self.ensure_connected()
+        token = uuid.uuid4().hex
+        if self._redis is not None:
+            ok = await self._redis.set(key, token, nx=True, ex=ttl_s)
+            return token if ok else None
+        lock = self._local_locks.setdefault(key, asyncio.Lock())
+        if lock.locked():
+            return None
+        await lock.acquire()
+        return token
+
+    async def release_lock(self, key: str, token: Optional[str]) -> None:
+        if not token:
+            return
+        if self._redis is not None:
+            try:
+                cur = await self._redis.get(key)
+                if cur == token:
+                    await self._redis.delete(key)
+            except Exception:
+                pass
+            return
+        lock = self._local_locks.get(key)
+        if lock and lock.locked():
+            lock.release()
+
+    async def issue_ws_ticket(self, candidate_id: int, ttl_s: int = 30) -> str:
+        await self.ensure_connected()
+        ticket = uuid.uuid4().hex
+        if self._redis is not None:
+            await self._redis.set(f"coding:wsticket:{ticket}", str(candidate_id), ex=ttl_s)
+        else:
+            import time
+            self._local_tickets[ticket] = (time.time() + ttl_s, candidate_id)
+        return ticket
+
+    async def consume_ws_ticket(self, ticket: str) -> Optional[int]:
+        if not ticket:
+            return None
+        await self.ensure_connected()
+        if self._redis is not None:
+            key = f"coding:wsticket:{ticket}"
+            val = await self._redis.getdel(key)
+            return int(val) if val is not None else None
+        import time
+        entry = self._local_tickets.pop(ticket, None)
+        if not entry or time.time() > entry[0]:
+            return None
+        return entry[1]
 
     async def ensure_connected(self) -> None:
         if self._init_attempted:

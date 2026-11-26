@@ -144,6 +144,11 @@ async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session
 
     to_enqueue: List[Tuple[int, int]] = []
     for q_id, draft in latest_by_q.items():
+        draft_ts = draft.updated_at.replace(tzinfo=timezone.utc) if draft.updated_at and draft.updated_at.tzinfo is None else draft.updated_at
+        # Never promote drafts saved after the deadline + grace window
+        if draft_ts and draft_ts > grace_cutoff:
+            continue
+
         latest_sub = (
             db.query(CodingSubmission)
             .filter(
@@ -154,7 +159,6 @@ async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session
             .order_by(CodingSubmission.submitted_at.desc())
             .first()
         )
-        draft_ts = draft.updated_at.replace(tzinfo=timezone.utc) if draft.updated_at and draft.updated_at.tzinfo is None else draft.updated_at
         sub_ts = latest_sub.submitted_at.replace(tzinfo=timezone.utc) if latest_sub and latest_sub.submitted_at and latest_sub.submitted_at.tzinfo is None else (latest_sub.submitted_at if latest_sub else None)
         if latest_sub and sub_ts and draft_ts and sub_ts >= draft_ts:
             continue
@@ -179,9 +183,14 @@ async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session
             verdict="QUEUED",
             status="QUEUED",
         )
-        db.add(sub)
-        db.flush()
-        to_enqueue.append((int(sub.id), int(attempt.candidate_id)))
+        try:
+            with db.begin_nested():
+                db.add(sub)
+                db.flush()
+            to_enqueue.append((int(sub.id), int(attempt.candidate_id)))
+        except IntegrityError:
+            # Another worker already inserted this auto-expire submission; treat as success
+            continue
 
     attempt.status = "SUBMITTED"
     attempt.submitted_at = exp
@@ -199,23 +208,30 @@ async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session
     return True
 
 
-async def finalize_expired_coding_attempts(db: Session) -> int:
-    now = datetime.now(timezone.utc)
-    cutoff = now - timedelta(seconds=int(settings.CODING_SUBMIT_GRACE_SECONDS or 0))
-    expired = (
-        db.query(CodingAttempt)
-        .filter(
-            CodingAttempt.status == "IN_PROGRESS",
-            CodingAttempt.expires_at != None,  # noqa: E711
-            CodingAttempt.expires_at < cutoff,
+async def finalize_expired_coding_attempts(db: Session, batch_size: int = 50) -> int:
+    lock_token = await coding_queue_manager.acquire_lock("coding:lock:finalizer", ttl_s=20)
+    if not lock_token:
+        return 0
+    try:
+        now = datetime.now(timezone.utc)
+        cutoff = now - timedelta(seconds=int(settings.CODING_SUBMIT_GRACE_SECONDS or 0))
+        expired = (
+            db.query(CodingAttempt)
+            .filter(
+                CodingAttempt.status == "IN_PROGRESS",
+                CodingAttempt.expires_at != None,  # noqa: E711
+                CodingAttempt.expires_at < cutoff,
+            )
+            .limit(batch_size)
+            .all()
         )
-        .all()
-    )
-    count = 0
-    for att in expired:
-        if await finalize_coding_attempt_if_expired(att, db):
-            count += 1
-    return count
+        count = 0
+        for att in expired:
+            if await finalize_coding_attempt_if_expired(att, db):
+                count += 1
+        return count
+    finally:
+        await coding_queue_manager.release_lock("coding:lock:finalizer", lock_token)
 
 
 def _get_or_create_active_coding_attempt(
@@ -685,6 +701,38 @@ async def save_coding_draft(
         )
 
     now = datetime.now(timezone.utc)
+    # Atomic upsert on (attempt_id, question_id, language) to avoid insert races
+    dialect = db.bind.dialect.name if db.bind else "sqlite"
+    if dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        stmt = pg_insert(CodingDraft).values(
+            attempt_id=attempt.id,
+            candidate_id=cand.id,
+            question_id=q.id,
+            language=norm_lang,
+            source_code=req.code,
+            updated_at=now,
+        ).on_conflict_do_update(
+            index_elements=["attempt_id", "question_id", "language"],
+            set_={"source_code": req.code, "updated_at": now},
+        )
+        db.execute(stmt)
+    else:
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+        stmt = sqlite_insert(CodingDraft).values(
+            attempt_id=attempt.id,
+            candidate_id=cand.id,
+            question_id=q.id,
+            language=norm_lang,
+            source_code=req.code,
+            updated_at=now,
+        ).on_conflict_do_update(
+            index_elements=["attempt_id", "question_id", "language"],
+            set_={"source_code": req.code, "updated_at": now},
+        )
+        db.execute(stmt)
+    db.commit()
+
     draft = (
         db.query(CodingDraft)
         .filter(
@@ -694,21 +742,6 @@ async def save_coding_draft(
         )
         .first()
     )
-    if draft:
-        draft.source_code = req.code
-        draft.updated_at = now
-    else:
-        draft = CodingDraft(
-            attempt_id=attempt.id,
-            candidate_id=cand.id,
-            question_id=q.id,
-            language=norm_lang,
-            source_code=req.code,
-            updated_at=now,
-        )
-        db.add(draft)
-    db.commit()
-    db.refresh(draft)
 
     return CodingDraftDto(
         questionId=draft.question_id,
@@ -821,14 +854,32 @@ async def stream_submission_events(
     )
 
 
+@router.post("/ws-ticket")
+async def issue_ws_ticket(request: Request, db: Session = Depends(get_db)):
+    """Issues a short-lived (30s) single-use WebSocket ticket so session tokens never appear in URLs."""
+    _require_coding_enabled()
+    cand = _require_candidate_from_request(request, db)
+    ticket = await coding_queue_manager.issue_ws_ticket(int(cand.id), ttl_s=30)
+    return {"ticket": ticket, "expiresInSeconds": 30}
+
+
 @router.websocket("/ws/{submission_id}")
 async def websocket_submission_events(websocket: WebSocket, submission_id: int, db: Session = Depends(get_db)):
     if not settings.CODING_ROUND_ENABLED:
         await websocket.close(code=1013)
         return
-    token = websocket.query_params.get("token") or websocket.cookies.get(settings.SESSION_COOKIE_NAME)
-    data = verify_session_token(token) if token else None
-    if not data or data.get("role") != "CANDIDATE":
+
+    # Authenticate ONLY via HttpOnly session cookie or single-use ?ticket= (never ?token=)
+    cand_id: Optional[int] = None
+    cookie_token = websocket.cookies.get(settings.SESSION_COOKIE_NAME)
+    if cookie_token:
+        data = verify_session_token(cookie_token)
+        if data and data.get("role") == "CANDIDATE" and "candidate_id" in data:
+            cand_id = int(data["candidate_id"])
+    elif websocket.query_params.get("ticket"):
+        cand_id = await coding_queue_manager.consume_ws_ticket(websocket.query_params["ticket"])
+
+    if cand_id is None:
         await websocket.close(code=1008)
         return
 
@@ -838,7 +889,7 @@ async def websocket_submission_events(websocket: WebSocket, submission_id: int, 
         .filter(CodingSubmission.id == submission_id)
         .first()
     )
-    if not sub or not sub.attempt or int(sub.attempt.candidate_id) != int(data.get("candidate_id", -1)):
+    if not sub or not sub.attempt or int(sub.attempt.candidate_id) != int(cand_id):
         await websocket.close(code=1008)
         return
 

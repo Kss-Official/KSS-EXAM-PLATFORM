@@ -381,7 +381,8 @@ def test_disconnected_candidate_draft_auto_submitted_on_expiry(coding_fixtures, 
     )
     assert put_res.status_code == 200
 
-    # Time expires past grace window
+    # Time expires past grace window (draft was saved before expiry)
+    from app.models.coding import CodingDraft
     db = SessionLocal()
     try:
         att = db.query(CodingAttempt).filter(
@@ -389,6 +390,9 @@ def test_disconnected_candidate_draft_auto_submitted_on_expiry(coding_fixtures, 
             CodingAttempt.exam_id == fx["exam_id"],
         ).first()
         att.expires_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+        db.query(CodingDraft).filter(CodingDraft.attempt_id == att.id).update(
+            {"updated_at": att.expires_at - timedelta(seconds=10)}
+        )
         db.commit()
 
         finalized_count = asyncio.run(finalize_expired_coding_attempts(db))
@@ -440,9 +444,135 @@ def test_hidden_data_never_leaked_in_rest_sse_or_websocket(coding_fixtures):
     assert "SECRET_HIDDEN_OUTPUT_XYZ" not in sse_res.text
     assert "ZeroDivisionError" not in sse_res.text or rest_res.json()["errorMessage"] is not None
 
-    # 3. WebSocket check
-    with client.websocket_connect(f"/api/coding/ws/{sub_id}?token={fx['tok1']}") as ws:
+    # 3. WebSocket check (via HttpOnly JSESSIONID cookie; ?token= query string must be rejected)
+    with pytest.raises(Exception):
+        with client.websocket_connect(f"/api/coding/ws/{sub_id}?token={fx['tok1']}"):
+            pass
+
+    with client.websocket_connect(
+        f"/api/coding/ws/{sub_id}",
+        cookies={settings.SESSION_COOKIE_NAME: fx["tok1"]},
+    ) as ws:
         ws_msg = ws.receive_text()
         assert "SECRET_HIDDEN_INPUT_XYZ" not in ws_msg
         assert "SECRET_HIDDEN_OUTPUT_XYZ" not in ws_msg
         assert "ZeroDivisionError" not in ws_msg
+
+
+def test_concurrent_finalization_produces_single_submission(coding_fixtures, monkeypatch):
+    import asyncio
+    from app.coding.router import finalize_coding_attempt_if_expired
+    monkeypatch.setattr(settings, "CODING_SUBMIT_GRACE_SECONDS", 5)
+    fx = coding_fixtures
+    headers = {"Authorization": f"Bearer {fx['tok1']}"}
+
+    put_res = client.put(
+        "/api/coding/drafts",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('concurrent-draft')",
+        },
+    )
+    assert put_res.status_code == 200
+
+    from app.models.coding import CodingDraft
+    db = SessionLocal()
+    try:
+        att = db.query(CodingAttempt).filter(
+            CodingAttempt.candidate_id == fx["cand1"].id,
+            CodingAttempt.exam_id == fx["exam_id"],
+        ).first()
+        att.expires_at = datetime.now(timezone.utc) - timedelta(seconds=30)
+        db.query(CodingDraft).filter(CodingDraft.attempt_id == att.id).update(
+            {"updated_at": att.expires_at - timedelta(seconds=10)}
+        )
+        db.commit()
+        att_id = att.id
+    finally:
+        db.close()
+
+    async def _run_concurrent():
+        db1 = SessionLocal()
+        db2 = SessionLocal()
+        try:
+            a1 = db1.query(CodingAttempt).filter(CodingAttempt.id == att_id).first()
+            a2 = db2.query(CodingAttempt).filter(CodingAttempt.id == att_id).first()
+            return await asyncio.gather(
+                finalize_coding_attempt_if_expired(a1, db1),
+                finalize_coding_attempt_if_expired(a2, db2),
+            )
+        finally:
+            db1.close()
+            db2.close()
+
+    asyncio.run(_run_concurrent())
+
+    db_check = SessionLocal()
+    try:
+        subs = db_check.query(CodingSubmission).filter(
+            CodingSubmission.attempt_id == att_id,
+            CodingSubmission.idempotency_key == f"auto-expire-{att_id}-{fx['question_id']}",
+        ).all()
+        assert len(subs) == 1
+    finally:
+        db_check.close()
+
+
+def test_draft_rejected_after_deadline_and_ignored_by_finalizer(coding_fixtures, monkeypatch):
+    import asyncio
+    from app.models.coding import CodingDraft
+    monkeypatch.setattr(settings, "CODING_SUBMIT_GRACE_SECONDS", 5)
+    fx = coding_fixtures
+    headers = {"Authorization": f"Bearer {fx['tok1']}"}
+
+    # Ensure attempt exists and expire it past deadline + grace
+    client.get(f"/api/coding/exams/{fx['exam_id']}/attempt", headers=headers)
+    db = SessionLocal()
+    try:
+        att = db.query(CodingAttempt).filter(
+            CodingAttempt.candidate_id == fx["cand1"].id,
+            CodingAttempt.exam_id == fx["exam_id"],
+        ).first()
+        exp = datetime.now(timezone.utc) - timedelta(seconds=20)
+        att.expires_at = exp
+        db.commit()
+        att_id = att.id
+    finally:
+        db.close()
+
+    # PUT /drafts must reject with 403 after deadline
+    late_put = client.put(
+        "/api/coding/drafts",
+        headers=headers,
+        json={
+            "examId": fx["exam_id"],
+            "questionId": fx["question_id"],
+            "language": "python3",
+            "code": "print('late-draft')",
+        },
+    )
+    assert late_put.status_code == 403
+
+    # Even if a post-deadline draft row existed, finalizer must NOT promote it
+    db = SessionLocal()
+    try:
+        db.add(CodingDraft(
+            attempt_id=att_id,
+            candidate_id=fx["cand1"].id,
+            question_id=fx["question_id"],
+            language="python3",
+            source_code="print('post-deadline-tamper')",
+            updated_at=datetime.now(timezone.utc),
+        ))
+        db.commit()
+        asyncio.run(finalize_expired_coding_attempts(db))
+        auto_sub = db.query(CodingSubmission).filter(
+            CodingSubmission.attempt_id == att_id,
+            CodingSubmission.idempotency_key == f"auto-expire-{att_id}-{fx['question_id']}",
+        ).first()
+        assert auto_sub is None
+    finally:
+        db.close()

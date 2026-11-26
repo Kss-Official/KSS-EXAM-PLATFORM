@@ -82,6 +82,9 @@ class CodingTestCase(Base):
 
 class CodingAttempt(Base):
     __tablename__ = "coding_attempts"
+    __table_args__ = (
+        Index("ix_coding_attempts_status_expires", "status", "expires_at"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
