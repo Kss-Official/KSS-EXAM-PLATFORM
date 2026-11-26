@@ -14,10 +14,10 @@ import {
   StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useKeepAwake } from 'expo-keep-awake';
-import { Camera, CameraView } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import { SafeAudio, isAudioAvailable } from '../../services/safeAudio';
 import * as Clipboard from 'expo-clipboard';
 import { Colors, Radius, Spacing, Shadow, Fonts } from '../../constants/theme';
@@ -37,6 +37,7 @@ import {
 import type { CandidateSession, ExamQuestion, AutosaveStatus } from '../../types/candidate';
 import { proctoringService } from '../../services/ProctoringService';
 import { ProctoringStatus } from '../../components/ProctoringStatus';
+import { ProctoringCameraView } from '../../components/ProctoringCameraView';
 
 // ─── High-Stakes Security Thresholds ──────────────────────────────────────────
 const MAX_VIOLATIONS = 2; // Strict 2-strike policy (Strike 1: Final Warning, Strike 2: Auto-Submit)
@@ -67,14 +68,35 @@ export default function ExamScreen() {
   const [examTerminated, setExamTerminated] = useState<string | null>(null);
 
   // Live Camera Status
-  const [cameraActive, setCameraActive] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScreenFocused, setIsScreenFocused] = useState(true);
+  const [cameraKey, setCameraKey] = useState(0);
   const [liveTimestamp, setLiveTimestamp] = useState<string>('');
 
-  const cameraRef = useRef<any>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const watermarkTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appStateRef = useRef<AppStateStatus>((AppState.currentState || 'active') as AppStateStatus);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsScreenFocused(true);
+      setCameraKey((k) => k + 1);
+      return () => {
+        setIsScreenFocused(false);
+      };
+    }, [])
+  );
+
+  // Request camera permission if not yet granted and re-key preview once granted
+  useEffect(() => {
+    if (!permission) return;
+    if (permission.granted) {
+      setCameraKey((k) => k + 1);
+    } else if (permission.canAskAgain) {
+      requestPermission().catch(() => {});
+    }
+  }, [permission, requestPermission]);
 
   // ─── Anti-Exfiltration: Wipe Clipboard Memory ───────────────────────────────
   const sanitizeClipboard = useCallback(async () => {
@@ -83,29 +105,10 @@ export default function ExamScreen() {
     } catch {}
   }, []);
 
-  // ─── Load Session & Verify Camera Permissions on Mount ───────────────────────
+  // ─── Load Session on Mount ──────────────────────────────────────────────────
   useEffect(() => {
     (async () => {
       await sanitizeClipboard();
-
-      // Ensure camera permission is granted and surface is ready
-      try {
-        if (Camera && typeof Camera.getCameraPermissionsAsync === 'function') {
-          const cam = await Camera.getCameraPermissionsAsync();
-          if (cam.status === 'granted') {
-            setCameraActive(true);
-          } else {
-            const req = await Camera.requestCameraPermissionsAsync();
-            if (req.status === 'granted') {
-              setCameraActive(true);
-            }
-          }
-        } else {
-          setCameraActive(true);
-        }
-      } catch {
-        setCameraActive(true);
-      }
 
       const sess = await loadCandidateSession();
       if (!sess || sess.isSubmitted) {
@@ -187,6 +190,7 @@ export default function ExamScreen() {
         handleSecurityViolation(alertType, msg);
       } else if (nextState === 'active') {
         await sanitizeClipboard();
+        setCameraKey((k) => k + 1);
       }
       appStateRef.current = nextState;
     });
@@ -572,8 +576,11 @@ export default function ExamScreen() {
 
         {/* ─── Integrated Live Camera Stream (Standard 4:3 Aspect, ZERO Overlap) ─── */}
         <View style={styles.dockedCameraFrame}>
-          {cameraActive ? (
-            <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="front" />
+          {permission?.granted && isScreenFocused ? (
+            <ProctoringCameraView
+              cameraKey={`cam-${permission.granted}-${cameraKey}`}
+              style={styles.cameraPreview}
+            />
           ) : (
             <View style={styles.cameraPlaceholder}>
               <ActivityIndicator size="small" color="#86EFAC" />
@@ -1081,7 +1088,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#22C55E',
     position: 'relative',
+    zIndex: 1,
     ...Shadow.xs,
+  },
+  cameraPreview: {
+    width: 72,
+    height: 54,
   },
   cameraPlaceholder: {
     ...StyleSheet.absoluteFill,

@@ -5,18 +5,27 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Platform,
-  KeyboardAvoidingView,
+  ScrollView,
   StatusBar,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, Radius, Spacing, Shadow } from '../../constants/theme';
+import ScreenKeyboardWrapper from '../../components/ScreenKeyboardWrapper';
 import type { CandidateProfile } from '../../types/candidate';
 
 const DRAFT_PROFILE_KEY = 'examsecure_draft_profile';
+
+const YEAR_OFFSET_FUTURE = 5;
+const YEAR_OFFSET_PAST = 10;
+const CURRENT_YEAR = new Date().getFullYear();
+const GRADUATION_YEARS = Array.from(
+  { length: YEAR_OFFSET_FUTURE + YEAR_OFFSET_PAST + 1 },
+  (_, i) => String(CURRENT_YEAR + YEAR_OFFSET_FUTURE - i)
+);
 
 const TOP_SKILLS = [
   'JavaScript', 'Python', 'Java', 'C++', 'React', 'SQL',
@@ -29,10 +38,10 @@ const DEGREE_BRANCHES = [
   'MCA / BCA', 'Other Specialization',
 ];
 
-const GRADUATION_YEARS = ['2024', '2025', '2026', '2027', '2028'];
-
 export default function RoleApplicationScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isNarrowScreen = width < 420;
 
   const [profile, setProfile] = useState<CandidateProfile | null>(null);
   const [jobRole, setJobRole] = useState('');
@@ -40,6 +49,7 @@ export default function RoleApplicationScreen() {
   const [degreeBranch, setDegreeBranch] = useState('');
   const [graduationYear, setGraduationYear] = useState('');
   const [showBranchPicker, setShowBranchPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -89,29 +99,39 @@ export default function RoleApplicationScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" />
 
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Compact Top Navigation Bar */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backIconBtn} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={18} color={Colors.ink} />
-          </TouchableOpacity>
-          <View style={styles.topBarCenter}>
-            <Text style={styles.topBarTitle}>Academic Profile</Text>
-            <Text style={styles.topBarSubtitle}>Step 2 of 4</Text>
+      <ScreenKeyboardWrapper
+        header={
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backIconBtn} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={18} color={Colors.ink} />
+            </TouchableOpacity>
+            <View style={styles.topBarCenter}>
+              <Text style={styles.topBarTitle}>Academic Profile</Text>
+              <Text style={styles.topBarSubtitle}>Step 2 of 4</Text>
+            </View>
+            <View style={styles.stepTrackPill}>
+              <View style={[styles.stepDot, styles.stepDotActive]} />
+              <View style={[styles.stepDot, styles.stepDotActive]} />
+              <View style={styles.stepDot} />
+              <View style={styles.stepDot} />
+            </View>
           </View>
-          <View style={styles.stepTrackPill}>
-            <View style={[styles.stepDot, styles.stepDotActive]} />
-            <View style={[styles.stepDot, styles.stepDotActive]} />
-            <View style={styles.stepDot} />
-            <View style={styles.stepDot} />
-          </View>
-        </View>
+        }
+        contentContainerStyle={styles.contentBody}
+        footer={
+          <View style={styles.dockedFooter}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
+              <Ionicons name="arrow-back" size={16} color={Colors.slate600} />
+              <Text style={styles.backBtnText}>Back</Text>
+            </TouchableOpacity>
 
-        {/* Viewport Content Area (Zero Scroll) */}
-        <View style={styles.contentBody}>
+            <TouchableOpacity style={styles.continueBtn} onPress={handleContinue} activeOpacity={0.88}>
+              <Text style={styles.continueBtnText}>Proceed to System Check</Text>
+              <Ionicons name="arrow-forward" size={16} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        }
+      >
           {/* Candidate Identity Strip */}
           {profile && (
             <View style={styles.candidateStrip}>
@@ -188,11 +208,14 @@ export default function RoleApplicationScreen() {
           {/* Degree & Year Dual Selector */}
           <View style={styles.fieldSection}>
             <Text style={styles.sectionLabel}>Degree Branch & Graduation Year</Text>
-            <View style={styles.dualRow}>
+            <View style={[styles.dualRow, isNarrowScreen && styles.dualRowStacked]}>
               {/* Branch Selector */}
               <TouchableOpacity
-                style={[styles.selectorBtn, { flex: 1.4 }]}
-                onPress={() => setShowBranchPicker((v) => !v)}
+                style={[styles.selectorBtn, !isNarrowScreen && { flex: 1.4 }]}
+                onPress={() => {
+                  setShowBranchPicker((v) => !v);
+                  setShowYearPicker(false);
+                }}
                 activeOpacity={0.7}
               >
                 <Ionicons name="school-outline" size={15} color={Colors.slate400} />
@@ -202,23 +225,24 @@ export default function RoleApplicationScreen() {
                 <Ionicons name="chevron-down" size={13} color={Colors.slate400} />
               </TouchableOpacity>
 
-              {/* Year Selector Row */}
-              <View style={styles.yearRow}>
-                {GRADUATION_YEARS.slice(0, 4).map((y) => (
-                  <TouchableOpacity
-                    key={y}
-                    style={[styles.yearChip, graduationYear === y && styles.yearChipSelected]}
-                    onPress={() => setGraduationYear(y)}
-                  >
-                    <Text style={[styles.yearChipText, graduationYear === y && styles.yearChipTextSelected]}>
-                      {y}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* Graduation Year Dropdown Selector */}
+              <TouchableOpacity
+                style={[styles.selectorBtn, !isNarrowScreen && { flex: 1 }]}
+                onPress={() => {
+                  setShowYearPicker((v) => !v);
+                  setShowBranchPicker(false);
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="calendar-outline" size={15} color={Colors.slate400} />
+                <Text style={[styles.selectorBtnText, !graduationYear && styles.placeholderText]} numberOfLines={1}>
+                  {graduationYear || 'Passing Year'}
+                </Text>
+                <Ionicons name="chevron-down" size={13} color={Colors.slate400} />
+              </TouchableOpacity>
             </View>
 
-            {/* Branch dropdown modal if toggled */}
+            {/* Branch dropdown if toggled */}
             {showBranchPicker && (
               <View style={styles.branchDropdown}>
                 {DEGREE_BRANCHES.map((b) => (
@@ -238,22 +262,31 @@ export default function RoleApplicationScreen() {
                 ))}
               </View>
             )}
+
+            {/* Graduation Year dropdown reusing the same dropdown style */}
+            {showYearPicker && (
+              <View style={styles.branchDropdown}>
+                <ScrollView style={styles.dropdownScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+                  {GRADUATION_YEARS.map((y) => (
+                    <TouchableOpacity
+                      key={y}
+                      style={[styles.branchItem, graduationYear === y && styles.branchItemSelected]}
+                      onPress={() => {
+                        setGraduationYear(y);
+                        setShowYearPicker(false);
+                      }}
+                    >
+                      <Text style={[styles.branchItemText, graduationYear === y && styles.branchItemTextSelected]}>
+                        {y}
+                      </Text>
+                      {graduationYear === y && <Ionicons name="checkmark" size={14} color={Colors.primary} />}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
           </View>
-        </View>
-
-        {/* Pinned Bottom Actions */}
-        <View style={styles.dockedFooter}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={16} color={Colors.slate600} />
-            <Text style={styles.backBtnText}>Back</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.continueBtn} onPress={handleContinue} activeOpacity={0.88}>
-            <Text style={styles.continueBtnText}>Proceed to System Check</Text>
-            <Ionicons name="arrow-forward" size={16} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+      </ScreenKeyboardWrapper>
     </SafeAreaView>
   );
 }
@@ -318,10 +351,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
   },
   contentBody: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
   candidateStrip: {
     flexDirection: 'row',
@@ -448,10 +481,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  dualRowStacked: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   selectorBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minWidth: 140,
     backgroundColor: Colors.slate50,
     borderWidth: 1.5,
     borderColor: Colors.line,
@@ -467,33 +505,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
   },
   placeholderText: { color: Colors.slate400 },
-  yearRow: {
-    flexDirection: 'row',
-    gap: 4,
-    flex: 1,
-  },
-  yearChip: {
-    flex: 1,
-    height: 44,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.slate100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.slate200,
-  },
-  yearChipSelected: {
-    backgroundColor: Colors.primaryPale,
-    borderColor: Colors.primary,
-  },
-  yearChipText: {
-    fontSize: 11.5,
-    color: Colors.inkSecondary,
-    fontWeight: '600',
-  },
-  yearChipTextSelected: {
-    color: Colors.primaryDark,
-    fontWeight: '800',
+  dropdownScroll: {
+    maxHeight: 220,
   },
   branchDropdown: {
     marginTop: 6,

@@ -10,5 +10,5 @@ class ProctoringPackage : ReactPackage {
         listOf(ProctoringModule(reactContext))
 
     override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> =
-        emptyList()
+        listOf(ProctoringPreviewViewManager())
 }

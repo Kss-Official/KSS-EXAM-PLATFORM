@@ -5,15 +5,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.Preview
+import androidx.camera.core.UseCase
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
 /**
- * CameraManager encapsulates CameraX front camera background capture.
- * Uses STRATEGY_KEEP_ONLY_LATEST to drop stale frames — never queues up work.
- * Delivers YUV_420_888 ImageProxy frames to parallel on-device detectors.
+ * CameraManager is the single owner of the Android front camera during proctored exams.
+ * Binds both Preview (when attached) and ImageAnalysis in one ProcessCameraProvider session
+ * so expo-camera and native proctoring never fight over the camera hardware.
  */
 class CameraManager(
     private val activity: AppCompatActivity,
@@ -24,29 +26,56 @@ class CameraManager(
     private val phoneDetector = PhoneDetector(activity)
     private val qualityAnalyzer = ImageQualityAnalyzer()
 
+    private var cameraProvider: ProcessCameraProvider? = null
+    private var previewSurfaceProvider: Preview.SurfaceProvider? = null
+    private var isStarted = false
+
+    fun setPreviewSurfaceProvider(provider: Preview.SurfaceProvider?) {
+        previewSurfaceProvider = provider
+        if (isStarted) {
+            activity.runOnUiThread {
+                cameraProvider?.let { bindUseCases(it) }
+            }
+        }
+    }
+
     fun start() {
+        isStarted = true
         val cameraProviderFuture = ProcessCameraProvider.getInstance(activity)
         cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                .setTargetResolution(android.util.Size(640, 480))
-                .build()
-
-            imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
-                analyzeFrame(imageProxy)
-            }
-
-            val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-            try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(activity, cameraSelector, imageAnalysis)
-            } catch (exc: Exception) {
-                exc.printStackTrace()
-            }
+            if (!isStarted) return@addListener
+            val provider = cameraProviderFuture.get()
+            cameraProvider = provider
+            bindUseCases(provider)
         }, ContextCompat.getMainExecutor(activity))
+    }
+
+    private fun bindUseCases(provider: ProcessCameraProvider) {
+        val imageAnalysis = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+            .setTargetResolution(android.util.Size(640, 480))
+            .build()
+
+        imageAnalysis.setAnalyzer(cameraExecutor) { imageProxy ->
+            analyzeFrame(imageProxy)
+        }
+
+        val useCases = mutableListOf<UseCase>(imageAnalysis)
+        previewSurfaceProvider?.let { surfaceProvider ->
+            val preview = Preview.Builder().build().also {
+                it.setSurfaceProvider(surfaceProvider)
+            }
+            useCases.add(preview)
+        }
+
+        val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+        try {
+            provider.unbindAll()
+            provider.bindToLifecycle(activity, cameraSelector, *useCases.toTypedArray())
+        } catch (exc: Exception) {
+            exc.printStackTrace()
+        }
     }
 
     @SuppressLint("UnsafeOptInUsageError")
@@ -95,7 +124,10 @@ class CameraManager(
     }
 
     fun stop() {
+        isStarted = false
         try {
+            cameraProvider?.unbindAll()
+            cameraProvider = null
             cameraExecutor.shutdown()
             phoneDetector.close()
         } catch (e: Exception) {

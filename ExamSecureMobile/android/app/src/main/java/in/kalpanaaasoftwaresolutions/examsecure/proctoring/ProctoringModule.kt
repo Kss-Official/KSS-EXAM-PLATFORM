@@ -1,6 +1,7 @@
 package `in`.kalpanaaasoftwaresolutions.examsecure.proctoring
 
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.Preview
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -21,6 +22,19 @@ class ProctoringModule(private val reactContext: ReactApplicationContext) :
     private var eventEngine: ProctoringEventEngine = ProctoringEventEngine(this)
     private var isRunning: Boolean = false
 
+    companion object {
+        @Volatile
+        private var activeCameraManager: CameraManager? = null
+
+        @Volatile
+        private var previewSurfaceProvider: Preview.SurfaceProvider? = null
+
+        fun setPreviewSurfaceProvider(provider: Preview.SurfaceProvider?) {
+            previewSurfaceProvider = provider
+            activeCameraManager?.setPreviewSurfaceProvider(provider)
+        }
+    }
+
     override fun getName(): String = "ProctoringModule"
 
     @ReactMethod
@@ -39,8 +53,11 @@ class ProctoringModule(private val reactContext: ReactApplicationContext) :
                 }
 
                 eventEngine.reset()
-                cameraManager = CameraManager(activity, eventEngine)
-                cameraManager?.start()
+                val manager = CameraManager(activity, eventEngine)
+                manager.setPreviewSurfaceProvider(previewSurfaceProvider)
+                activeCameraManager = manager
+                cameraManager = manager
+                manager.start()
                 isRunning = true
                 promise.resolve(true)
             } catch (e: Exception) {
@@ -55,6 +72,9 @@ class ProctoringModule(private val reactContext: ReactApplicationContext) :
         val stopAction = {
             try {
                 cameraManager?.stop()
+                if (activeCameraManager === cameraManager) {
+                    activeCameraManager = null
+                }
                 cameraManager = null
                 isRunning = false
                 promise.resolve(true)

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Modal,
   FlatList,
@@ -17,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Radius, Spacing, Shadow } from '../../constants/theme';
 import KalpanaaaLogo from '../../components/KalpanaaaLogo';
+import ScreenKeyboardWrapper from '../../components/ScreenKeyboardWrapper';
 import {
   verifyCandidateEligibility,
   getCandidateDepartments,
@@ -173,22 +173,49 @@ export default function CandidateLoginScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
       <StatusBar barStyle="dark-content" />
 
-      <KeyboardAvoidingView
-        style={styles.keyboardContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        {/* Compact Top Navigation Bar */}
-        <View style={styles.topBar}>
-          <KalpanaaaLogo size="sm" />
+      <ScreenKeyboardWrapper
+        header={
+          <View style={styles.topBar}>
+            <KalpanaaaLogo size="sm" />
 
-          <View style={styles.proctorPill}>
-            <View style={styles.pulseDot} />
-            <Text style={styles.proctorPillText}>AI PROCTORED</Text>
+            <View style={styles.proctorPill}>
+              <View style={styles.pulseDot} />
+              <Text style={styles.proctorPillText}>AI PROCTORED</Text>
+            </View>
           </View>
-        </View>
+        }
+        contentContainerStyle={styles.contentBody}
+        footer={
+          <View style={styles.dockedFooter}>
+            <TouchableOpacity
+              style={[styles.submitBtn, isVerifying && styles.submitBtnDisabled]}
+              onPress={handleSubmit}
+              disabled={isVerifying}
+              activeOpacity={0.88}
+            >
+              {isVerifying ? (
+                <>
+                  <ActivityIndicator color="#fff" size="small" />
+                  <Text style={styles.submitBtnText}>Authenticating...</Text>
+                </>
+              ) : (
+                <>
+                  <Ionicons name="lock-closed" size={16} color="#fff" />
+                  <Text style={styles.submitBtnText}>Authenticate & Proceed</Text>
+                  <Ionicons name="arrow-forward" size={17} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
 
-        {/* Main Viewport Content (Zero-Scroll Flex Container) */}
-        <View style={styles.contentBody}>
+            <View style={styles.trustBadgeRow}>
+              <Ionicons name="shield-checkmark-outline" size={12} color={Colors.muted} />
+              <Text style={styles.trustBadgeText}>
+                256-Bit TLS · Anti-Tamper · Biometric / Camera Verified
+              </Text>
+            </View>
+          </View>
+        }
+      >
           {/* Active Session Recovery Banner */}
           {existingSession && (
             <TouchableOpacity
@@ -347,38 +374,7 @@ export default function CandidateLoginScreen() {
               <Text style={styles.errorText}>{errors.email}</Text>
             ) : null}
           </View>
-        </View>
-
-        {/* Docked Pinned Bottom Action Container */}
-        <View style={styles.dockedFooter}>
-          <TouchableOpacity
-            style={[styles.submitBtn, isVerifying && styles.submitBtnDisabled]}
-            onPress={handleSubmit}
-            disabled={isVerifying}
-            activeOpacity={0.88}
-          >
-            {isVerifying ? (
-              <>
-                <ActivityIndicator color="#fff" size="small" />
-                <Text style={styles.submitBtnText}>Authenticating...</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="lock-closed" size={16} color="#fff" />
-                <Text style={styles.submitBtnText}>Authenticate & Proceed</Text>
-                <Ionicons name="arrow-forward" size={17} color="#fff" />
-              </>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.trustBadgeRow}>
-            <Ionicons name="shield-checkmark-outline" size={12} color={Colors.muted} />
-            <Text style={styles.trustBadgeText}>
-              256-Bit TLS · Anti-Tamper · Biometric / Camera Verified
-            </Text>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+      </ScreenKeyboardWrapper>
 
       {/* Department Picker Bottom Sheet Modal */}
       <Modal
@@ -546,10 +542,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   contentBody: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.sm,
+    paddingVertical: Spacing.md,
   },
   resumeBanner: {
     flexDirection: 'row',
