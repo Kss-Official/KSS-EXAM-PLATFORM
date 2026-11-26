@@ -74,6 +74,21 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000"
     ]
 
+    # Round 2: Coding Round (Feature-flagged, additive)
+    CODING_ROUND_ENABLED: bool = False
+    CODING_REQUIRE_ROUND1_QUALIFIED: bool = True
+    CODING_SANDBOX_DRIVER: str = "mock"  # "judge0" or "mock"
+    REDIS_URL: str = "redis://localhost:6379/0"
+    JUDGE0_URL: str = "http://localhost:2358"
+    JUDGE0_AUTH_TOKEN: str = ""
+    CODING_MAX_CODE_BYTES: int = 65536       # 64 KB
+    CODING_MAX_INPUT_BYTES: int = 65536      # 64 KB
+    CODING_MAX_QUEUE_DEPTH: int = 5000
+    CODING_USER_RATE_LIMIT_PER_MIN: int = 12
+    CODING_USER_MAX_CONCURRENT: int = 2
+    CODING_JOB_TIMEOUT_SECONDS: int = 30
+    CODING_ALLOWED_LANGUAGES: List[str] = ["python3", "javascript", "cpp", "c", "java"]
+
     model_config = SettingsConfigDict(
         env_file=env_file_to_use,
         env_file_encoding="utf-8",

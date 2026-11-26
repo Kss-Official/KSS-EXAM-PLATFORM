@@ -1,7 +1,8 @@
 import json
 from datetime import datetime, timezone
 from sqlalchemy import (
-    Column, BigInteger, Integer, String, Text, Boolean, Numeric, DateTime, ForeignKey
+    Column, BigInteger, Integer, String, Text, Boolean, Numeric, DateTime, ForeignKey,
+    Index, UniqueConstraint
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base, ID_TYPE
@@ -51,6 +52,7 @@ class CodingQuestion(Base):
     allowed_languages = Column(Text, nullable=True, default="[]")  # JSON array
     time_limit_ms = Column(Integer, nullable=False, default=2000)
     memory_limit_mb = Column(Integer, nullable=False, default=256)
+    starter_code_json = Column(Text, nullable=True, default="{}")
     created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     exam = relationship("CodingExam", back_populates="questions")
@@ -90,6 +92,8 @@ class CodingAttempt(Base):
     percentage = Column(Numeric(6, 2), nullable=False, default=0.00)
     qualification_status = Column(String(20), default="PENDING")
     started_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    extra_time_minutes = Column(Integer, nullable=False, default=0)
     submitted_at = Column(DateTime(timezone=True), nullable=True)
 
     candidate = relationship("Candidate")
@@ -99,22 +103,37 @@ class CodingAttempt(Base):
 
 class CodingSubmission(Base):
     """
-    Stores evaluation RESULTS only — no source code is ever persisted.
-    Keeps the submission record lean: pass/fail counts + marks awarded.
+    Stores Round 2 coding evaluation state, verdict, metrics, and per-test results.
+    Idempotent per (attempt_id, idempotency_key) via DB unique constraint.
     """
     __tablename__ = "coding_submissions"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "idempotency_key", name="uq_coding_sub_attempt_idempotency"),
+        Index("ix_coding_sub_attempt_q", "attempt_id", "question_id"),
+        Index("ix_coding_sub_cand_submitted", "candidate_id", "submitted_at"),
+        Index("ix_coding_sub_job_id", "job_id"),
+    )
 
     id = Column(ID_TYPE, primary_key=True, autoincrement=True)
     attempt_id = Column(BigInteger, ForeignKey("coding_attempts.id", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=True)
     question_id = Column(String(64), ForeignKey("coding_questions.id", ondelete="CASCADE"), nullable=False)
     language = Column(String(30), nullable=False)
     source_code = Column(Text, nullable=False)
-    status = Column(String(30), nullable=False, default="EVALUATED")  # PASSED, PARTIAL, FAILED, ERROR
+    idempotency_key = Column(String(128), nullable=True)
+    is_run_only = Column(Boolean, nullable=False, default=False)
+    job_id = Column(String(128), nullable=True)
+    verdict = Column(String(40), nullable=False, default="QUEUED")
+    status = Column(String(30), nullable=False, default="QUEUED")  # QUEUED, RUNNING, PASSED, PARTIAL, FAILED, ERROR
     passed_test_cases = Column(Integer, nullable=False, default=0)
     total_test_cases = Column(Integer, nullable=False, default=0)
     marks_awarded = Column(Numeric(6, 2), nullable=False, default=0.00)
+    runtime_ms = Column(Integer, nullable=True)
+    memory_kb = Column(Integer, nullable=True)
+    error_message = Column(Text, nullable=True)
     test_case_results = Column(Text, nullable=True, default="[]")  # Detailed JSON breakdown
     submitted_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), nullable=True, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     attempt = relationship("CodingAttempt", back_populates="submissions")
     question = relationship("CodingQuestion")

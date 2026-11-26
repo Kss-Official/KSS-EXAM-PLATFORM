@@ -14,9 +14,13 @@ class CodeRunnerService:
     @staticmethod
     def _execute_code(language: str, code: str, stdin_data: str, timeout_seconds: float = 3.0) -> Dict[str, Any]:
         """
-        Executes code safely in a temporary sandbox directory with subprocess timeouts.
-        Supports: python3, python, javascript, cpp, c, java
+        UNSAFE, DO NOT USE: Unsandboxed local subprocess execution is permanently disabled.
+        Use app.coding.judge0_client + worker queue instead.
         """
+        raise RuntimeError(
+            "UNSAFE, DO NOT USE: Unsandboxed CodeRunnerService._execute_code is permanently disabled. "
+            "All code execution must go through the sandboxed Judge0 worker queue."
+        )
         lang = language.lower()
         start_time = time.time()
 
