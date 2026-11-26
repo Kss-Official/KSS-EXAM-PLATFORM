@@ -70,7 +70,15 @@ export interface CodingAttemptInfo {
   startedAt: string | null;
   expiresAt: string | null;
   serverTime: string;
+  pastePolicy?: "flag" | "ignore" | "block";
   questionIds: string[];
+}
+
+export interface CodingDraftDto {
+  questionId: string;
+  language: string;
+  code: string;
+  updatedAt?: string | null;
 }
 
 function getCandidateHeaders(): HeadersInit {
@@ -148,6 +156,24 @@ export function submitCodingCode(payload: {
 
 export function getCodingSubmission(submissionId: number): Promise<CodingSubmissionStatus> {
   return codingFetch<CodingSubmissionStatus>(`/coding/submissions/${submissionId}`);
+}
+
+export function saveCodingDraft(payload: {
+  examId: number;
+  questionId: string;
+  language: string;
+  code: string;
+}): Promise<CodingDraftDto> {
+  return codingFetch<CodingDraftDto>(`/coding/drafts`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getCodingDrafts(questionId: string, examId: number): Promise<CodingDraftDto[]> {
+  return codingFetch<CodingDraftDto[]>(
+    `/coding/drafts/${encodeURIComponent(questionId)}?examId=${encodeURIComponent(String(examId))}`
+  );
 }
 
 export function watchSubmissionResult(

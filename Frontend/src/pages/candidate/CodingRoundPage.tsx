@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Play, Send, Clock3, AlertCircle } from "lucide-react";
 import {
   getCodingAttemptInfo,
+  getCodingDrafts,
   getCodingProblem,
   listProblemSubmissions,
   runCodingCode,
+  saveCodingDraft,
   submitCodingCode,
   watchSubmissionResult,
   type CodingAttemptInfo,
+  type CodingDraftDto,
   type CodingProblemPublic,
   type CodingSubmissionStatus,
 } from "../../services/codingApi";
@@ -49,6 +52,7 @@ export default function CodingRoundPage() {
   const [result, setResult] = useState<CodingSubmissionStatus | null>(null);
   const [execError, setExecError] = useState<string | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
+  const [serverDrafts, setServerDrafts] = useState<Record<string, CodingDraftDto>>({});
 
   const stopWatchRef = useRef<(() => void) | null>(null);
   const lastAlertRef = useRef<Record<string, number>>({});
@@ -88,19 +92,27 @@ export default function CodingRoundPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  // Load problem & restore autosaved code
+  // Load problem & restore autosaved code (server draft primary, localStorage offline fallback)
   useEffect(() => {
     if (!activeProblemId) return;
     let cancelled = false;
     (async () => {
       try {
-        const p = await getCodingProblem(activeProblemId);
+        const [p, drafts] = await Promise.all([
+          getCodingProblem(activeProblemId),
+          getCodingDrafts(activeProblemId, examId).catch(() => [] as CodingDraftDto[]),
+        ]);
         if (cancelled) return;
         setProblem(p);
+        const draftMap: Record<string, CodingDraftDto> = {};
+        for (const d of drafts) draftMap[d.language] = d;
+        setServerDrafts(draftMap);
+
         const firstLang = p.allowedLanguages[0] || "python3";
         setLanguage(firstLang);
-        const saved = localStorage.getItem(`coding_autosave_${examId}_${p.id}_${firstLang}`);
-        setCode(saved ?? p.starterCode[firstLang] ?? DEFAULT_STARTER_TEMPLATES[firstLang] ?? "");
+        const savedLocal = localStorage.getItem(`coding_autosave_${examId}_${p.id}_${firstLang}`);
+        const serverCode = draftMap[firstLang]?.code;
+        setCode(serverCode ?? savedLocal ?? p.starterCode[firstLang] ?? DEFAULT_STARTER_TEMPLATES[firstLang] ?? "");
         const subs = await listProblemSubmissions(p.id);
         if (!cancelled) setSubmissions(subs);
       } catch (e) {
@@ -112,7 +124,7 @@ export default function CodingRoundPage() {
     };
   }, [activeProblemId, examId]);
 
-  // Debounced autosave
+  // Debounced server autosave + localStorage offline fallback
   useEffect(() => {
     if (!problem) return;
     const t = window.setTimeout(() => {
@@ -121,6 +133,13 @@ export default function CodingRoundPage() {
       } catch {
         // ignore storage quota errors
       }
+      void saveCodingDraft({ examId, questionId: problem.id, language, code })
+        .then((saved) => {
+          setServerDrafts((prev) => ({ ...prev, [saved.language]: saved }));
+        })
+        .catch(() => {
+          // offline fallback retained in localStorage
+        });
     }, 1500);
     return () => window.clearTimeout(t);
   }, [code, language, problem, examId]);
@@ -157,7 +176,14 @@ export default function CodingRoundPage() {
       if (document.visibilityState === "hidden") report("TAB_SWITCH", "Candidate switched tab during Coding Round");
     };
     const onBlur = () => report("WINDOW_BLUR", "Candidate window lost focus during Coding Round");
-    const onPaste = () => report("CLIPBOARD_PASTE", "Candidate pasted content during Coding Round");
+    const pastePolicy = (attemptInfo?.pastePolicy || import.meta.env.VITE_CODING_PASTE_POLICY || "flag").toLowerCase();
+    const onPaste = (e: ClipboardEvent) => {
+      if (pastePolicy === "ignore") return;
+      if (pastePolicy === "block") {
+        e.preventDefault();
+      }
+      report("CLIPBOARD_PASTE", `Candidate pasted content during Coding Round (policy=${pastePolicy})`);
+    };
 
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("blur", onBlur);
@@ -172,8 +198,9 @@ export default function CodingRoundPage() {
   const handleLanguageChange = (newLang: string) => {
     setLanguage(newLang);
     if (!problem) return;
-    const saved = localStorage.getItem(`coding_autosave_${examId}_${problem.id}_${newLang}`);
-    setCode(saved ?? problem.starterCode[newLang] ?? DEFAULT_STARTER_TEMPLATES[newLang] ?? "");
+    const serverCode = serverDrafts[newLang]?.code;
+    const savedLocal = localStorage.getItem(`coding_autosave_${examId}_${problem.id}_${newLang}`);
+    setCode(serverCode ?? savedLocal ?? problem.starterCode[newLang] ?? DEFAULT_STARTER_TEMPLATES[newLang] ?? "");
   };
 
   const handleResetCode = () => {

@@ -49,6 +49,9 @@ async def lifespan(app: FastAPI):
                 try:
                     from app.candidate.services.candidate_exam_service import CandidateExamService
                     CandidateExamService.auto_finalize_expired_attempts(db_bg)
+                    if settings.CODING_ROUND_ENABLED:
+                        from app.coding.router import finalize_expired_coding_attempts
+                        await finalize_expired_coding_attempts(db_bg)
                 finally:
                     db_bg.close()
             except asyncio.CancelledError:

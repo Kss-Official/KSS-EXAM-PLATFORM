@@ -89,3 +89,17 @@ class CodingEnqueueResponse(BaseModel):
     verdict: str
     status: str
     idempotentReplay: bool = False
+
+
+class CodingDraftSaveRequest(BaseModel):
+    examId: int
+    questionId: str
+    language: str
+    code: str
+
+
+class CodingDraftDto(BaseModel):
+    questionId: str
+    language: str
+    code: str
+    updatedAt: Optional[str] = None

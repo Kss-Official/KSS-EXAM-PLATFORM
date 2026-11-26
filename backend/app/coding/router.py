@@ -16,10 +16,12 @@ from app.core.database import get_db
 from app.core.security import extract_token_from_request, verify_session_token
 from app.models.attempt import ExamAttempt
 from app.models.candidate import Candidate
-from app.models.coding import CodingAttempt, CodingExam, CodingQuestion, CodingSubmission
+from app.models.coding import CodingAttempt, CodingDraft, CodingExam, CodingQuestion, CodingSubmission
 from app.coding.metrics import coding_metrics, log_coding_event
 from app.coding.queue import coding_queue_manager
 from app.coding.schemas import (
+    CodingDraftDto,
+    CodingDraftSaveRequest,
     CodingEnqueueResponse,
     CodingProblemPublicDto,
     CodingRunRequest,
@@ -113,7 +115,115 @@ def _normalize_and_validate_input(language: str, code: str, custom_input: Option
     return norm_lang
 
 
-def _get_or_create_active_coding_attempt(cand: Candidate, exam_id: int, db: Session) -> CodingAttempt:
+async def finalize_coding_attempt_if_expired(attempt: CodingAttempt, db: Session) -> bool:
+    """
+    If an IN_PROGRESS coding attempt is past (expires_at + CODING_SUBMIT_GRACE_SECONDS),
+    finalize it server-side and promote each question's latest saved draft (if not already
+    submitted after the draft's updated_at) into a queued final submission.
+    """
+    if not attempt or attempt.status != "IN_PROGRESS" or not attempt.expires_at:
+        return False
+    now = datetime.now(timezone.utc)
+    exp = attempt.expires_at
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    grace_cutoff = exp + timedelta(seconds=int(settings.CODING_SUBMIT_GRACE_SECONDS or 0))
+    if now <= grace_cutoff:
+        return False
+
+    drafts = (
+        db.query(CodingDraft)
+        .filter(CodingDraft.attempt_id == attempt.id)
+        .order_by(CodingDraft.updated_at.desc())
+        .all()
+    )
+    latest_by_q: Dict[str, CodingDraft] = {}
+    for d in drafts:
+        if d.question_id not in latest_by_q and (d.source_code or "").strip():
+            latest_by_q[d.question_id] = d
+
+    to_enqueue: List[Tuple[int, int]] = []
+    for q_id, draft in latest_by_q.items():
+        latest_sub = (
+            db.query(CodingSubmission)
+            .filter(
+                CodingSubmission.attempt_id == attempt.id,
+                CodingSubmission.question_id == q_id,
+                CodingSubmission.is_run_only == False,  # noqa: E712
+            )
+            .order_by(CodingSubmission.submitted_at.desc())
+            .first()
+        )
+        draft_ts = draft.updated_at.replace(tzinfo=timezone.utc) if draft.updated_at and draft.updated_at.tzinfo is None else draft.updated_at
+        sub_ts = latest_sub.submitted_at.replace(tzinfo=timezone.utc) if latest_sub and latest_sub.submitted_at and latest_sub.submitted_at.tzinfo is None else (latest_sub.submitted_at if latest_sub else None)
+        if latest_sub and sub_ts and draft_ts and sub_ts >= draft_ts:
+            continue
+
+        idem_key = f"auto-expire-{attempt.id}-{q_id}"
+        existing_auto = (
+            db.query(CodingSubmission)
+            .filter(CodingSubmission.attempt_id == attempt.id, CodingSubmission.idempotency_key == idem_key)
+            .first()
+        )
+        if existing_auto:
+            continue
+
+        sub = CodingSubmission(
+            attempt_id=attempt.id,
+            candidate_id=attempt.candidate_id,
+            question_id=q_id,
+            language=draft.language,
+            source_code=draft.source_code,
+            idempotency_key=idem_key,
+            is_run_only=False,
+            verdict="QUEUED",
+            status="QUEUED",
+        )
+        db.add(sub)
+        db.flush()
+        to_enqueue.append((int(sub.id), int(attempt.candidate_id)))
+
+    attempt.status = "SUBMITTED"
+    attempt.submitted_at = exp
+    db.commit()
+
+    for sub_id, cand_id in to_enqueue:
+        try:
+            job_id = await coding_queue_manager.enqueue_submission(sub_id, cand_id)
+            sub_row = db.query(CodingSubmission).filter(CodingSubmission.id == sub_id).first()
+            if sub_row:
+                sub_row.job_id = job_id
+                db.commit()
+        except Exception as exc:
+            log_coding_event("auto_expire_enqueue_error", submission_id=sub_id, error=str(exc))
+    return True
+
+
+async def finalize_expired_coding_attempts(db: Session) -> int:
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(seconds=int(settings.CODING_SUBMIT_GRACE_SECONDS or 0))
+    expired = (
+        db.query(CodingAttempt)
+        .filter(
+            CodingAttempt.status == "IN_PROGRESS",
+            CodingAttempt.expires_at != None,  # noqa: E711
+            CodingAttempt.expires_at < cutoff,
+        )
+        .all()
+    )
+    count = 0
+    for att in expired:
+        if await finalize_coding_attempt_if_expired(att, db):
+            count += 1
+    return count
+
+
+def _get_or_create_active_coding_attempt(
+    cand: Candidate,
+    exam_id: int,
+    db: Session,
+    allow_grace: bool = False,
+) -> CodingAttempt:
     exam = db.query(CodingExam).filter(CodingExam.id == exam_id).first()
     if not exam or exam.status not in ("ACTIVATED", "PUBLISHED"):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Active coding exam not found.")
@@ -149,7 +259,8 @@ def _get_or_create_active_coding_attempt(cand: Candidate, exam_id: int, db: Sess
             db.commit()
         elif expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if now > expires_at:
+        grace_s = int(settings.CODING_SUBMIT_GRACE_SECONDS or 0) if allow_grace else 0
+        if now > expires_at + timedelta(seconds=grace_s):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Coding exam time has expired.")
     return attempt
 
@@ -402,7 +513,7 @@ async def submit_coding_solution(
     _require_coding_enabled()
     cand = _require_candidate_from_request(request, db)
     _verify_round2_eligibility(cand, db)
-    attempt = _get_or_create_active_coding_attempt(cand, req.examId, db)
+    attempt = _get_or_create_active_coding_attempt(cand, req.examId, db, allow_grace=True)
 
     # Fast-path idempotency check before hitting rate limit / queue
     existing = (
@@ -539,8 +650,108 @@ def list_problem_submissions(
     ]
 
 
+@router.put("/drafts", response_model=CodingDraftDto)
+async def save_coding_draft(
+    req: CodingDraftSaveRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_coding_enabled()
+    cand = _require_candidate_from_request(request, db)
+    _verify_round2_eligibility(cand, db)
+    attempt = _get_or_create_active_coding_attempt(cand, req.examId, db, allow_grace=False)
+
+    q = db.query(CodingQuestion).filter(CodingQuestion.id == req.questionId, CodingQuestion.exam_id == req.examId).first()
+    if not q:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Coding problem not found.")
+
+    norm_lang = LANGUAGE_ALIASES.get((req.language or "").strip().lower(), (req.language or "").strip().lower())
+    if norm_lang not in settings.CODING_ALLOWED_LANGUAGES:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Language '{req.language}' is not allowed.")
+    if len((req.code or "").encode("utf-8")) > settings.CODING_MAX_CODE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Draft exceeds max size of {settings.CODING_MAX_CODE_BYTES} bytes.",
+        )
+
+    await coding_queue_manager.ensure_connected()
+    guard = coding_queue_manager.get_guard()
+    allowed, retry_after, reason = await guard.check_draft_rate_limit(cand.id)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=reason,
+            headers={"Retry-After": str(retry_after)},
+        )
+
+    now = datetime.now(timezone.utc)
+    draft = (
+        db.query(CodingDraft)
+        .filter(
+            CodingDraft.attempt_id == attempt.id,
+            CodingDraft.question_id == q.id,
+            CodingDraft.language == norm_lang,
+        )
+        .first()
+    )
+    if draft:
+        draft.source_code = req.code
+        draft.updated_at = now
+    else:
+        draft = CodingDraft(
+            attempt_id=attempt.id,
+            candidate_id=cand.id,
+            question_id=q.id,
+            language=norm_lang,
+            source_code=req.code,
+            updated_at=now,
+        )
+        db.add(draft)
+    db.commit()
+    db.refresh(draft)
+
+    return CodingDraftDto(
+        questionId=draft.question_id,
+        language=draft.language,
+        code=draft.source_code,
+        updatedAt=draft.updated_at.isoformat() if draft.updated_at else None,
+    )
+
+
+@router.get("/drafts/{question_id}", response_model=List[CodingDraftDto])
+def get_coding_drafts(
+    question_id: str,
+    examId: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _require_coding_enabled()
+    cand = _require_candidate_from_request(request, db)
+    attempt = (
+        db.query(CodingAttempt)
+        .filter(CodingAttempt.candidate_id == cand.id, CodingAttempt.exam_id == examId)
+        .first()
+    )
+    if not attempt:
+        return []
+    drafts = (
+        db.query(CodingDraft)
+        .filter(CodingDraft.attempt_id == attempt.id, CodingDraft.question_id == question_id)
+        .all()
+    )
+    return [
+        CodingDraftDto(
+            questionId=d.question_id,
+            language=d.language,
+            code=d.source_code,
+            updatedAt=d.updated_at.isoformat() if d.updated_at else None,
+        )
+        for d in drafts
+    ]
+
+
 @router.get("/exams/{exam_id}/attempt")
-def get_or_start_coding_attempt_info(
+async def get_or_start_coding_attempt_info(
     exam_id: int,
     request: Request,
     db: Session = Depends(get_db),
@@ -548,6 +759,15 @@ def get_or_start_coding_attempt_info(
     _require_coding_enabled()
     cand = _require_candidate_from_request(request, db)
     _verify_round2_eligibility(cand, db)
+    # Auto-finalize if already past deadline + grace
+    existing_att = (
+        db.query(CodingAttempt)
+        .filter(CodingAttempt.candidate_id == cand.id, CodingAttempt.exam_id == exam_id)
+        .first()
+    )
+    if existing_att:
+        await finalize_coding_attempt_if_expired(existing_att, db)
+
     attempt = _get_or_create_active_coding_attempt(cand, exam_id, db)
     exam = db.query(CodingExam).options(joinedload(CodingExam.questions)).filter(CodingExam.id == exam_id).first()
     now = datetime.now(timezone.utc)
@@ -559,6 +779,7 @@ def get_or_start_coding_attempt_info(
         "startedAt": attempt.started_at.isoformat() if attempt.started_at else None,
         "expiresAt": attempt.expires_at.isoformat() if attempt.expires_at else None,
         "serverTime": now.isoformat(),
+        "pastePolicy": settings.CODING_PASTE_POLICY,
         "questionIds": [q.id for q in (exam.questions or [])],
     }
 

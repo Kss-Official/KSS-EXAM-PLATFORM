@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     CODING_MAX_QUEUE_DEPTH: int = 5000
     CODING_USER_RATE_LIMIT_PER_MIN: int = 12
     CODING_USER_MAX_CONCURRENT: int = 2
+    CODING_DRAFT_RATE_LIMIT_PER_MIN: int = 60
+    CODING_SUBMIT_GRACE_SECONDS: int = 10
+    CODING_PASTE_POLICY: str = "flag"  # "flag", "ignore", or "block"
     CODING_JOB_TIMEOUT_SECONDS: int = 30
     CODING_ALLOWED_LANGUAGES: List[str] = ["python3", "javascript", "cpp", "c", "java"]
 

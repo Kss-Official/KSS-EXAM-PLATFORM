@@ -137,3 +137,26 @@ class CodingSubmission(Base):
 
     attempt = relationship("CodingAttempt", back_populates="submissions")
     question = relationship("CodingQuestion")
+
+
+class CodingDraft(Base):
+    """
+    Server-persisted debounced code draft per (attempt, question, language).
+    Used for cross-refresh restore and server-side auto-submission on timer expiry.
+    """
+    __tablename__ = "coding_drafts"
+    __table_args__ = (
+        UniqueConstraint("attempt_id", "question_id", "language", name="uq_coding_draft_attempt_q_lang"),
+        Index("ix_coding_draft_attempt_q", "attempt_id", "question_id"),
+    )
+
+    id = Column(ID_TYPE, primary_key=True, autoincrement=True)
+    attempt_id = Column(BigInteger, ForeignKey("coding_attempts.id", ondelete="CASCADE"), nullable=False)
+    candidate_id = Column(BigInteger, ForeignKey("candidates.id", ondelete="CASCADE"), nullable=False)
+    question_id = Column(String(64), ForeignKey("coding_questions.id", ondelete="CASCADE"), nullable=False)
+    language = Column(String(30), nullable=False)
+    source_code = Column(Text, nullable=False, default="")
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    attempt = relationship("CodingAttempt")
+    question = relationship("CodingQuestion")

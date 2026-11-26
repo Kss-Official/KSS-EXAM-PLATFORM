@@ -62,3 +62,25 @@ class CodingRedisGuard:
         val = await self._redis.decr(conc_key)
         if int(val) < 0:
             await self._redis.set(conc_key, 0, ex=60)
+
+    async def check_draft_rate_limit(
+        self,
+        user_id: int,
+        rate_per_min: Optional[int] = None,
+    ) -> Tuple[bool, int, str]:
+        r_max = rate_per_min if rate_per_min is not None else settings.CODING_DRAFT_RATE_LIMIT_PER_MIN
+        if self._redis is None:
+            if settings.ENVIRONMENT.lower() == "production":
+                return False, 10, "Redis rate-limiter unavailable in production"
+            return True, 0, "ok"
+
+        minute_bucket = int(time.time() // 60)
+        rate_key = f"coding:draft_rl:{user_id}:{minute_bucket}"
+        pipe = self._redis.pipeline()
+        pipe.incr(rate_key)
+        pipe.expire(rate_key, 70)
+        rate_count, _ = await pipe.execute()
+        if int(rate_count) > r_max:
+            retry_after = max(1, 60 - int(time.time() % 60))
+            return False, retry_after, f"Draft autosave rate limit exceeded ({r_max}/min)."
+        return True, 0, "ok"
