@@ -159,12 +159,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
-    logger.exception(f"Unhandled server error: {exc}")
+    import uuid
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+    logger.exception(f"Unhandled server error [requestId={request_id}]: {exc}")
+    msg = f"Internal Server Error: {str(exc)}" if settings.DEBUG else "Internal Server Error"
     resp = JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "success": False,
-            "message": f"Internal Server Error: {str(exc)}",
+            "message": msg,
+            "requestId": request_id,
             "statusCode": 500
         }
     )
