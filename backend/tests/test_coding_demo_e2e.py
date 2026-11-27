@@ -93,8 +93,10 @@ def test_demo_seed_e2e_flow_and_clean_remove(monkeypatch):
             json={"examId": exam_id, "questionId": q1_id, "language": "python3", "code": sol_q1},
         )
         assert run_res.status_code == 202
+        assert run_res.json()["executor"] == "local_demo"
         run_status = _poll_submission(c, run_res.json()["submissionId"], headers)
         assert run_status["verdict"] == "ACCEPTED"
+        assert run_status["executor"] == "local_demo"
 
         # 6. Submit full solution for Q1 (20 marks out of 100 total across 3 questions)
         sub_res = c.post(
@@ -135,3 +137,61 @@ def test_demo_seed_e2e_flow_and_clean_remove(monkeypatch):
             assert db.query(Exam).filter(Exam.title != DEMO_R1_TITLE).count() == non_demo_r1_before
         finally:
             db.close()
+
+
+def test_mock_executor_refuses_java_and_cpp_explicitly():
+    import asyncio
+    from app.coding.judge0_client import MockSandboxExecutor
+
+    executor = MockSandboxExecutor()
+    assert executor.name == "mock"
+    for lang in ("java", "cpp", "c++", "c"):
+        res = asyncio.run(
+            executor.execute(
+                language=lang,
+                source_code="public class Main { public static void main(String[] a) {} }",
+                stdin="3 5",
+                expected_output="8",
+            )
+        )
+        assert res.verdict == "INTERNAL_ERROR"
+        assert "MockSandboxExecutor" in res.stderr
+        assert "judge0" in res.stderr.lower()
+        assert res.stdout == ""
+
+
+def test_local_demo_executor_runs_python_js_and_java(monkeypatch):
+    import asyncio
+    import shutil
+    from app.core.config import settings
+    from app.coding.judge0_client import LocalPythonDemoExecutor
+
+    monkeypatch.setattr(settings, "DEBUG", True)
+    monkeypatch.setattr(settings, "ENVIRONMENT", "development")
+    ex = LocalPythonDemoExecutor()
+
+    py_res = asyncio.run(ex.execute("python3", "a,b=map(int,input().split());print(a+b)", "3 5", "8"))
+    assert py_res.verdict == "ACCEPTED"
+
+    if shutil.which("node"):
+        js_res = asyncio.run(
+            ex.execute(
+                "javascript",
+                "const fs=require('fs');const [a,b]=fs.readFileSync(0,'utf8').trim().split(/\\s+/).map(Number);console.log(a+b);",
+                "3 5",
+                "8",
+            )
+        )
+        assert js_res.verdict == "ACCEPTED"
+
+    if shutil.which("javac") and shutil.which("java"):
+        java_res = asyncio.run(
+            ex.execute(
+                "java",
+                "import java.util.*; public class Main { public static void main(String[] a){ Scanner s=new Scanner(System.in); System.out.println(s.nextInt()+s.nextInt()); } }",
+                "3 5",
+                "8",
+            )
+        )
+        if java_res.compile_output != "javac timed out":
+            assert java_res.verdict == "ACCEPTED"

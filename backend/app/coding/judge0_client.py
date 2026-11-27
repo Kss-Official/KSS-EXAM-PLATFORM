@@ -28,6 +28,8 @@ class SandboxResult:
 
 
 class SandboxExecutor(ABC):
+    name: str = "base"
+
     @abstractmethod
     async def execute(
         self,
@@ -59,10 +61,22 @@ def _unb64(val: Optional[str]) -> str:
 
 class Judge0SandboxExecutor(SandboxExecutor):
     """Calls self-hosted Judge0 CE (isolate sandbox) with network disabled and strict resource limits."""
+    name: str = "judge0"
 
     def __init__(self, base_url: Optional[str] = None, auth_token: Optional[str] = None) -> None:
         self.base_url = (base_url or settings.JUDGE0_URL).rstrip("/")
         self.auth_token = auth_token if auth_token is not None else settings.JUDGE0_AUTH_TOKEN
+
+    async def is_reachable(self) -> bool:
+        headers = {}
+        if self.auth_token:
+            headers["X-Auth-Token"] = self.auth_token
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(f"{self.base_url}/about", headers=headers)
+                return 200 <= resp.status_code < 300
+        except Exception:
+            return False
 
     async def execute(
         self,
@@ -149,6 +163,7 @@ class MockSandboxExecutor(SandboxExecutor):
     Deterministic, host-safe mock sandbox for local dev and automated tests when Docker/Judge0 is unavailable.
     Never spawns subprocesses or evaluates arbitrary user code on the host.
     """
+    name: str = "mock"
 
     async def execute(
         self,
@@ -162,6 +177,13 @@ class MockSandboxExecutor(SandboxExecutor):
         max_processes: int = 32,
         max_file_size_kb: int = 1024,
     ) -> SandboxResult:
+        if (language or "").strip().lower() in ("java", "cpp", "c++", "c"):
+            return SandboxResult(
+                verdict="INTERNAL_ERROR",
+                stderr=f"MockSandboxExecutor cannot compile or run {language}; set CODING_SANDBOX_DRIVER=judge0 for real {language} execution.",
+                runtime_ms=0,
+                memory_kb=0,
+            )
         code = source_code or ""
         lower = code.lower()
 
@@ -250,10 +272,11 @@ class LocalPythonDemoExecutor(SandboxExecutor):
     Strictly forbidden when DEBUG is False or ENVIRONMENT is production.
     Strips environment secrets and enforces timeout + output cap in an isolated temp dir.
     """
+    name: str = "local_demo"
 
     def __init__(self) -> None:
-        if not settings.DEBUG or settings.ENVIRONMENT.lower() == "production":
-            raise RuntimeError("LOCAL_DEMO_SANDBOX is forbidden when DEBUG is False or in production.")
+        if not settings.DEBUG or settings.ENVIRONMENT.lower() in ("demo", "production"):
+            raise RuntimeError("LOCAL_DEMO_SANDBOX is forbidden when DEBUG is False or in demo/production.")
 
     async def execute(
         self,
@@ -267,16 +290,27 @@ class LocalPythonDemoExecutor(SandboxExecutor):
         max_processes: int = 32,
         max_file_size_kb: int = 1024,
     ) -> SandboxResult:
-        if not settings.DEBUG or settings.ENVIRONMENT.lower() == "production":
-            raise RuntimeError("LOCAL_DEMO_SANDBOX is forbidden when DEBUG is False or in production.")
-        if language.lower() not in ("python", "python3", "py"):
+        if not settings.DEBUG or settings.ENVIRONMENT.lower() in ("demo", "production"):
+            raise RuntimeError("LOCAL_DEMO_SANDBOX is forbidden when DEBUG is False or in demo/production.")
+
+        lang = (language or "").strip().lower()
+        if lang in ("py", "python", "python3"):
+            norm_lang = "python3"
+        elif lang in ("js", "node", "javascript"):
+            norm_lang = "javascript"
+        elif lang == "java":
+            norm_lang = "java"
+        elif lang in ("cpp", "c++", "c"):
+            norm_lang = "cpp" if lang in ("cpp", "c++") else "c"
+        else:
             return SandboxResult(
                 verdict="INTERNAL_ERROR",
-                stderr="LOCAL_DEMO_SANDBOX supports python3 only. Use Judge0 CE on Docker for other languages.",
+                stderr=f"Unsupported language for LOCAL_DEMO_SANDBOX: {language}",
             )
 
         import asyncio
         import os
+        import shutil
         import subprocess
         import sys
         import tempfile
@@ -285,12 +319,15 @@ class LocalPythonDemoExecutor(SandboxExecutor):
         def _run_sync() -> SandboxResult:
             t0 = time.time()
             with tempfile.TemporaryDirectory() as tmpdir:
-                script_path = os.path.join(tmpdir, "main.py")
-                with open(script_path, "w", encoding="utf-8") as f:
-                    f.write(source_code or "")
-
-                # Minimal environment: strip all DB/secret env vars
-                safe_env = {"PATH": os.environ.get("PATH", ""), "PYTHONNOUSERSITE": "1"}
+                # Minimal environment: strip all DB/secret env vars while keeping OS basics (SystemRoot needed by Node/Java on Windows)
+                safe_env = {
+                    "PATH": os.environ.get("PATH", ""),
+                    "PYTHONNOUSERSITE": "1",
+                    "TEMP": tmpdir,
+                    "TMP": tmpdir,
+                }
+                if os.environ.get("SystemRoot"):
+                    safe_env["SystemRoot"] = os.environ["SystemRoot"]
                 preexec = None
                 if os.name != "nt":
                     import resource
@@ -300,13 +337,79 @@ class LocalPythonDemoExecutor(SandboxExecutor):
                         resource.setrlimit(resource.RLIMIT_CPU, (int(cpu_time_limit_s) + 1, int(cpu_time_limit_s) + 1))
                     preexec = _limits
 
+                run_timeout = float(cpu_time_limit_s)
+                if norm_lang == "python3":
+                    script_path = os.path.join(tmpdir, "main.py")
+                    with open(script_path, "w", encoding="utf-8") as f:
+                        f.write(source_code or "")
+                    cmd = [sys.executable, "-I", script_path]
+                elif norm_lang == "javascript":
+                    if not shutil.which("node"):
+                        return SandboxResult(verdict="INTERNAL_ERROR", stderr="Node.js ('node') is not installed locally.")
+                    script_path = os.path.join(tmpdir, "main.js")
+                    with open(script_path, "w", encoding="utf-8") as f:
+                        f.write(source_code or "")
+                    cmd = ["node", script_path]
+                elif norm_lang == "java":
+                    if not shutil.which("javac") or not shutil.which("java"):
+                        return SandboxResult(verdict="INTERNAL_ERROR", stderr="Java JDK ('javac'/'java') is not installed locally.")
+                    src_path = os.path.join(tmpdir, "Main.java")
+                    with open(src_path, "w", encoding="utf-8") as f:
+                        f.write(source_code or "")
+                    try:
+                        comp = subprocess.run(
+                            ["javac", "-J-Xmx128m", src_path],
+                            capture_output=True,
+                            text=True,
+                            timeout=25.0,
+                            cwd=tmpdir,
+                            env=safe_env,
+                        )
+                    except subprocess.TimeoutExpired:
+                        return SandboxResult(verdict="COMPILE_ERROR", compile_output="javac timed out", runtime_ms=0)
+                    if comp.returncode != 0:
+                        return SandboxResult(
+                            verdict="COMPILE_ERROR",
+                            compile_output=((comp.stderr or "") + (comp.stdout or ""))[:16384],
+                            runtime_ms=0,
+                        )
+                    run_timeout = max(run_timeout, 5.0)
+                    cmd = ["java", f"-Xmx{max(64, int(memory_limit_kb // 1024))}m", "-cp", tmpdir, "Main"]
+                else:
+                    compiler = "g++" if norm_lang == "cpp" else "gcc"
+                    if not shutil.which(compiler):
+                        return SandboxResult(
+                            verdict="INTERNAL_ERROR",
+                            stderr=f"'{compiler}' is not installed locally. Use Judge0 CE on Docker for {norm_lang}.",
+                        )
+                    ext = "cpp" if norm_lang == "cpp" else "c"
+                    src_path = os.path.join(tmpdir, f"main.{ext}")
+                    exe_path = os.path.join(tmpdir, "main.exe" if os.name == "nt" else "main")
+                    with open(src_path, "w", encoding="utf-8") as f:
+                        f.write(source_code or "")
+                    comp = subprocess.run(
+                        [compiler, src_path, "-O2", "-o", exe_path],
+                        capture_output=True,
+                        text=True,
+                        timeout=10.0,
+                        cwd=tmpdir,
+                        env=safe_env,
+                    )
+                    if comp.returncode != 0:
+                        return SandboxResult(
+                            verdict="COMPILE_ERROR",
+                            compile_output=((comp.stderr or "") + (comp.stdout or ""))[:16384],
+                            runtime_ms=0,
+                        )
+                    cmd = [exe_path]
+
                 try:
                     proc = subprocess.run(
-                        [sys.executable, "-I", script_path],
+                        cmd,
                         input=stdin or "",
                         capture_output=True,
                         text=True,
-                        timeout=float(cpu_time_limit_s),
+                        timeout=run_timeout,
                         cwd=tmpdir,
                         env=safe_env,
                         preexec_fn=preexec,
@@ -314,8 +417,8 @@ class LocalPythonDemoExecutor(SandboxExecutor):
                 except subprocess.TimeoutExpired:
                     return SandboxResult(
                         verdict="TIME_LIMIT_EXCEEDED",
-                        stderr=f"Time Limit Exceeded (>{cpu_time_limit_s}s)",
-                        runtime_ms=int(cpu_time_limit_s * 1000),
+                        stderr=f"Time Limit Exceeded (>{run_timeout}s)",
+                        runtime_ms=int(run_timeout * 1000),
                         memory_kb=0,
                     )
 
@@ -323,7 +426,7 @@ class LocalPythonDemoExecutor(SandboxExecutor):
                 stdout = (proc.stdout or "")[:65536]
                 stderr = (proc.stderr or "")[:16384]
                 if proc.returncode != 0:
-                    if "MemoryError" in stderr:
+                    if "MemoryError" in stderr or "OutOfMemoryError" in stderr:
                         return SandboxResult(verdict="MEMORY_LIMIT_EXCEEDED", stdout=stdout, stderr=stderr, runtime_ms=elapsed_ms)
                     if "SyntaxError" in stderr or "IndentationError" in stderr:
                         return SandboxResult(verdict="COMPILE_ERROR", compile_output=stderr, runtime_ms=elapsed_ms)

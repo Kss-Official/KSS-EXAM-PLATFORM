@@ -159,9 +159,14 @@ def seed_demo(force: bool = False) -> Dict[str, Any]:
                 full_name=DEMO_CAND_NAME,
                 email=DEMO_CAND_EMAIL,
                 department_id=dept.id,
+                batch="demo",
                 status="ACTIVE",
             )
             db.add(cand)
+            db.commit()
+            db.refresh(cand)
+        elif not cand.batch or "demo" not in cand.batch.lower():
+            cand.batch = "demo"
             db.commit()
             db.refresh(cand)
 

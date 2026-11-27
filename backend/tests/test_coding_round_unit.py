@@ -108,3 +108,67 @@ def test_redis_guard_rate_limit_concurrency_and_queue_depth():
         assert ok_a and ok_b and not ok_c and retry_c >= 1
 
     asyncio.run(_run())
+
+
+def test_executor_guard_refuses_demo_and_production_without_judge0():
+    from app.core.config import Settings, validate_security_settings
+
+    for env_name in ("demo", "production"):
+        bad_mock = Settings(
+            ENVIRONMENT=env_name,
+            DEBUG=False,
+            SECRET_KEY="x" * 40,
+            ADMIN_BOOTSTRAP_PASSWORD="StrongPassword!2026",
+            CORS_ORIGINS=["https://demo.example.com"],
+            CODING_ROUND_ENABLED=True,
+            CODING_SANDBOX_DRIVER="mock",
+            LOCAL_DEMO_SANDBOX=False,
+        )
+        with pytest.raises(RuntimeError, match="non-Judge0"):
+            validate_security_settings(bad_mock)
+
+        bad_local = Settings(
+            ENVIRONMENT=env_name,
+            DEBUG=False,
+            SECRET_KEY="x" * 40,
+            ADMIN_BOOTSTRAP_PASSWORD="StrongPassword!2026",
+            CORS_ORIGINS=["https://demo.example.com"],
+            CODING_ROUND_ENABLED=True,
+            CODING_SANDBOX_DRIVER="local_python",
+            LOCAL_DEMO_SANDBOX=True,
+        )
+        with pytest.raises(RuntimeError, match="non-Judge0"):
+            validate_security_settings(bad_local)
+
+
+def test_coding_health_reports_executor_and_judge0_reachability(monkeypatch):
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    monkeypatch.setattr(settings, "CODING_ROUND_ENABLED", True)
+    monkeypatch.setattr(settings, "CODING_SANDBOX_DRIVER", "mock")
+    with TestClient(app) as client:
+        res = client.get("/api/coding/health")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["executor"] == "mock"
+        assert data["judge0Reachable"] is False
+
+
+def test_parse_testcases_file_json_and_csv():
+    from app.coding.import_service import parse_testcases_file
+
+    json_bytes = (
+        b'[{"questionIndex": 1, "label": "Sample 1", "input": "3 5", "expectedOutput": "8", "isHidden": false, "marks": 5},'
+        b'{"questionIndex": 1, "label": "Hidden 1", "input": "10 20", "expectedOutput": "30", "isHidden": true, "marks": 15}]'
+    )
+    by_q, warns = parse_testcases_file("cases.json", json_bytes)
+    assert not warns
+    assert len(by_q[1]) == 2
+    assert by_q[1][1]["isHidden"] is True
+    assert by_q[1][1]["marks"] == 15.0
+
+    csv_bytes = b"questionIndex,label,input,expectedOutput,isHidden,marks\n2,Sample 1,hello,olleh,false,5\n"
+    by_q_csv, warns_csv = parse_testcases_file("cases.csv", csv_bytes)
+    assert not warns_csv
+    assert by_q_csv[2][0]["expectedOutput"] == "olleh"

@@ -116,6 +116,12 @@ def validate_security_settings(s: "Settings") -> None:
         problems.append("ADMIN_BOOTSTRAP_PASSWORD is the built-in default")
     if any(o.strip() == "*" for o in s.CORS_ORIGINS):
         problems.append("CORS_ORIGINS contains a wildcard while credentials are enabled")
+    if s.CODING_ROUND_ENABLED and s.ENVIRONMENT.lower() in ("demo", "production"):
+        if s.CODING_SANDBOX_DRIVER.lower() != "judge0" or s.LOCAL_DEMO_SANDBOX:
+            raise RuntimeError(
+                f"Refusing to start in '{s.ENVIRONMENT}' mode with non-Judge0 coding executor "
+                f"(CODING_SANDBOX_DRIVER={s.CODING_SANDBOX_DRIVER}, LOCAL_DEMO_SANDBOX={s.LOCAL_DEMO_SANDBOX})."
+            )
     if not problems:
         return
     if s.ENVIRONMENT.lower() == "production":

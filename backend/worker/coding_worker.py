@@ -63,6 +63,13 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
             raise RuntimeError(f"CodingQuestion {sub.question_id} not found")
 
         executor = get_sandbox_executor()
+        log_coding_event(
+            "submission_executing",
+            submission_id=submission_id,
+            executor=executor.name,
+            language=sub.language,
+            is_run_only=bool(sub.is_run_only),
+        )
         cpu_limit = max(0.5, float(question.time_limit_ms or 2000) / 1000.0)
         wall_limit = cpu_limit + 3.0
         mem_limit_kb = max(16384, int(question.memory_limit_mb or 256) * 1024)
@@ -111,6 +118,7 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
                     "submissionId": submission_id,
                     "status": sub.status,
                     "verdict": sub.verdict,
+                    "executor": executor.name,
                     "passedCount": sub.passed_test_cases,
                     "totalCount": sub.total_test_cases,
                     "runtimeMs": sub.runtime_ms,
@@ -118,6 +126,13 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
                 }
                 await coding_queue_manager.publish_result(submission_id, payload)
                 coding_metrics.completed_total += 1
+                log_coding_event(
+                    "submission_evaluated",
+                    submission_id=submission_id,
+                    executor=executor.name,
+                    verdict=sub.verdict,
+                    duration_ms=int((time.time() - start_ts) * 1000),
+                )
                 return payload
         else:
             cases_to_run = all_cases
@@ -242,6 +257,7 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
             "submissionId": submission_id,
             "status": sub.status,
             "verdict": sub.verdict,
+            "executor": executor.name,
             "passedCount": sub.passed_test_cases,
             "totalCount": sub.total_test_cases,
             "score": float(sub.marks_awarded or 0),
@@ -253,6 +269,7 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
         log_coding_event(
             "submission_evaluated",
             submission_id=submission_id,
+            executor=executor.name,
             verdict=sub.verdict,
             duration_ms=int((time.time() - start_ts) * 1000),
         )

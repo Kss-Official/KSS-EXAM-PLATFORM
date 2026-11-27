@@ -77,6 +77,7 @@ class CodingSubmissionStatusDto(BaseModel):
     runtimeMs: Optional[int] = None
     memoryKb: Optional[int] = None
     errorMessage: Optional[str] = None
+    executor: Optional[str] = None
     testCaseResults: List[TestCaseVerdictDto] = Field(default_factory=list)
     submittedAt: Optional[str] = None
     updatedAt: Optional[str] = None
@@ -88,6 +89,7 @@ class CodingEnqueueResponse(BaseModel):
     jobId: Optional[str] = None
     verdict: str
     status: str
+    executor: Optional[str] = None
     idempotentReplay: bool = False
 
 

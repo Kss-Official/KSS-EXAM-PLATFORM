@@ -5,18 +5,20 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import (
-    APIRouter, Depends, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
+    APIRouter, Body, Depends, HTTPException, Request, Response, WebSocket, WebSocketDisconnect, status
 )
 from fastapi.responses import PlainTextResponse, StreamingResponse
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import extract_token_from_request, verify_session_token
+from app.core.security import create_session_token, extract_token_from_request, set_auth_cookie, verify_session_token
 from app.models.attempt import ExamAttempt
 from app.models.candidate import Candidate
 from app.models.coding import CodingAttempt, CodingDraft, CodingExam, CodingQuestion, CodingSubmission
+from app.coding.judge0_client import Judge0SandboxExecutor, get_sandbox_executor
 from app.coding.metrics import coding_metrics, log_coding_event
 from app.coding.queue import coding_queue_manager
 from app.coding.schemas import (
@@ -72,8 +74,24 @@ def _require_candidate_from_request(request: Request, db: Session) -> Candidate:
     return cand
 
 
+def is_round1_qualification_required(db: Session) -> bool:
+    from app.models.setting import SystemSetting
+    row = db.query(SystemSetting).filter(SystemSetting.key == "coding_require_round1_qualified").first()
+    if row is not None:
+        return str(row.value).strip().lower() == "true"
+    return bool(settings.CODING_REQUIRE_ROUND1_QUALIFIED)
+
+
+def is_round1_qualification_required(db: Session) -> bool:
+    from app.models.setting import SystemSetting
+    row = db.query(SystemSetting).filter(SystemSetting.key == "coding_require_round1_qualified").first()
+    if row is not None:
+        return str(row.value).strip().lower() == "true"
+    return bool(settings.CODING_REQUIRE_ROUND1_QUALIFIED)
+
+
 def _verify_round2_eligibility(cand: Candidate, db: Session) -> None:
-    if not settings.CODING_REQUIRE_ROUND1_QUALIFIED:
+    if not is_round1_qualification_required(db):
         return
     qualified_attempt = (
         db.query(ExamAttempt)
@@ -345,6 +363,7 @@ def _submission_to_dto(sub: CodingSubmission, max_marks: float) -> CodingSubmiss
         runtimeMs=sub.runtime_ms,
         memoryKb=sub.memory_kb,
         errorMessage=sub.error_message,
+        executor=get_sandbox_executor().name,
         testCaseResults=safe_results,
         submittedAt=sub.submitted_at.isoformat() if sub.submitted_at else None,
         updatedAt=sub.updated_at.isoformat() if sub.updated_at else None,
@@ -355,9 +374,13 @@ def _submission_to_dto(sub: CodingSubmission, max_marks: float) -> CodingSubmiss
 async def coding_health():
     redis_ok = await coding_queue_manager.is_redis_healthy()
     q_depth = await coding_queue_manager.get_queue_depth()
+    executor = get_sandbox_executor()
+    judge0_reachable = await executor.is_reachable() if isinstance(executor, Judge0SandboxExecutor) else False
     return {
         "enabled": settings.CODING_ROUND_ENABLED,
         "driver": settings.CODING_SANDBOX_DRIVER,
+        "executor": executor.name,
+        "judge0Reachable": judge0_reachable,
         "redisConnected": redis_ok,
         "queueDepth": q_depth,
     }
@@ -367,6 +390,97 @@ async def coding_health():
 async def coding_metrics_endpoint():
     q_depth = await coding_queue_manager.get_queue_depth()
     return PlainTextResponse(coding_metrics.render_prometheus(queue_depth=q_depth), media_type="text/plain")
+
+
+@router.get("/exams")
+def list_published_coding_exams(db: Session = Depends(get_db)):
+    """Public list of published Round 2 coding exams (id, title, durationMinutes) for login round selector."""
+    _require_coding_enabled()
+    exams = (
+        db.query(CodingExam)
+        .filter(CodingExam.status.in_(["ACTIVATED", "PUBLISHED"]))
+        .order_by(CodingExam.id.desc())
+        .all()
+    )
+    return [
+        {
+            "id": int(e.id),
+            "title": e.title,
+            "durationMinutes": int(e.duration_minutes or 60),
+        }
+        for e in exams
+    ]
+
+
+@router.post("/verify")
+def verify_round2_candidate(
+    response: Response,
+    payload: Dict[str, Any] = Body(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Round 2 candidate verification.
+    Unlike Round 1 /api/candidate/verify, a candidate who already SUBMITTED Round 1
+    is NOT blocked here — Round 1 QUALIFIED (or direct Round 2 toggle) grants Round 2 access.
+    """
+    _require_coding_enabled()
+    from app.candidate.services.candidate_exam_service import check_name_match
+
+    input_name = str(payload.get("fullName") or payload.get("name") or "").strip()
+    input_email = str(payload.get("email") or "").strip().lower()
+    exam_id = payload.get("examId")
+
+    if not input_name or not input_email:
+        return {"eligible": False, "message": "Full Name and Email Address are required."}
+
+    cand = db.query(Candidate).filter(func.lower(Candidate.email) == input_email).first()
+    if not cand:
+        return {"eligible": False, "message": f"No candidate record found for '{input_email}'."}
+    if cand.status and cand.status.upper() != "ACTIVE":
+        return {"eligible": False, "message": "Candidate account is inactive or stopped."}
+    if not check_name_match(input_name, cand.full_name):
+        return {"eligible": False, "message": "Full Name does not match registered candidate records."}
+
+    try:
+        _verify_round2_eligibility(cand, db)
+    except HTTPException as exc:
+        return {"eligible": False, "message": exc.detail}
+
+    if exam_id is not None:
+        ce = db.query(CodingExam).filter(CodingExam.id == int(exam_id), CodingExam.status.in_(["ACTIVATED", "PUBLISHED"])).first()
+        if not ce:
+            return {"eligible": False, "message": "Selected Round 2 coding exam is not published or active."}
+        submitted_r2 = (
+            db.query(CodingAttempt)
+            .filter(
+                CodingAttempt.candidate_id == cand.id,
+                CodingAttempt.exam_id == int(exam_id),
+                CodingAttempt.status == "SUBMITTED",
+            )
+            .first()
+        )
+        if submitted_r2:
+            return {"eligible": False, "message": "You have already completed and submitted this Round 2 Coding Exam."}
+
+    token = create_session_token({
+        "candidate_id": cand.id,
+        "registration_number": cand.registration_number,
+        "email": cand.email,
+        "role": "CANDIDATE",
+    })
+    try:
+        set_auth_cookie(response, token)
+    except Exception:
+        pass
+
+    return {
+        "eligible": True,
+        "message": "Round 2 eligibility verified.",
+        "candidateId": cand.id,
+        "candidateName": cand.full_name,
+        "email": cand.email,
+        "token": token,
+    }
 
 
 @router.get("/problems/{problem_id}", response_model=CodingProblemPublicDto)
@@ -526,6 +640,7 @@ async def run_coding_sample(
         jobId=job_id,
         verdict="QUEUED",
         status="QUEUED",
+        executor=get_sandbox_executor().name,
     )
 
 
@@ -626,6 +741,7 @@ async def submit_coding_solution(
         jobId=job_id,
         verdict="QUEUED",
         status="QUEUED",
+        executor=get_sandbox_executor().name,
     )
 
 
