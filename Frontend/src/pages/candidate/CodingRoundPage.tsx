@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Send, Clock3, AlertCircle } from "lucide-react";
+import { Play, Send, Clock3, AlertCircle, Code2, Award, CheckCircle2, Loader2 } from "lucide-react";
+import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import {
+  finalizeCodingExam,
   getCodingAttemptInfo,
   getCodingDrafts,
   getCodingProblem,
@@ -53,9 +55,17 @@ export default function CodingRoundPage() {
   const [execError, setExecError] = useState<string | null>(null);
   const [remainingMs, setRemainingMs] = useState<number>(0);
   const [serverDrafts, setServerDrafts] = useState<Record<string, CodingDraftDto>>({});
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
   const stopWatchRef = useRef<(() => void) | null>(null);
   const lastAlertRef = useRef<Record<string, number>>({});
+  const bypassUnloadRef = useRef<boolean>(false);
+
+  // Preload Monaco editor bundle in parallel with attempt API call
+  useEffect(() => {
+    void import("../../components/candidate/coding/monacoSetup").then(() => import("@monaco-editor/react"));
+  }, []);
 
   // Load attempt & first problem
   useEffect(() => {
@@ -73,8 +83,16 @@ export default function CodingRoundPage() {
         if (info.questionIds.length > 0) {
           setActiveProblemId(info.questionIds[0]);
         }
-      } catch (e) {
-        if (!cancelled) setPageError((e as Error).message);
+      } catch (e: any) {
+        if (!cancelled) {
+          // 401 → redirect to coding login (token missing or expired)
+          const msg: string = e?.message || "";
+          if (msg.includes("401") || msg.toLowerCase().includes("authentication") || msg.toLowerCase().includes("unauthorized")) {
+            window.location.href = `/candidate/coding/login?examId=${examId}`;
+            return;
+          }
+          setPageError(msg || "Failed to load exam.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -144,9 +162,10 @@ export default function CodingRoundPage() {
     return () => window.clearTimeout(t);
   }, [code, language, problem, examId]);
 
-  // Warn before leaving
+  // Warn before leaving unless exam is being finalized
   useEffect(() => {
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (bypassUnloadRef.current) return;
       e.preventDefault();
       e.returnValue = "Your coding assessment is in progress.";
       return e.returnValue;
@@ -196,6 +215,18 @@ export default function CodingRoundPage() {
   }, [session?.profile?.dbCandidateId, attemptInfo?.attemptId]);
 
   const handleLanguageChange = (newLang: string) => {
+    if (problem && language && newLang !== language) {
+      // Flush current tab edits immediately so rapid tab switches never lose unsaved code
+      try {
+        localStorage.setItem(`coding_autosave_${examId}_${problem.id}_${language}`, code);
+      } catch {
+        // ignore storage quota errors
+      }
+      setServerDrafts((prev) => ({
+        ...prev,
+        [language]: { questionId: problem.id, language, code, updatedAt: new Date().toISOString() },
+      }));
+    }
     setLanguage(newLang);
     if (!problem) return;
     const serverCode = serverDrafts[newLang]?.code;
@@ -281,16 +312,88 @@ export default function CodingRoundPage() {
   }, [handleRun, handleSubmit]);
 
   if (loading) {
-    return <div style={{ padding: "40px", textAlign: "center", color: "#64748b" }}>Loading Round 2 Coding Workspace...</div>;
+    return (
+      <main
+        className="exam-fullscreen-view"
+        style={{
+          height: "100vh",
+          width: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+          background: "#f8fafc",
+        }}
+      >
+        <style>{`
+          @keyframes codingFadePulse {
+            0%, 100% { opacity: 0.45; }
+            50% { opacity: 0.9; }
+          }
+          .coding-skel-pulse {
+            animation: codingFadePulse 1.4s ease-in-out infinite;
+            background: #e2e8f0;
+            border-radius: 8px;
+          }
+        `}</style>
+        <header className="exam-top-nav" style={{ flexShrink: 0, width: "100%", boxSizing: "border-box" }}>
+          <div className="exam-nav-left">
+            <img src={kalpanaaLogo} alt="Kalpanaaa Software Solutions" className="exam-nav-logo" />
+            <div className="exam-dept-pill">
+              <Code2 size={13} />
+              <span>Round 2 &middot; Coding Assessment</span>
+            </div>
+          </div>
+          <div className="exam-nav-center">
+            <div className="coding-skel-pulse" style={{ width: "240px", height: "30px" }} />
+          </div>
+          <div className="exam-nav-right" style={{ gap: "8px" }}>
+            <div className="coding-skel-pulse" style={{ width: "90px", height: "32px" }} />
+            <div className="coding-skel-pulse" style={{ width: "76px", height: "32px" }} />
+            <div className="coding-skel-pulse" style={{ width: "86px", height: "32px" }} />
+          </div>
+        </header>
+        <div style={{ flex: 1, display: "grid", gridTemplateColumns: "42% 1fr", gap: "8px", padding: "12px", minHeight: 0 }}>
+          <div style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "20px", display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div className="coding-skel-pulse" style={{ width: "65%", height: "24px" }} />
+            <div className="coding-skel-pulse" style={{ width: "40%", height: "14px" }} />
+            <div className="coding-skel-pulse" style={{ width: "100%", height: "14px", marginTop: "8px" }} />
+            <div className="coding-skel-pulse" style={{ width: "92%", height: "14px" }} />
+            <div className="coding-skel-pulse" style={{ width: "80%", height: "14px" }} />
+            <div className="coding-skel-pulse" style={{ width: "100%", height: "110px", marginTop: "12px" }} />
+          </div>
+          <div style={{ display: "grid", gridTemplateRows: "62% 1fr", gap: "8px", minHeight: 0 }}>
+            <div className="coding-skel-pulse" style={{ width: "100%", height: "100%", background: "#1e293b" }} />
+            <div style={{ background: "#ffffff", borderRadius: "10px", border: "1px solid #e2e8f0", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+              <div className="coding-skel-pulse" style={{ width: "45%", height: "20px" }} />
+              <div className="coding-skel-pulse" style={{ width: "100%", height: "64px" }} />
+            </div>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   if (pageError || !problem) {
     return (
-      <div style={{ padding: "40px", maxWidth: "560px", margin: "40px auto", background: "#fff", borderRadius: "12px", border: "1px solid #fecaca" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#b91c1c", fontWeight: 700, marginBottom: "8px" }}>
+      <div style={{ padding: "32px", maxWidth: "560px", margin: "48px auto", background: "#fff", borderRadius: "12px", border: "1px solid #fecaca", boxShadow: "0 4px 20px rgba(15,23,42,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#b91c1c", fontWeight: 700, fontSize: "16px", marginBottom: "8px" }}>
           <AlertCircle size={18} /> Unable to open Coding Round
         </div>
-        <p style={{ margin: 0, color: "#475569", fontSize: "14px" }}>{pageError || "No coding problems available."}</p>
+        <p style={{ margin: "0 0 18px", color: "#475569", fontSize: "14px" }}>{pageError || "No coding problems available."}</p>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <a
+            href={`/candidate/coding/results?examId=${examId}`}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", background: "#017846", color: "#fff", fontWeight: 600, fontSize: "13px", textDecoration: "none" }}
+          >
+            <Award size={14} /> View Coding Results
+          </a>
+          <a
+            href={`/candidate/coding/login?examId=${examId}`}
+            style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #cbd5e1", background: "#fff", color: "#0f172a", fontWeight: 600, fontSize: "13px", textDecoration: "none" }}
+          >
+            Back to Round 2 Login
+          </a>
+        </div>
       </div>
     );
   }
@@ -298,27 +401,76 @@ export default function CodingRoundPage() {
   const isBusy = uiState === "queued" || uiState === "running";
 
   return (
-    <div className="coding-exam-container" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
-      <header className="coding-exam-top-nav">
-        <div className="coding-exam-nav-left">
-          <span className="coding-exam-tag">Round 2: Coding</span>
-          {attemptInfo && attemptInfo.questionIds.length > 1 && (
-            <select
-              aria-label="Select problem"
-              value={activeProblemId}
-              onChange={(e) => setActiveProblemId(e.target.value)}
-              style={{ padding: "5px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "13px" }}
+    <main
+      className="exam-fullscreen-view"
+      style={{
+        height: "100vh",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "#f8fafc",
+      }}
+    >
+      <header className="exam-top-nav" style={{ flexShrink: 0, width: "100%", boxSizing: "border-box" }}>
+        <div className="exam-nav-left">
+          <img
+            src={kalpanaaLogo}
+            alt="Kalpanaaa Software Solutions"
+            className="exam-nav-logo"
+          />
+          <div className="exam-dept-pill">
+            <Code2 size={13} />
+            <span>Round 2 &middot; Coding Assessment</span>
+          </div>
+        </div>
+
+        <div className="exam-nav-center" style={{ gap: "6px" }}>
+          {attemptInfo && attemptInfo.questionIds.length > 0 && (
+            <div
+              role="tablist"
+              aria-label="Coding problems"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "4px",
+                background: "#f1f5f9",
+                padding: "3px",
+                borderRadius: "9px",
+                border: "1px solid #e2e8f0",
+              }}
             >
-              {attemptInfo.questionIds.map((qid, idx) => (
-                <option key={qid} value={qid}>
-                  Problem {idx + 1}
-                </option>
-              ))}
-            </select>
+              {attemptInfo.questionIds.map((qid, idx) => {
+                const active = qid === activeProblemId;
+                return (
+                  <button
+                    key={qid}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveProblemId(qid)}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: "6px",
+                      border: "none",
+                      fontSize: "12.5px",
+                      fontWeight: active ? 700 : 600,
+                      background: active ? "#017846" : "transparent",
+                      color: active ? "#ffffff" : "#475569",
+                      boxShadow: active ? "0 1px 2px rgba(1, 120, 70, 0.2)" : "none",
+                      transition: "all 0.15s ease",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Problem {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        <div className="coding-exam-nav-right">
+        <div className="exam-nav-right" style={{ gap: "8px", flexShrink: 0 }}>
           <div
             aria-label="Remaining time"
             style={{
@@ -327,18 +479,40 @@ export default function CodingRoundPage() {
               gap: "6px",
               padding: "6px 12px",
               borderRadius: "8px",
-              background: remainingMs < 300000 ? "#fef2f2" : "#f1f5f9",
-              color: remainingMs < 300000 ? "#b91c1c" : "#0f172a",
+              border: remainingMs < 300000 ? "1px solid #fecaca" : "1px solid #d9e6df",
+              background: remainingMs < 300000 ? "#fef2f2" : "#eaf6ef",
+              color: remainingMs < 300000 ? "#b91c1c" : "#014d32",
               fontWeight: 700,
-              fontSize: "13.5px",
+              fontSize: "13px",
               fontVariantNumeric: "tabular-nums",
+              whiteSpace: "nowrap",
             }}
           >
-            <Clock3 size={15} /> {formatRemaining(remainingMs)}
+            <Clock3 size={14} /> {formatRemaining(remainingMs)}
           </div>
 
-          <label style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "#475569" }}>
-            <input type="checkbox" checked={useCustomInput} onChange={(e) => setUseCustomInput(e.target.checked)} />
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: "#475569",
+              padding: "6px 10px",
+              borderRadius: "8px",
+              border: "1px solid #e2e8f0",
+              background: "#ffffff",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={useCustomInput}
+              onChange={(e) => setUseCustomInput(e.target.checked)}
+              style={{ accentColor: "#017846", margin: 0 }}
+            />
             Custom Input
           </label>
 
@@ -351,13 +525,14 @@ export default function CodingRoundPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              padding: "8px 14px",
+              padding: "7px 14px",
               borderRadius: "8px",
               border: "1px solid #cbd5e1",
               background: "#ffffff",
               fontWeight: 600,
               fontSize: "13px",
               color: "#0f172a",
+              whiteSpace: "nowrap",
             }}
           >
             <Play size={14} /> Run
@@ -372,21 +547,66 @@ export default function CodingRoundPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              padding: "8px 16px",
+              padding: "7px 16px",
               borderRadius: "8px",
-              border: "none",
+              border: "1px solid #017846",
               background: "#017846",
-              fontWeight: 600,
+              fontWeight: 700,
               fontSize: "13px",
               color: "#ffffff",
+              boxShadow: "0 1px 2px rgba(1, 120, 70, 0.25)",
+              whiteSpace: "nowrap",
             }}
           >
             <Send size={14} /> Submit
           </button>
+
+          <a
+            href={`/candidate/coding/results?examId=${examId}`}
+            title="View Coding Results"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              padding: "7px 11px",
+              borderRadius: "8px",
+              border: "1px solid #d9e6df",
+              background: "#f3faf6",
+              color: "#017846",
+              fontWeight: 600,
+              fontSize: "12.5px",
+              textDecoration: "none",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <Award size={14} /> Results
+          </a>
+
+          <button
+            type="button"
+            disabled={finishing}
+            onClick={() => setShowFinishModal(true)}
+            title="Submit all and end Coding Round"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "5px",
+              padding: "7px 13px",
+              borderRadius: "8px",
+              border: "1px solid #b91c1c",
+              background: "#fef2f2",
+              color: "#b91c1c",
+              fontWeight: 700,
+              fontSize: "12.5px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            <CheckCircle2 size={14} /> Finish Exam
+          </button>
         </div>
       </header>
 
-      <main style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
         <SplitPane
           direction="horizontal"
           initialPercent={42}
@@ -419,6 +639,7 @@ export default function CodingRoundPage() {
                 <TestcaseResultPane
                   sampleCases={problem.sampleTestCases}
                   customInput={customInput}
+                  useCustomInput={useCustomInput}
                   onCustomInputChange={setCustomInput}
                   uiState={uiState}
                   result={result}
@@ -428,7 +649,60 @@ export default function CodingRoundPage() {
             />
           }
         />
-      </main>
-    </div>
+      </div>
+
+      {showFinishModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+            padding: "16px",
+          }}
+        >
+          <div style={{ background: "#fff", borderRadius: "14px", maxWidth: "440px", width: "100%", padding: "24px", boxShadow: "0 20px 50px rgba(0,0,0,0.2)" }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", color: "#0f172a" }}>Finish &amp; End Coding Round?</h3>
+            <p style={{ margin: "0 0 18px", fontSize: "13.5px", color: "#475569", lineHeight: 1.5 }}>
+              Make sure you have clicked <strong>Submit</strong> on every problem you want graded. Once finalized, your attempt is locked and you cannot re-enter.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={finishing}
+                onClick={() => setShowFinishModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={finishing}
+                onClick={async () => {
+                  setFinishing(true);
+                  try {
+                    await finalizeCodingExam(examId);
+                    bypassUnloadRef.current = true;
+                    window.location.assign(`/candidate/coding/results?examId=${examId}`);
+                  } catch (e) {
+                    setExecError((e as Error).message);
+                    setShowFinishModal(false);
+                    setFinishing(false);
+                  }
+                }}
+              >
+                {finishing ? "Finalizing..." : "Confirm & End Exam"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }

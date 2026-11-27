@@ -57,6 +57,7 @@ export interface CodingSubmissionStatus {
   runtimeMs?: number | null;
   memoryKb?: number | null;
   errorMessage?: string | null;
+  executor?: string | null;
   testCaseResults: TestCaseVerdict[];
   submittedAt?: string | null;
   updatedAt?: string | null;
@@ -117,6 +118,20 @@ async function codingFetch<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getCodingAttemptInfo(examId: number): Promise<CodingAttemptInfo> {
   return codingFetch<CodingAttemptInfo>(`/coding/exams/${examId}/attempt`);
+}
+
+export interface PublishedCodingExamSummary {
+  id: number;
+  title: string;
+  durationMinutes: number;
+}
+
+export function listPublishedCodingExams(): Promise<PublishedCodingExamSummary[]> {
+  return codingFetch<PublishedCodingExamSummary[]>(`/coding/exams`);
+}
+
+export function finalizeCodingExam(examId: number): Promise<{ attemptId: number; status: string; finalizedAt?: string | null }> {
+  return codingFetch(`/coding/finalize/${examId}`, { method: "POST" });
 }
 
 export function getCodingProblem(problemId: string): Promise<CodingProblemPublic> {
@@ -227,7 +242,7 @@ export function watchSubmissionResult(
     // fallback to polling
   }
 
-  pollTimer = window.setInterval(fetchLatest, 1200);
+  pollTimer = window.setInterval(fetchLatest, 600);
   void fetchLatest();
   return cleanup;
 }

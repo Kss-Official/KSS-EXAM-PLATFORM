@@ -21,7 +21,8 @@ import {
   Shield,
   Briefcase,
   Building2,
-  Radio
+  Radio,
+  Code2
 } from "lucide-react";
 import { useRouter, Link } from "../../router";
 import type { AdminDashboardResponse } from "../../types";
@@ -84,6 +85,8 @@ export default function AdminLayout({
     if (path.startsWith("/admin/questions")) return "Question Bank (MCQs)";
     if (path.startsWith("/admin/candidates")) return "Candidate Directory";
     if (path.startsWith("/admin/live-monitoring")) return "Live Exam Monitoring & Proctoring";
+    if (path.startsWith("/admin/coding-exams")) return "Round 2 Coding Assessments";
+    if (path.startsWith("/admin/coding-results")) return "Round 2 Coding Results";
     if (path.startsWith("/admin/results")) return "Examination Results & Analytics";
     if (path.startsWith("/admin/settings")) return "Platform & Security Settings";
     return "Campus Placement Dashboard";
@@ -129,6 +132,12 @@ export default function AdminLayout({
     }
 
     // 6. Results & Analytics
+    if (normalized === "/admin/coding-exams" || normalized.startsWith("/admin/coding-exams/")) {
+      return "/admin/coding-exams";
+    }
+    if (normalized === "/admin/coding-results" || normalized.startsWith("/admin/coding-results/")) {
+      return "/admin/coding-results";
+    }
     if (normalized === "/admin/results" || normalized.startsWith("/admin/results/")) {
       return "/admin/results";
     }
@@ -162,6 +171,12 @@ export default function AdminLayout({
     { label: "Candidates", to: "/admin/candidates", icon: Users, badge: dashboardData ? String(dashboardData.totalCandidates) : undefined },
     { label: "Live Monitoring", to: "/admin/live-monitoring", icon: Radio },
     { label: "Results", to: "/admin/results", icon: BarChart3 },
+    ...(import.meta.env.VITE_CODING_ROUND_ENABLED === "true"
+      ? [
+          { label: "Coding Exams", to: "/admin/coding-exams", icon: Code2 },
+          { label: "Coding Results", to: "/admin/coding-results", icon: BarChart3 },
+        ]
+      : []),
     { label: "Settings", to: "/admin/settings", icon: Settings },
   ];
 

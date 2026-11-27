@@ -48,17 +48,19 @@ export default function CodingEditorPane({
   onResetCode,
 }: CodingEditorPaneProps) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: theme === "vs-dark" ? "#1e1e1e" : "#ffffff" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", minWidth: 0, overflow: "hidden", background: theme === "vs-dark" ? "#1e1e1e" : "#ffffff" }}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "8px 12px",
+          padding: "8px 14px",
           borderBottom: "1px solid #e2e8f0",
           background: "#f8fafc",
           gap: "8px",
           flexWrap: "wrap",
+          boxSizing: "border-box",
+          width: "100%",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

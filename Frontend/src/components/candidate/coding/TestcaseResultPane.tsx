@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, Loader2, Terminal, PlaySquare } from "lucide-react";
 import type { SampleTestCase, CodingSubmissionStatus } from "../../../services/codingApi";
 
 interface TestcaseResultPaneProps {
   sampleCases: SampleTestCase[];
   customInput: string;
+  useCustomInput?: boolean;
   onCustomInputChange: (val: string) => void;
   uiState: "idle" | "queued" | "running" | "done" | "error";
   result: CodingSubmissionStatus | null;
@@ -14,14 +15,27 @@ interface TestcaseResultPaneProps {
 export default function TestcaseResultPane({
   sampleCases,
   customInput,
+  useCustomInput = false,
   onCustomInputChange,
   uiState,
   result,
   errorMsg,
 }: TestcaseResultPaneProps) {
   const [tab, setTab] = useState<"testcases" | "custom" | "result">("testcases");
-  const activeTab = uiState !== "idle" && result ? "result" : tab;
 
+  useEffect(() => {
+    if (useCustomInput) {
+      setTab("custom");
+    }
+  }, [useCustomInput]);
+
+  useEffect(() => {
+    if (uiState === "queued" || uiState === "running" || uiState === "error" || (uiState === "done" && result)) {
+      setTab("result");
+    }
+  }, [uiState, result]);
+
+  const activeTab = tab;
   const isBusy = uiState === "queued" || uiState === "running";
 
   return (
@@ -145,9 +159,73 @@ export default function TestcaseResultPane({
         {activeTab === "result" && (
           <div>
             {isBusy && (
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#017846", fontWeight: 600, fontSize: "13px" }}>
-                <Loader2 size={16} className="animate-spin" />
-                {uiState === "queued" ? "Queued in sandbox..." : "Running test cases..."}
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <style>{`
+                  @keyframes codingSpin { to { transform: rotate(360deg); } }
+                  @keyframes codingSlide {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(260%); }
+                  }
+                  @keyframes codingPulseRow {
+                    0%, 100% { opacity: 0.45; }
+                    50% { opacity: 0.9; }
+                  }
+                `}</style>
+                <div
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: "10px",
+                    border: "1px solid #d9e6df",
+                    background: "#f3faf6",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "10px", color: "#014d32", fontWeight: 700, fontSize: "13.5px" }}>
+                      <span
+                        style={{
+                          width: "16px",
+                          height: "16px",
+                          borderRadius: "50%",
+                          border: "2.5px solid #bbf7d0",
+                          borderTopColor: "#017846",
+                          display: "inline-block",
+                          animation: "codingSpin 0.75s linear infinite",
+                        }}
+                      />
+                      {uiState === "queued" ? "Preparing sandbox environment..." : "Compiling & running test cases..."}
+                    </div>
+                    <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#017846", background: "#eaf6ef", padding: "3px 8px", borderRadius: "999px" }}>
+                      {uiState === "queued" ? "QUEUED" : "RUNNING"}
+                    </span>
+                  </div>
+                  <div style={{ height: "4px", width: "100%", background: "#d9e6df", borderRadius: "999px", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: "40%",
+                        background: "linear-gradient(90deg, #017846, #10b981)",
+                        borderRadius: "999px",
+                        animation: "codingSlide 1.1s ease-in-out infinite",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {[1, 2].map((n) => (
+                  <div
+                    key={n}
+                    style={{
+                      height: "52px",
+                      borderRadius: "8px",
+                      background: "#f1f5f9",
+                      border: "1px solid #e2e8f0",
+                      animation: "codingPulseRow 1.3s ease-in-out infinite",
+                    }}
+                  />
+                ))}
               </div>
             )}
 
@@ -163,7 +241,26 @@ export default function TestcaseResultPane({
 
             {result && !isBusy && (
               <div>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+                {(result.executor === "mock" || result.executor === "local_demo") && import.meta.env.MODE !== "production" && (
+                  <div
+                    role="status"
+                    style={{
+                      padding: "8px 12px",
+                      marginBottom: "10px",
+                      borderRadius: "6px",
+                      background: "#fffbeb",
+                      border: "1px solid #fcd34d",
+                      color: "#92400e",
+                      fontSize: "12.5px",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {result.executor === "mock"
+                      ? "MOCK EXECUTOR: results are not real"
+                      : "LOCAL DEMO EXECUTOR: running on local dev runtime (not Judge0)"}
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
                   <span
                     style={{
                       display: "inline-flex",
@@ -178,7 +275,9 @@ export default function TestcaseResultPane({
                     {result.verdict}
                   </span>
                   <span style={{ fontSize: "12.5px", color: "#475569" }}>
-                    Passed {result.passedCount} / {result.totalCount}
+                    Lang: <strong>{result.language}</strong>
+                    {result.executor ? <> &middot; Executor: <strong>{result.executor}</strong></> : null}
+                    {" · "}Passed {result.passedCount} / {result.totalCount}
                     {result.runtimeMs != null ? ` · ${result.runtimeMs} ms` : ""}
                     {result.memoryKb != null ? ` · ${Math.round(result.memoryKb / 1024)} MB` : ""}
                   </span>

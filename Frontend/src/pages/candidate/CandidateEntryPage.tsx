@@ -13,8 +13,11 @@ import type { CandidateProfile, Department } from "../../types/candidate";
 import DepartmentSelector from "../../components/candidate/DepartmentSelector";
 import { loadCandidateSession, clearCandidateSession } from "../../services/candidateSessionStorage";
 import DemoRestartDialog from "../../components/candidate/DemoRestartDialog";
-import { verifyCandidateEligibility, ApiError } from "../../services/api";
+import { verifyCandidateEligibility, ApiError, API_BASE_URL } from "../../services/api";
+import { listPublishedCodingExams, type PublishedCodingExamSummary } from "../../services/codingApi";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
+
+const CODING_ROUND_ENABLED = import.meta.env.VITE_CODING_ROUND_ENABLED === "true";
 
 interface CandidateEntryPageProps {
   onContinue: (profile: CandidateProfile) => void;
@@ -47,6 +50,19 @@ export default function CandidateEntryPage({
 
   const [existingSession, setExistingSession] = useState<ReturnType<typeof loadCandidateSession>>(null);
   const [showRestartModal, setShowRestartModal] = useState(false);
+  const [selectedRound, setSelectedRound] = useState<"ROUND_1" | "ROUND_2">("ROUND_1");
+  const [codingExams, setCodingExams] = useState<PublishedCodingExamSummary[]>([]);
+  const [selectedCodingExamId, setSelectedCodingExamId] = useState<number>(2);
+
+  useEffect(() => {
+    if (!CODING_ROUND_ENABLED) return;
+    void listPublishedCodingExams()
+      .then((list) => {
+        setCodingExams(list);
+        if (list.length > 0) setSelectedCodingExamId(list[0].id);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const session = loadCandidateSession();
@@ -103,6 +119,32 @@ export default function CandidateEntryPage({
 
     setIsVerifying(true);
     try {
+      if (CODING_ROUND_ENABLED && selectedRound === "ROUND_2") {
+        const r2Res = await fetch(`${API_BASE_URL}/coding/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim().toLowerCase(),
+            department,
+            departmentId,
+            examId: selectedCodingExamId,
+          }),
+        });
+        const r2Data = await r2Res.json();
+        if (!r2Res.ok || !r2Data.eligible) {
+          setServerError(r2Data.message || r2Data.detail || "You are not eligible for Round 2.");
+          setIsVerifying(false);
+          return;
+        }
+        if (r2Data.token) {
+          localStorage.setItem("examsecure_candidate_token", r2Data.token);
+        }
+        window.location.href = `/candidate/coding?examId=${selectedCodingExamId}`;
+        return;
+      }
+
       const verifyRes = await verifyCandidateEligibility({
         fullName: name.trim(),
         name: name.trim(),
@@ -120,6 +162,11 @@ export default function CandidateEntryPage({
 
       if (verifyRes.token) {
         localStorage.setItem("examsecure_candidate_token", verifyRes.token);
+      }
+
+      if (CODING_ROUND_ENABLED && selectedRound === "ROUND_2") {
+        window.location.href = `/candidate/coding?examId=${selectedCodingExamId}`;
+        return;
       }
 
       onContinue({
@@ -402,6 +449,40 @@ export default function CandidateEntryPage({
                   <strong>{serverError && (serverError.toLowerCase().includes("network") || serverError.toLowerCase().includes("connection")) ? "Network Connection Notice:" : "Verification Notice:"}</strong>
                   <div style={{ marginTop: "2px" }}>{serverError}</div>
                 </div>
+              </div>
+            )}
+
+            {CODING_ROUND_ENABLED && (
+              <div className="form-group">
+                <label htmlFor="assessment-round-select">
+                  Assessment Round
+                </label>
+                <select
+                  id="assessment-round-select"
+                  value={selectedRound}
+                  onChange={(e) => setSelectedRound(e.target.value as "ROUND_1" | "ROUND_2")}
+                >
+                  <option value="ROUND_1">Round 1 — MCQ Assessment</option>
+                  <option value="ROUND_2">Round 2 — Coding Assessment</option>
+                </select>
+                {selectedRound === "ROUND_2" && codingExams.length > 0 && (
+                  <div style={{ marginTop: "8px" }}>
+                    <label htmlFor="coding-exam-select" style={{ fontSize: "12px", color: "#475569" }}>
+                      Select Coding Exam
+                    </label>
+                    <select
+                      id="coding-exam-select"
+                      value={selectedCodingExamId}
+                      onChange={(e) => setSelectedCodingExamId(Number(e.target.value))}
+                    >
+                      {codingExams.map((ce) => (
+                        <option key={ce.id} value={ce.id}>
+                          {ce.title} ({ce.durationMinutes} min)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             )}
 

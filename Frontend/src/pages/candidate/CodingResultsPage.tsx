@@ -27,7 +27,16 @@ export default function CodingResultsPage() {
     };
   }, [examId]);
 
-  if (loading) return <div style={{ padding: "48px", textAlign: "center", color: "#64748b" }}>Loading Coding Results...</div>;
+  if (loading) {
+    return (
+      <div style={{ maxWidth: "920px", margin: "32px auto", padding: "0 20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+        <style>{`@keyframes resPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }`}</style>
+        <div style={{ height: "110px", borderRadius: "12px", background: "#e2e8f0", animation: "resPulse 1.3s ease-in-out infinite" }} />
+        <div style={{ height: "96px", borderRadius: "12px", background: "#e2e8f0", animation: "resPulse 1.3s ease-in-out infinite" }} />
+        <div style={{ height: "96px", borderRadius: "12px", background: "#e2e8f0", animation: "resPulse 1.3s ease-in-out infinite" }} />
+      </div>
+    );
+  }
   if (error || !data) return <div style={{ padding: "48px", textAlign: "center", color: "#b91c1c" }}>{error || "Result unavailable."}</div>;
 
   if (!data.resultsPublished) {
