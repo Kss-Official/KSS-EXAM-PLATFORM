@@ -1132,6 +1132,11 @@ select:focus-visible {
 .login {
   min-width: 0;
   width: 100%;
+  max-height: calc(100dvh - 116px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
   background: #ffffff;
   border: 1px solid #D9E6DF;
   border-radius: 16px;
@@ -1352,6 +1357,10 @@ select:focus-visible {
   }
   .lead {
     max-width: none;
+  }
+  .login {
+    max-height: none;
+    overflow-y: visible;
   }
 }
 
