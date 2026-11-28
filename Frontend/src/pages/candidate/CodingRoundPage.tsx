@@ -594,27 +594,6 @@ export default function CodingRoundPage() {
             </div>
           </div>
 
-          <a
-            href={`/candidate/coding/results?examId=${examId}`}
-            title="View Coding Results"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "5px",
-              padding: "6px 10px",
-              borderRadius: "8px",
-              border: "1px solid #d9e6df",
-              background: "#f3faf6",
-              color: "#017846",
-              fontWeight: 600,
-              fontSize: "12px",
-              textDecoration: "none",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <Award size={13} /> Results
-          </a>
-
           <button
             type="button"
             disabled={finishing}
@@ -681,8 +660,6 @@ export default function CodingRoundPage() {
               const isActive = qid === activeProblemId;
               const isSolved = submittedIds.has(qid);
               const qFlagged = flaggedIds.has(qid);
-              const diffLabel = difficultyMap[qid] || (isActive ? problem.difficulty : "");
-              const dCol = difficultyColors(diffLabel);
               return (
                 <button
                   key={qid}
@@ -690,14 +667,13 @@ export default function CodingRoundPage() {
                   onClick={() => setActiveProblemId(qid)}
                   style={{
                     width: "100%",
-                    padding: "10px 8px",
+                    padding: "11px 8px",
                     borderRadius: "10px",
                     border: isActive ? "1.5px solid #017846" : "1px solid #e2e8f0",
                     background: isActive ? "#f3faf6" : "#ffffff",
                     display: "flex",
-                    flexDirection: "column",
                     alignItems: "center",
-                    gap: "5px",
+                    justifyContent: "center",
                     cursor: "pointer",
                     transition: "all 0.15s ease",
                   }}
@@ -715,20 +691,6 @@ export default function CodingRoundPage() {
                       Q{idx + 1}
                     </span>
                   </div>
-                  {diffLabel && (
-                    <span
-                      style={{
-                        fontSize: "10.5px",
-                        fontWeight: 600,
-                        padding: "1px 8px",
-                        borderRadius: "999px",
-                        background: dCol.bg,
-                        color: dCol.text,
-                      }}
-                    >
-                      {diffLabel}
-                    </span>
-                  )}
                 </button>
               );
             })}
@@ -1081,62 +1043,6 @@ export default function CodingRoundPage() {
                 {outputOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
                 Test Output
               </button>
-
-              <label
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontSize: "12px",
-                  fontWeight: 500,
-                  color: "#475569",
-                  cursor: "pointer",
-                  userSelect: "none",
-                }}
-              >
-                Custom Input
-                <span
-                  role="switch"
-                  aria-checked={useCustomInput}
-                  tabIndex={0}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const next = !useCustomInput;
-                    setUseCustomInput(next);
-                    if (next) setOutputOpen(true);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === " " || e.key === "Enter") {
-                      e.preventDefault();
-                      const next = !useCustomInput;
-                      setUseCustomInput(next);
-                      if (next) setOutputOpen(true);
-                    }
-                  }}
-                  style={{
-                    width: "34px",
-                    height: "18px",
-                    borderRadius: "999px",
-                    background: useCustomInput ? "#017846" : "#cbd5e1",
-                    position: "relative",
-                    transition: "background 0.15s ease",
-                    display: "inline-block",
-                  }}
-                >
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: "2px",
-                      left: useCustomInput ? "18px" : "2px",
-                      width: "14px",
-                      height: "14px",
-                      borderRadius: "50%",
-                      background: "#ffffff",
-                      transition: "left 0.15s ease",
-                    }}
-                  />
-                </span>
-              </label>
             </div>
 
             {outputOpen && (
