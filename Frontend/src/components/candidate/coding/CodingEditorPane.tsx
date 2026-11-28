@@ -47,16 +47,23 @@ export default function CodingEditorPane({
   onFontSizeChange,
   onResetCode,
 }: CodingEditorPaneProps) {
+  const isDark = theme === "vs-dark";
+  const toolbarBg = isDark ? "#0f172a" : "#f8fafc";
+  const toolbarBorder = isDark ? "#1e293b" : "#e2e8f0";
+  const controlBg = isDark ? "#1e293b" : "#ffffff";
+  const controlBorder = isDark ? "#334155" : "#cbd5e1";
+  const controlText = isDark ? "#e2e8f0" : "#334155";
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", minWidth: 0, overflow: "hidden", background: theme === "vs-dark" ? "#1e1e1e" : "#ffffff" }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", minWidth: 0, overflow: "hidden", background: isDark ? "#1e1e1e" : "#ffffff" }}>
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "8px 14px",
-          borderBottom: "1px solid #e2e8f0",
-          background: "#f8fafc",
+          padding: "9px 14px",
+          borderBottom: `1px solid ${toolbarBorder}`,
+          background: toolbarBg,
           gap: "8px",
           flexWrap: "wrap",
           boxSizing: "border-box",
@@ -64,19 +71,19 @@ export default function CodingEditorPane({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <label htmlFor="coding-lang-select" style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
-            Language
-          </label>
           <select
             id="coding-lang-select"
+            aria-label="Programming language"
             value={language}
             onChange={(e) => onLanguageChange(e.target.value)}
             style={{
-              padding: "4px 10px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              fontSize: "13px",
-              background: "#ffffff",
+              padding: "5px 10px",
+              borderRadius: "7px",
+              border: `1px solid ${controlBorder}`,
+              fontSize: "12.5px",
+              fontWeight: 600,
+              background: controlBg,
+              color: controlText,
             }}
           >
             {allowedLanguages.map((lang) => (
@@ -88,24 +95,24 @@ export default function CodingEditorPane({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <label htmlFor="coding-font-select" style={{ fontSize: "12px", color: "#475569" }}>
-            Size
-          </label>
           <select
             id="coding-font-select"
+            aria-label="Editor font size"
             value={fontSize}
             onChange={(e) => onFontSizeChange(Number(e.target.value))}
             style={{
-              padding: "4px 8px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
+              padding: "5px 8px",
+              borderRadius: "7px",
+              border: `1px solid ${controlBorder}`,
               fontSize: "12px",
-              background: "#ffffff",
+              fontWeight: 500,
+              background: controlBg,
+              color: controlText,
             }}
           >
             {[12, 14, 16, 18, 20].map((s) => (
               <option key={s} value={s}>
-                {s}px
+                Size: {s}px
               </option>
             ))}
           </select>
@@ -117,17 +124,18 @@ export default function CodingEditorPane({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "4px",
-              padding: "4px 8px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
+              gap: "5px",
+              padding: "5px 10px",
+              borderRadius: "7px",
+              border: `1px solid ${controlBorder}`,
+              background: controlBg,
               fontSize: "12px",
-              color: "#334155",
+              fontWeight: 500,
+              color: controlText,
             }}
           >
-            {theme === "vs-dark" ? <Sun size={14} /> : <Moon size={14} />}
-            {theme === "vs-dark" ? "Light" : "Dark"}
+            {isDark ? <Sun size={13} /> : <Moon size={13} />}
+            {isDark ? "Light" : "Dark"}
           </button>
 
           <button
@@ -137,13 +145,14 @@ export default function CodingEditorPane({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "4px",
-              padding: "4px 10px",
-              borderRadius: "6px",
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
+              gap: "5px",
+              padding: "5px 10px",
+              borderRadius: "7px",
+              border: `1px solid ${controlBorder}`,
+              background: controlBg,
               fontSize: "12px",
-              color: "#334155",
+              fontWeight: 500,
+              color: controlText,
             }}
           >
             <RotateCcw size={13} /> Reset

@@ -55,9 +55,21 @@ export default function CodingLoginPage() {
           examId: Number(examId),
         }),
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: { eligible?: boolean; message?: string; detail?: string; token?: string } = {};
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        data = {};
+      }
       if (!res.ok || !data.eligible) {
-        setError(data.message || data.detail || "Verification failed. Check your credentials.");
+        setError(
+          data.message ||
+            data.detail ||
+            (!rawText
+              ? "Unable to reach the backend server (empty response). Please ensure the backend is running on port 8000."
+              : "Verification failed. Check your credentials.")
+        );
         setLoading(false);
         return;
       }

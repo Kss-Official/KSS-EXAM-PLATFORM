@@ -132,9 +132,21 @@ export default function CandidateEntryPage({
             examId: selectedCodingExamId,
           }),
         });
-        const r2Data = await r2Res.json();
+        const rawText = await r2Res.text();
+        let r2Data: { eligible?: boolean; message?: string; detail?: string; token?: string } = {};
+        try {
+          r2Data = rawText ? JSON.parse(rawText) : {};
+        } catch {
+          r2Data = {};
+        }
         if (!r2Res.ok || !r2Data.eligible) {
-          setServerError(r2Data.message || r2Data.detail || "You are not eligible for Round 2.");
+          setServerError(
+            r2Data.message ||
+              r2Data.detail ||
+              (!rawText
+                ? "Unable to reach the backend server (empty response). Please ensure the backend is running on port 8000."
+                : "You are not eligible for Round 2.")
+          );
           setIsVerifying(false);
           return;
         }

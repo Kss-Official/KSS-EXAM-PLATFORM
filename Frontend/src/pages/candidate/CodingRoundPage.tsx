@@ -1,5 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Play, Send, Clock3, AlertCircle, Code2, Award, CheckCircle2, Loader2 } from "lucide-react";
+import {
+  Play,
+  Send,
+  Clock3,
+  AlertCircle,
+  Code2,
+  Award,
+  CheckCircle2,
+  Flag,
+  ChevronUp,
+  ChevronDown,
+  History,
+  FileText,
+} from "lucide-react";
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import {
   finalizeCodingExam,
@@ -18,8 +31,6 @@ import {
 } from "../../services/codingApi";
 import { reportProctorAlert } from "../../services/api";
 import { loadCandidateSession } from "../../services/candidateSessionStorage";
-import SplitPane from "../../components/candidate/coding/SplitPane";
-import ProblemDescriptionPane from "../../components/candidate/coding/ProblemDescriptionPane";
 import CodingEditorPane, { DEFAULT_STARTER_TEMPLATES } from "../../components/candidate/coding/CodingEditorPane";
 import TestcaseResultPane from "../../components/candidate/coding/TestcaseResultPane";
 
@@ -57,6 +68,11 @@ export default function CodingRoundPage() {
   const [serverDrafts, setServerDrafts] = useState<Record<string, CodingDraftDto>>({});
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [finishing, setFinishing] = useState(false);
+  const [flaggedIds, setFlaggedIds] = useState<Set<string>>(() => new Set());
+  const [submittedIds, setSubmittedIds] = useState<Set<string>>(() => new Set());
+  const [difficultyMap, setDifficultyMap] = useState<Record<string, string>>({});
+  const [problemTab, setProblemTab] = useState<"description" | "submissions">("description");
+  const [outputOpen, setOutputOpen] = useState(false);
 
   const stopWatchRef = useRef<(() => void) | null>(null);
   const lastAlertRef = useRef<Record<string, number>>({});
@@ -122,6 +138,8 @@ export default function CodingRoundPage() {
         ]);
         if (cancelled) return;
         setProblem(p);
+        setProblemTab("description");
+        setDifficultyMap((prev) => ({ ...prev, [p.id]: p.difficulty }));
         const draftMap: Record<string, CodingDraftDto> = {};
         for (const d of drafts) draftMap[d.language] = d;
         setServerDrafts(draftMap);
@@ -132,7 +150,16 @@ export default function CodingRoundPage() {
         const serverCode = draftMap[firstLang]?.code;
         setCode(serverCode ?? savedLocal ?? p.starterCode[firstLang] ?? DEFAULT_STARTER_TEMPLATES[firstLang] ?? "");
         const subs = await listProblemSubmissions(p.id);
-        if (!cancelled) setSubmissions(subs);
+        if (!cancelled) {
+          setSubmissions(subs);
+          if (subs.length > 0) {
+            setSubmittedIds((prev) => {
+              const next = new Set(prev);
+              next.add(p.id);
+              return next;
+            });
+          }
+        }
       } catch (e) {
         if (!cancelled) setPageError((e as Error).message);
       }
@@ -261,6 +288,7 @@ export default function CodingRoundPage() {
     if (!problem) return;
     setExecError(null);
     setUiState("queued");
+    setOutputOpen(true);
     try {
       const res = await runCodingCode({
         examId,
@@ -281,6 +309,7 @@ export default function CodingRoundPage() {
     if (!problem) return;
     setExecError(null);
     setUiState("queued");
+    setOutputOpen(true);
     try {
       const res = await submitCodingCode({
         examId,
@@ -288,6 +317,11 @@ export default function CodingRoundPage() {
         language,
         code,
         idempotencyKey: `sub-${problem.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      });
+      setSubmittedIds((prev) => {
+        const next = new Set(prev);
+        next.add(problem.id);
+        return next;
       });
       startWatching(res.submissionId);
     } catch (e) {
@@ -399,6 +433,34 @@ export default function CodingRoundPage() {
   }
 
   const isBusy = uiState === "queued" || uiState === "running";
+  const questionIds = attemptInfo?.questionIds ?? [problem.id];
+  const totalQuestions = questionIds.length || 1;
+  const activeIndex = Math.max(0, questionIds.indexOf(activeProblemId));
+  const completedCount = submittedIds.size;
+  const progressPercent = Math.min(100, Math.round(((completedCount > 0 ? completedCount : activeIndex + 1) / totalQuestions) * 100));
+  const isFlagged = flaggedIds.has(problem.id);
+
+  const candidateName = session?.profile?.name || "Candidate";
+  const candidateReg = session?.profile?.candidateId || "ROUND-2";
+  const candidateInitial = candidateName.trim().charAt(0).toUpperCase() || "C";
+
+  const difficultyColors = (diff: string) => {
+    const d = (diff || "").toLowerCase();
+    if (d === "hard") return { bg: "#fef2f2", text: "#b91c1c" };
+    if (d === "medium") return { bg: "#fffbeb", text: "#b45309" };
+    return { bg: "#eaf6ef", text: "#017846" };
+  };
+
+  const activeDiffColors = difficultyColors(problem.difficulty);
+
+  const toggleFlag = (qid: string) => {
+    setFlaggedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(qid)) next.delete(qid);
+      else next.add(qid);
+      return next;
+    });
+  };
 
   return (
     <main
@@ -412,8 +474,23 @@ export default function CodingRoundPage() {
         background: "#f8fafc",
       }}
     >
-      <header className="exam-top-nav" style={{ flexShrink: 0, width: "100%", boxSizing: "border-box" }}>
-        <div className="exam-nav-left">
+      {/* Top Bar */}
+      <header
+        className="exam-top-nav"
+        style={{
+          flexShrink: 0,
+          width: "100%",
+          boxSizing: "border-box",
+          background: "#ffffff",
+          borderBottom: "1px solid #e2e8f0",
+          padding: "10px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "16px",
+        }}
+      >
+        <div className="exam-nav-left" style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <img
             src={kalpanaaLogo}
             alt="Kalpanaaa Software Solutions"
@@ -425,52 +502,43 @@ export default function CodingRoundPage() {
           </div>
         </div>
 
-        <div className="exam-nav-center" style={{ gap: "6px" }}>
-          {attemptInfo && attemptInfo.questionIds.length > 0 && (
+        {/* Center Progress Bar */}
+        <div
+          className="exam-nav-center"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "5px",
+            minWidth: "200px",
+          }}
+        >
+          <div
+            style={{
+              width: "180px",
+              height: "5px",
+              borderRadius: "999px",
+              background: "#e2e8f0",
+              overflow: "hidden",
+            }}
+          >
             <div
-              role="tablist"
-              aria-label="Coding problems"
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "4px",
-                background: "#f1f5f9",
-                padding: "3px",
-                borderRadius: "9px",
-                border: "1px solid #e2e8f0",
+                width: `${progressPercent}%`,
+                height: "100%",
+                background: "#017846",
+                borderRadius: "999px",
+                transition: "width 0.25s ease",
               }}
-            >
-              {attemptInfo.questionIds.map((qid, idx) => {
-                const active = qid === activeProblemId;
-                return (
-                  <button
-                    key={qid}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setActiveProblemId(qid)}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: "6px",
-                      border: "none",
-                      fontSize: "12.5px",
-                      fontWeight: active ? 700 : 600,
-                      background: active ? "#017846" : "transparent",
-                      color: active ? "#ffffff" : "#475569",
-                      boxShadow: active ? "0 1px 2px rgba(1, 120, 70, 0.2)" : "none",
-                      transition: "all 0.15s ease",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Problem {idx + 1}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+            />
+          </div>
+          <span style={{ fontSize: "12px", fontWeight: 600, color: "#475569" }}>
+            Progress: <strong style={{ color: "#0f172a" }}>{completedCount > 0 ? completedCount : activeIndex + 1} / {totalQuestions}</strong>
+          </span>
         </div>
 
-        <div className="exam-nav-right" style={{ gap: "8px", flexShrink: 0 }}>
+        {/* Right Controls: Timer, Candidate Chip, Finish Exam */}
+        <div className="exam-nav-right" style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
           <div
             aria-label="Remaining time"
             style={{
@@ -478,7 +546,7 @@ export default function CodingRoundPage() {
               alignItems: "center",
               gap: "6px",
               padding: "6px 12px",
-              borderRadius: "8px",
+              borderRadius: "999px",
               border: remainingMs < 300000 ? "1px solid #fecaca" : "1px solid #d9e6df",
               background: remainingMs < 300000 ? "#fef2f2" : "#eaf6ef",
               color: remainingMs < 300000 ? "#b91c1c" : "#014d32",
@@ -491,75 +559,40 @@ export default function CodingRoundPage() {
             <Clock3 size={14} /> {formatRemaining(remainingMs)}
           </div>
 
-          <label
+          <div
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "5px",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "#475569",
-              padding: "6px 10px",
-              borderRadius: "8px",
-              border: "1px solid #e2e8f0",
-              background: "#ffffff",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
+              gap: "8px",
+              paddingRight: "4px",
             }}
           >
-            <input
-              type="checkbox"
-              checked={useCustomInput}
-              onChange={(e) => setUseCustomInput(e.target.checked)}
-              style={{ accentColor: "#017846", margin: 0 }}
-            />
-            Custom Input
-          </label>
-
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => void handleRun()}
-            title="Run Sample Tests (Ctrl+')"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 14px",
-              borderRadius: "8px",
-              border: "1px solid #cbd5e1",
-              background: "#ffffff",
-              fontWeight: 600,
-              fontSize: "13px",
-              color: "#0f172a",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <Play size={14} /> Run
-          </button>
-
-          <button
-            type="button"
-            disabled={isBusy}
-            onClick={() => void handleSubmit()}
-            title="Submit Solution (Ctrl+Enter)"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              padding: "7px 16px",
-              borderRadius: "8px",
-              border: "1px solid #017846",
-              background: "#017846",
-              fontWeight: 700,
-              fontSize: "13px",
-              color: "#ffffff",
-              boxShadow: "0 1px 2px rgba(1, 120, 70, 0.25)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <Send size={14} /> Submit
-          </button>
+            <div
+              style={{
+                width: "30px",
+                height: "30px",
+                borderRadius: "50%",
+                background: "#eaf6ef",
+                color: "#017846",
+                fontWeight: 700,
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {candidateInitial}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+              <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>
+                {candidateName}
+              </span>
+              <span style={{ fontSize: "10.5px", color: "#64748b", whiteSpace: "nowrap" }}>
+                {candidateReg}
+              </span>
+            </div>
+          </div>
 
           <a
             href={`/candidate/coding/results?examId=${examId}`}
@@ -568,18 +601,18 @@ export default function CodingRoundPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "5px",
-              padding: "7px 11px",
+              padding: "6px 10px",
               borderRadius: "8px",
               border: "1px solid #d9e6df",
               background: "#f3faf6",
               color: "#017846",
               fontWeight: 600,
-              fontSize: "12.5px",
+              fontSize: "12px",
               textDecoration: "none",
               whiteSpace: "nowrap",
             }}
           >
-            <Award size={14} /> Results
+            <Award size={13} /> Results
           </a>
 
           <button
@@ -591,14 +624,15 @@ export default function CodingRoundPage() {
               display: "inline-flex",
               alignItems: "center",
               gap: "5px",
-              padding: "7px 13px",
+              padding: "7px 14px",
               borderRadius: "8px",
-              border: "1px solid #b91c1c",
-              background: "#fef2f2",
+              border: "1px solid #fca5a5",
+              background: "#ffffff",
               color: "#b91c1c",
               fontWeight: 700,
               fontSize: "12.5px",
               whiteSpace: "nowrap",
+              cursor: "pointer",
             }}
           >
             <CheckCircle2 size={14} /> Finish Exam
@@ -606,36 +640,507 @@ export default function CodingRoundPage() {
         </div>
       </header>
 
-      <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden" }}>
-        <SplitPane
-          direction="horizontal"
-          initialPercent={42}
-          first={
-            <ProblemDescriptionPane
-              problem={problem}
-              submissions={submissions}
-              onRefreshSubmissions={() => void listProblemSubmissions(problem.id).then(setSubmissions).catch(() => {})}
+      {/* 3-Column Workspace */}
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          display: "grid",
+          gridTemplateColumns: "148px minmax(340px, 1fr) minmax(420px, 1.05fr)",
+          gap: "14px",
+          padding: "14px 18px",
+          overflow: "hidden",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* Left Sidebar: Questions Rail */}
+        <aside
+          aria-label="Coding questions"
+          style={{
+            background: "#ffffff",
+            borderRadius: "12px",
+            border: "1px solid #e2e8f0",
+            padding: "14px 10px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            overflowY: "auto",
+            minHeight: 0,
+          }}
+        >
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", paddingBottom: "4px" }}>
+            <span style={{ fontSize: "12.5px", fontWeight: 700, color: "#0f172a" }}>Questions</span>
+            <span style={{ fontSize: "11.5px", color: "#64748b", fontWeight: 500 }}>
+              {activeIndex + 1} / {totalQuestions}
+            </span>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {questionIds.map((qid, idx) => {
+              const isActive = qid === activeProblemId;
+              const isSolved = submittedIds.has(qid);
+              const qFlagged = flaggedIds.has(qid);
+              const diffLabel = difficultyMap[qid] || (isActive ? problem.difficulty : "");
+              const dCol = difficultyColors(diffLabel);
+              return (
+                <button
+                  key={qid}
+                  type="button"
+                  onClick={() => setActiveProblemId(qid)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 8px",
+                    borderRadius: "10px",
+                    border: isActive ? "1.5px solid #017846" : "1px solid #e2e8f0",
+                    background: isActive ? "#f3faf6" : "#ffffff",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: "5px",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    <span
+                      style={{
+                        width: "7px",
+                        height: "7px",
+                        borderRadius: "50%",
+                        background: isSolved ? "#017846" : qFlagged ? "#f59e0b" : isActive ? "#017846" : "#cbd5e1",
+                      }}
+                    />
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a" }}>
+                      Q{idx + 1}
+                    </span>
+                  </div>
+                  {diffLabel && (
+                    <span
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: 600,
+                        padding: "1px 8px",
+                        borderRadius: "999px",
+                        background: dCol.bg,
+                        color: dCol.text,
+                      }}
+                    >
+                      {diffLabel}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        {/* Middle Column: Problem Card */}
+        <section
+          aria-label="Problem statement"
+          style={{
+            background: "#ffffff",
+            borderRadius: "12px",
+            border: "1px solid #e2e8f0",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
+            overflow: "hidden",
+          }}
+        >
+          {/* Card Header */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+              padding: "12px 18px",
+              borderBottom: "1px solid #e2e8f0",
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <span style={{ fontSize: "13px", fontWeight: 700, color: "#017846" }}>
+                Question {activeIndex + 1} of {totalQuestions}
+              </span>
+              <span
+                style={{
+                  fontSize: "11.5px",
+                  fontWeight: 600,
+                  padding: "2px 10px",
+                  borderRadius: "999px",
+                  background: activeDiffColors.bg,
+                  color: activeDiffColors.text,
+                }}
+              >
+                {problem.difficulty}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  const next = problemTab === "description" ? "submissions" : "description";
+                  setProblemTab(next);
+                  if (next === "submissions") {
+                    void listProblemSubmissions(problem.id).then(setSubmissions).catch(() => {});
+                  }
+                }}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "3px 9px",
+                  borderRadius: "999px",
+                  border: "1px solid #e2e8f0",
+                  background: problemTab === "submissions" ? "#017846" : "#f8fafc",
+                  color: problemTab === "submissions" ? "#ffffff" : "#475569",
+                  fontSize: "11.5px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {problemTab === "submissions" ? <FileText size={12} /> : <History size={12} />}
+                {problemTab === "submissions" ? "Description" : `Submissions (${submissions.length})`}
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => toggleFlag(problem.id)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                padding: "5px 11px",
+                borderRadius: "8px",
+                border: isFlagged ? "1px solid #f59e0b" : "1px solid #e2e8f0",
+                background: isFlagged ? "#fffbeb" : "#ffffff",
+                color: isFlagged ? "#b45309" : "#475569",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <Flag size={13} /> {isFlagged ? "Flagged" : "Flag for review"}
+            </button>
+          </div>
+
+          {/* Scrollable Problem Content */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px 22px" }}>
+            {problemTab === "description" ? (
+              <div>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: "12px", marginBottom: "10px" }}>
+                  <h2 style={{ margin: 0, fontSize: "19px", fontWeight: 700, color: "#0f172a" }}>
+                    {problem.title}
+                  </h2>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#64748b", whiteSpace: "nowrap" }}>
+                    {problem.maxMarks} pts · {problem.timeLimitMs}ms
+                  </span>
+                </div>
+
+                <div style={{ fontSize: "14px", lineHeight: 1.65, color: "#1e293b", whiteSpace: "pre-wrap", marginBottom: "16px" }}>
+                  {problem.problemStatement}
+                </div>
+
+                {(problem.inputFormat || problem.outputFormat || problem.constraints) && (
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      borderRadius: "8px",
+                      background: "#f3faf6",
+                      borderLeft: "3px solid #017846",
+                      marginBottom: "18px",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                      fontSize: "13px",
+                      color: "#1e293b",
+                    }}
+                  >
+                    {problem.inputFormat && (
+                      <div>
+                        <strong>Input Format:</strong> {problem.inputFormat}
+                      </div>
+                    )}
+                    {problem.outputFormat && (
+                      <div>
+                        <strong>Output Format:</strong> {problem.outputFormat}
+                      </div>
+                    )}
+                    {problem.constraints && (
+                      <div>
+                        <strong>Constraints:</strong>{" "}
+                        <code style={{ fontSize: "12.5px", color: "#0f172a" }}>{problem.constraints}</code>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {problem.sampleTestCases.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                    {problem.sampleTestCases.map((tc, i) => (
+                      <div key={tc.id}>
+                        <div style={{ fontSize: "13px", fontWeight: 700, color: "#0f172a", marginBottom: "6px" }}>
+                          Example {i + 1}: {tc.label}
+                        </div>
+                        <div
+                          style={{
+                            padding: "10px 12px",
+                            borderRadius: "8px",
+                            background: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            fontSize: "12.5px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "6px",
+                          }}
+                        >
+                          <div>
+                            <span style={{ color: "#64748b", fontWeight: 600 }}>Input:</span>
+                            <pre style={{ margin: "3px 0 0", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>{tc.input}</pre>
+                          </div>
+                          <div>
+                            <span style={{ color: "#64748b", fontWeight: 600 }}>Expected Output:</span>
+                            <pre style={{ margin: "3px 0 0", fontFamily: "monospace", whiteSpace: "pre-wrap" }}>{tc.expectedOutput}</pre>
+                          </div>
+                          {tc.explanation && (
+                            <div style={{ color: "#475569", fontSize: "12px" }}>
+                              <strong>Explanation:</strong> {tc.explanation}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                {submissions.length === 0 ? (
+                  <p style={{ color: "#64748b", fontSize: "13px" }}>No submissions yet for this problem.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {submissions.map((s) => (
+                      <div
+                        key={s.submissionId}
+                        style={{
+                          padding: "10px 12px",
+                          borderRadius: "8px",
+                          border: "1px solid #e2e8f0",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          fontSize: "13px",
+                        }}
+                      >
+                        <div>
+                          <strong style={{ color: s.verdict === "ACCEPTED" ? "#017846" : "#b91c1c" }}>{s.verdict}</strong>
+                          <div style={{ fontSize: "12px", color: "#64748b" }}>
+                            {s.language} · {s.passedCount}/{s.totalCount} tests · {s.score}/{s.maxMarks} pts
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", fontSize: "12px", color: "#475569" }}>
+                          {s.runtimeMs !== null && s.runtimeMs !== undefined ? `${s.runtimeMs} ms` : "—"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* Right Column: Editor + Run/Submit + Collapsible Test Output */}
+        <section
+          aria-label="Code editor and output"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "10px",
+            minHeight: 0,
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+          {/* Editor Card */}
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              borderRadius: "12px",
+              overflow: "hidden",
+              border: theme === "vs-dark" ? "1px solid #1e293b" : "1px solid #e2e8f0",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <CodingEditorPane
+              language={language}
+              allowedLanguages={problem.allowedLanguages.length ? problem.allowedLanguages : ["python3"]}
+              code={code}
+              theme={theme}
+              fontSize={fontSize}
+              onLanguageChange={handleLanguageChange}
+              onCodeChange={setCode}
+              onThemeToggle={() => setTheme((t) => (t === "vs-dark" ? "light" : "vs-dark"))}
+              onFontSizeChange={setFontSize}
+              onResetCode={handleResetCode}
             />
-          }
-          second={
-            <SplitPane
-              direction="vertical"
-              initialPercent={62}
-              first={
-                <CodingEditorPane
-                  language={language}
-                  allowedLanguages={problem.allowedLanguages.length ? problem.allowedLanguages : ["python3"]}
-                  code={code}
-                  theme={theme}
-                  fontSize={fontSize}
-                  onLanguageChange={handleLanguageChange}
-                  onCodeChange={setCode}
-                  onThemeToggle={() => setTheme((t) => (t === "vs-dark" ? "light" : "vs-dark"))}
-                  onFontSizeChange={setFontSize}
-                  onResetCode={handleResetCode}
-                />
-              }
-              second={
+          </div>
+
+          {/* Action Bar: Run Code & Submit Code */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void handleRun()}
+              title="Run Sample Tests (Ctrl+')"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "9px 18px",
+                borderRadius: "8px",
+                border: "none",
+                background: "#017846",
+                color: "#ffffff",
+                fontWeight: 700,
+                fontSize: "13px",
+                cursor: isBusy ? "not-allowed" : "pointer",
+                opacity: isBusy ? 0.7 : 1,
+                boxShadow: "0 1px 3px rgba(1, 120, 70, 0.25)",
+              }}
+            >
+              <Play size={14} fill="currentColor" /> Run Code
+            </button>
+
+            <button
+              type="button"
+              disabled={isBusy}
+              onClick={() => void handleSubmit()}
+              title="Submit Solution (Ctrl+Enter)"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "9px 18px",
+                borderRadius: "8px",
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#0f172a",
+                fontWeight: 600,
+                fontSize: "13px",
+                cursor: isBusy ? "not-allowed" : "pointer",
+                opacity: isBusy ? 0.7 : 1,
+              }}
+            >
+              <Send size={14} /> Submit Code
+            </button>
+          </div>
+
+          {/* Collapsible Test Output Card */}
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "12px",
+              border: "1px solid #e2e8f0",
+              overflow: "hidden",
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                borderBottom: outputOpen ? "1px solid #e2e8f0" : "none",
+                background: "#ffffff",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setOutputOpen((o) => !o)}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  border: "none",
+                  background: "transparent",
+                  padding: 0,
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: "#0f172a",
+                  cursor: "pointer",
+                }}
+              >
+                {outputOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                Test Output
+              </button>
+
+              <label
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  color: "#475569",
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                Custom Input
+                <span
+                  role="switch"
+                  aria-checked={useCustomInput}
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const next = !useCustomInput;
+                    setUseCustomInput(next);
+                    if (next) setOutputOpen(true);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === " " || e.key === "Enter") {
+                      e.preventDefault();
+                      const next = !useCustomInput;
+                      setUseCustomInput(next);
+                      if (next) setOutputOpen(true);
+                    }
+                  }}
+                  style={{
+                    width: "34px",
+                    height: "18px",
+                    borderRadius: "999px",
+                    background: useCustomInput ? "#017846" : "#cbd5e1",
+                    position: "relative",
+                    transition: "background 0.15s ease",
+                    display: "inline-block",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "2px",
+                      left: useCustomInput ? "18px" : "2px",
+                      width: "14px",
+                      height: "14px",
+                      borderRadius: "50%",
+                      background: "#ffffff",
+                      transition: "left 0.15s ease",
+                    }}
+                  />
+                </span>
+              </label>
+            </div>
+
+            {outputOpen && (
+              <div style={{ height: "210px", overflow: "hidden" }}>
                 <TestcaseResultPane
                   sampleCases={problem.sampleTestCases}
                   customInput={customInput}
@@ -645,10 +1150,10 @@ export default function CodingRoundPage() {
                   result={result}
                   errorMsg={execError}
                 />
-              }
-            />
-          }
-        />
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       {showFinishModal && (
