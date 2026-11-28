@@ -63,6 +63,8 @@ export interface AdminCodingResultsListResponse {
   page: number;
   pageSize: number;
   total: number;
+  inProgressCount?: number;
+  submittedCount?: number;
   questions: Array<{ id: string; title: string; maxMarks: number }>;
   items: AdminCodingResultRow[];
 }

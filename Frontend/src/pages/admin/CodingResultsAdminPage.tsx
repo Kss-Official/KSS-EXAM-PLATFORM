@@ -176,6 +176,10 @@ export default function CodingResultsAdminPage() {
 
   useEffect(() => {
     void loadAll();
+    const timer = window.setInterval(() => {
+      void loadAll();
+    }, 10000);
+    return () => window.clearInterval(timer);
   }, [examId, page]);
 
   const handleTogglePublish = async () => {
@@ -213,6 +217,10 @@ export default function CodingResultsAdminPage() {
   };
 
   const items = listData?.items ?? [];
+  const inProgressCount =
+    listData?.inProgressCount ?? items.filter((r) => r.status === "IN_PROGRESS").length;
+  const submittedCount =
+    listData?.submittedCount ?? items.filter((r) => r.status === "SUBMITTED").length;
   const qualifiedCount = items.filter((r) => r.qualificationStatus === "QUALIFIED").length;
   const avgOverall =
     items.length > 0 ? items.reduce((acc, r) => acc + Number(r.overallPercent || 0), 0) / items.length : 0;
@@ -301,11 +309,29 @@ export default function CodingResultsAdminPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(195px, 1fr))",
             gap: "14px",
             marginBottom: "20px",
           }}
         >
+          <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ width: "7px", height: "7px", borderRadius: "50%", background: "#017846", display: "inline-block" }} />
+                Live Attending
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: 800, color: "#017846", marginTop: "4px" }}>
+                {inProgressCount} <span style={{ fontSize: "13px", fontWeight: 600, color: "#64748b" }}>/ {listData.total}</span>
+              </div>
+              <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
+                {submittedCount} submitted
+              </div>
+            </div>
+            <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "#eaf6ef", color: "#017846", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Clock3 size={20} />
+            </div>
+          </div>
+
           <div style={{ background: "#fff", border: "1px solid #e2e8f0", borderRadius: "12px", padding: "16px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <div style={{ fontSize: "11.5px", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.04em" }}>Total Attempts</div>

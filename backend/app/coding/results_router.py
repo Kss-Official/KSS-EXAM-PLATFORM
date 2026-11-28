@@ -191,6 +191,8 @@ def list_coding_exam_results_admin(
 
     base_q = db.query(CodingAttempt).filter(CodingAttempt.exam_id == exam_id)
     total = base_q.count()
+    in_progress_count = base_q.filter(CodingAttempt.status == "IN_PROGRESS").count()
+    submitted_count = base_q.filter(CodingAttempt.status == "SUBMITTED").count()
     attempts = (
         base_q.options(joinedload(CodingAttempt.candidate))
         .order_by(CodingAttempt.overall_percent.desc(), CodingAttempt.id.asc())
@@ -239,6 +241,8 @@ def list_coding_exam_results_admin(
         "page": page,
         "pageSize": pageSize,
         "total": total,
+        "inProgressCount": in_progress_count,
+        "submittedCount": submitted_count,
         "questions": [{"id": q.id, "title": q.title, "maxMarks": q.max_marks} for q in (exam.questions or [])],
         "items": items,
     }
