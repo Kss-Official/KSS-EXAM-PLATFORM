@@ -348,13 +348,15 @@ def _submission_to_dto(sub: CodingSubmission, max_marks: float) -> CodingSubmiss
                 )
             )
 
+    first_public = next((r for r in safe_results if not r.isHidden), None)
+    verdict_str = sub.verdict or sub.status
     return CodingSubmissionStatusDto(
         submissionId=int(sub.id),
         attemptId=int(sub.attempt_id),
         questionId=sub.question_id,
         language=sub.language,
         isRunOnly=bool(sub.is_run_only),
-        verdict=sub.verdict or sub.status,
+        verdict=verdict_str,
         status=sub.status,
         passedCount=int(sub.passed_test_cases or 0),
         totalCount=int(sub.total_test_cases or 0),
@@ -367,6 +369,14 @@ def _submission_to_dto(sub: CodingSubmission, max_marks: float) -> CodingSubmiss
         testCaseResults=safe_results,
         submittedAt=sub.submitted_at.isoformat() if sub.submitted_at else None,
         updatedAt=sub.updated_at.isoformat() if sub.updated_at else None,
+        ok=(verdict_str == "ACCEPTED"),
+        statusId=3 if verdict_str == "ACCEPTED" else (4 if verdict_str == "WRONG_ANSWER" else (6 if verdict_str == "COMPILE_ERROR" else (5 if verdict_str == "TIME_LIMIT_EXCEEDED" else (13 if verdict_str == "INTERNAL_ERROR" else 11)))),
+        statusText=verdict_str,
+        stdout=first_public.actualOutput if first_public else "",
+        stderr=sub.error_message if verdict_str != "COMPILE_ERROR" else "",
+        compileOutput=sub.error_message if verdict_str == "COMPILE_ERROR" else "",
+        timeMs=sub.runtime_ms,
+        cached=False,
     )
 
 
@@ -594,6 +604,7 @@ async def run_coding_sample(
             headers={"Retry-After": str(retry_after)},
         )
 
+    run_meta = f"__CUSTOM_INPUT__:{req.customInput}" if req.customInput is not None else f"__SAMPLE_INDEX__:{int(req.sampleIndex or 0)}"
     sub = CodingSubmission(
         attempt_id=attempt.id,
         candidate_id=cand.id,
@@ -604,7 +615,7 @@ async def run_coding_sample(
         is_run_only=True,
         verdict="QUEUED",
         status="QUEUED",
-        error_message=f"__CUSTOM_INPUT__:{req.customInput}" if req.customInput is not None else None,
+        error_message=run_meta,
     )
     try:
         db.add(sub)

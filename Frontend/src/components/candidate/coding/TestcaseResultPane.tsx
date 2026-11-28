@@ -10,6 +10,7 @@ interface TestcaseResultPaneProps {
   uiState: "idle" | "queued" | "running" | "done" | "error";
   result: CodingSubmissionStatus | null;
   errorMsg: string | null;
+  onRetry?: () => void;
 }
 
 export default function TestcaseResultPane({
@@ -20,8 +21,10 @@ export default function TestcaseResultPane({
   uiState,
   result,
   errorMsg,
+  onRetry,
 }: TestcaseResultPaneProps) {
   const [tab, setTab] = useState<"testcases" | "custom" | "result">("testcases");
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
     if (useCustomInput) {
@@ -37,6 +40,19 @@ export default function TestcaseResultPane({
 
   const activeTab = tab;
   const isBusy = uiState === "queued" || uiState === "running";
+
+  useEffect(() => {
+    if (!isBusy) {
+      setElapsedMs(0);
+      return;
+    }
+    const start = Date.now();
+    setElapsedMs(0);
+    const id = window.setInterval(() => {
+      setElapsedMs(Date.now() - start);
+    }, 100);
+    return () => window.clearInterval(id);
+  }, [isBusy]);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#ffffff" }}>
@@ -195,22 +211,16 @@ export default function TestcaseResultPane({
                           animation: "codingSpin 0.75s linear infinite",
                         }}
                       />
-                      {uiState === "queued" ? "Preparing sandbox environment..." : "Compiling & running test cases..."}
+                      {uiState === "queued" ? "Queued…" : "Compiling & running test cases…"}
                     </div>
-                    <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#017846", background: "#eaf6ef", padding: "3px 8px", borderRadius: "999px" }}>
-                      {uiState === "queued" ? "QUEUED" : "RUNNING"}
-                    </span>
-                  </div>
-                  <div style={{ height: "4px", width: "100%", background: "#d9e6df", borderRadius: "999px", overflow: "hidden" }}>
-                    <div
-                      style={{
-                        height: "100%",
-                        width: "40%",
-                        background: "linear-gradient(90deg, #017846, #10b981)",
-                        borderRadius: "999px",
-                        animation: "codingSlide 1.1s ease-in-out infinite",
-                      }}
-                    />
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#475569", fontVariantNumeric: "tabular-nums" }}>
+                        {(elapsedMs / 1000).toFixed(1)}s
+                      </span>
+                      <span style={{ fontSize: "11.5px", fontWeight: 700, color: "#017846", background: "#eaf6ef", padding: "3px 8px", borderRadius: "999px" }}>
+                        {uiState === "queued" ? "Queued…" : "Running…"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -230,8 +240,27 @@ export default function TestcaseResultPane({
             )}
 
             {errorMsg && (
-              <div style={{ padding: "10px 12px", borderRadius: "6px", background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: "13px" }}>
-                {errorMsg}
+              <div style={{ padding: "10px 12px", borderRadius: "6px", background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", fontSize: "13px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+                <span>{errorMsg}</span>
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    style={{
+                      padding: "5px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #fca5a5",
+                      background: "#ffffff",
+                      color: "#b91c1c",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                      flexShrink: 0,
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
 

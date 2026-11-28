@@ -82,17 +82,41 @@ export interface CodingDraftDto {
   updatedAt?: string | null;
 }
 
+let hasRedirectedOn401 = false;
+
+function handleUnauthorizedOnce(): void {
+  if (hasRedirectedOn401) return;
+  hasRedirectedOn401 = true;
+  try {
+    localStorage.removeItem("examsecure_candidate_token");
+  } catch {
+    // ignore storage errors
+  }
+  const params = new URLSearchParams(window.location.search);
+  const examId = params.get("examId") || "2";
+  if (!window.location.pathname.startsWith("/candidate/coding/login")) {
+    window.location.href = `/candidate/coding/login?examId=${encodeURIComponent(examId)}`;
+  }
+}
+
 function getCandidateHeaders(): HeadersInit {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  const token = localStorage.getItem("examsecure_candidate_token");
+  const token =
+    localStorage.getItem("examsecure_candidate_token") ||
+    localStorage.getItem("examsecure_auth_token");
   if (token) {
     headers["Authorization"] = `Bearer ${token}`;
   }
   return headers;
 }
 
-async function codingFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, {
+/**
+ * Shared client api() wrapper used by all coding exam fetches.
+ * Sends credentials + Bearer token and redirects once on 401 without retry loops.
+ */
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+  const res = await fetch(`${API_BASE_URL}${cleanPath}`, {
     ...init,
     credentials: "include",
     headers: {
@@ -100,6 +124,12 @@ async function codingFetch<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers || {}),
     },
   });
+  if (res.status === 401) {
+    handleUnauthorizedOnce();
+    const err401 = new Error("Session expired. Redirecting to login...") as Error & { status?: number };
+    err401.status = 401;
+    throw err401;
+  }
   if (!res.ok) {
     let msg = `Request failed (${res.status})`;
     try {
@@ -108,12 +138,38 @@ async function codingFetch<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // ignore parse error
     }
+    if (res.status === 429 || res.status === 502 || res.status === 503 || res.status === 504) {
+      msg = "The code runner is busy. Please try again in a few seconds.";
+    }
     const retryAfter = res.headers.get("Retry-After");
-    const error = new Error(retryAfter ? `${msg} (Retry after ${retryAfter}s)` : msg) as Error & { status?: number };
+    const error = new Error(retryAfter && res.status !== 429 ? `${msg} (Retry after ${retryAfter}s)` : msg) as Error & { status?: number };
     error.status = res.status;
     throw error;
   }
   return res.json();
+}
+
+/**
+ * Fire-and-forget event/logging call (tab switch, blur, paste).
+ * Never awaited, never blocks Run/Submit, and swallows errors.
+ */
+export function fireAndForgetEvent(path: string, payload: unknown): void {
+  try {
+    const cleanPath = path.startsWith("/") ? path : `/${path}`;
+    void fetch(`${API_BASE_URL}${cleanPath}`, {
+      method: "POST",
+      credentials: "include",
+      keepalive: true,
+      headers: getCandidateHeaders(),
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch {
+    // swallow all fire-and-forget errors
+  }
+}
+
+async function codingFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  return api<T>(path, init);
 }
 
 export function getCodingAttemptInfo(examId: number): Promise<CodingAttemptInfo> {
@@ -148,6 +204,7 @@ export function runCodingCode(payload: {
   language: string;
   code: string;
   customInput?: string;
+  sampleIndex?: number;
   idempotencyKey?: string;
 }): Promise<{ submissionId: number; verdict: string; status: string }> {
   return codingFetch(`/coding/run`, {
@@ -198,7 +255,22 @@ export function watchSubmissionResult(
 ): () => void {
   let stopped = false;
   let pollTimer: number | null = null;
-  let es: EventSource | null = null;
+  let timeoutTimer: number | null = null;
+  const abortController = new AbortController();
+
+  const cleanup = () => {
+    stopped = true;
+    if (pollTimer !== null) window.clearInterval(pollTimer);
+    if (timeoutTimer !== null) window.clearTimeout(timeoutTimer);
+    abortController.abort();
+  };
+
+  // 20s hard client timeout
+  timeoutTimer = window.setTimeout(() => {
+    if (stopped) return;
+    cleanup();
+    onError("Execution timed out, try again");
+  }, 20000);
 
   const fetchLatest = async () => {
     if (stopped) return;
@@ -210,37 +282,76 @@ export function watchSubmissionResult(
         cleanup();
       }
     } catch (e) {
-      if (!stopped) onError((e as Error).message);
+      if (stopped) return;
+      const errObj = e as Error & { status?: number };
+      if (errObj?.status === 401) {
+        cleanup();
+      }
+      onError(errObj.message);
     }
   };
 
-  const cleanup = () => {
-    stopped = true;
-    if (pollTimer !== null) window.clearInterval(pollTimer);
-    if (es) es.close();
-  };
+  void (async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/coding/events/${submissionId}`, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          ...getCandidateHeaders(),
+          Accept: "text/event-stream",
+        },
+        signal: abortController.signal,
+      });
+      if (res.status === 401) {
+        handleUnauthorizedOnce();
+        cleanup();
+        return;
+      }
+      if (!res.ok || !res.body) return;
 
-  try {
-    es = new EventSource(`${API_BASE_URL}/coding/events/${submissionId}`, { withCredentials: true });
-    es.onmessage = (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.status && msg.status !== "QUEUED" && msg.status !== "RUNNING") {
-          void fetchLatest();
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (!stopped) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (!payload) continue;
+          try {
+            const msg = JSON.parse(payload);
+            if (msg.status === "RUNNING") {
+              onStatus({
+                submissionId,
+                attemptId: 0,
+                questionId: "",
+                language: "",
+                isRunOnly: false,
+                verdict: "RUNNING",
+                status: "RUNNING",
+                passedCount: 0,
+                totalCount: 0,
+                score: 0,
+                maxMarks: 0,
+                testCaseResults: [],
+              });
+            } else if (msg.status && msg.status !== "QUEUED") {
+              void fetchLatest();
+            }
+          } catch {
+            // ignore malformed event
+          }
         }
-      } catch {
-        // ignore malformed event
       }
-    };
-    es.onerror = () => {
-      if (es) {
-        es.close();
-        es = null;
-      }
-    };
-  } catch {
-    // fallback to polling
-  }
+    } catch {
+      // fallback to polling
+    }
+  })();
 
   pollTimer = window.setInterval(fetchLatest, 600);
   void fetchLatest();

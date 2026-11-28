@@ -36,6 +36,7 @@ class CodingRunRequest(BaseModel):
     language: str
     code: str
     customInput: Optional[str] = None
+    sampleIndex: Optional[int] = Field(default=0, ge=0)
     idempotencyKey: Optional[str] = Field(default=None, max_length=128)
 
 
@@ -81,6 +82,16 @@ class CodingSubmissionStatusDto(BaseModel):
     testCaseResults: List[TestCaseVerdictDto] = Field(default_factory=list)
     submittedAt: Optional[str] = None
     updatedAt: Optional[str] = None
+    # Normalized response fields
+    ok: Optional[bool] = None
+    statusId: Optional[int] = None
+    statusText: Optional[str] = None
+    stdout: Optional[str] = None
+    stderr: Optional[str] = None
+    compileOutput: Optional[str] = None
+    timeMs: Optional[int] = None
+    memoryKb: Optional[int] = None
+    cached: bool = False
 
 
 class CodingEnqueueResponse(BaseModel):

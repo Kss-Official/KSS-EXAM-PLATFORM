@@ -16,6 +16,7 @@ import {
 import kalpanaaLogo from "../../assets/kalpanaa_logo.png";
 import {
   finalizeCodingExam,
+  fireAndForgetEvent,
   getCodingAttemptInfo,
   getCodingDrafts,
   getCodingProblem,
@@ -29,7 +30,6 @@ import {
   type CodingProblemPublic,
   type CodingSubmissionStatus,
 } from "../../services/codingApi";
-import { reportProctorAlert } from "../../services/api";
 import { loadCandidateSession } from "../../services/candidateSessionStorage";
 import CodingEditorPane, { DEFAULT_STARTER_TEMPLATES } from "../../components/candidate/coding/CodingEditorPane";
 import TestcaseResultPane from "../../components/candidate/coding/TestcaseResultPane";
@@ -73,10 +73,14 @@ export default function CodingRoundPage() {
   const [difficultyMap, setDifficultyMap] = useState<Record<string, string>>({});
   const [problemTab, setProblemTab] = useState<"description" | "submissions">("description");
   const [outputOpen, setOutputOpen] = useState(false);
+  const [runCooldown, setRunCooldown] = useState(false);
 
   const stopWatchRef = useRef<(() => void) | null>(null);
   const lastAlertRef = useRef<Record<string, number>>({});
   const bypassUnloadRef = useRef<boolean>(false);
+  const inFlightActionRef = useRef<boolean>(false);
+  const lastActionRef = useRef<"run" | "submit">("run");
+  const cooldownTimerRef = useRef<number | null>(null);
 
   // Preload Monaco editor bundle in parallel with attempt API call
   useEffect(() => {
@@ -209,13 +213,13 @@ export default function CodingRoundPage() {
       const now = Date.now();
       if (now - (lastAlertRef.current[alertType] || 0) < 3000) return;
       lastAlertRef.current[alertType] = now;
-      void reportProctorAlert({
+      fireAndForgetEvent("candidate/proctor/alert", {
         candidateId: cid,
         attemptId: attemptInfo?.attemptId,
         alertType,
         message,
         severity: "HIGH",
-      }).catch(() => {});
+      });
     };
 
     const onVis = () => {
@@ -275,17 +279,32 @@ export default function CodingRoundPage() {
         setResult(statusData);
         if (statusData.status === "QUEUED") setUiState("queued");
         else if (statusData.status === "RUNNING") setUiState("running");
-        else setUiState("done");
+        else {
+          inFlightActionRef.current = false;
+          setUiState("done");
+        }
       },
       (err) => {
+        inFlightActionRef.current = false;
         setExecError(err);
         setUiState("error");
       }
     );
   }, []);
 
+  const triggerRunCooldown = useCallback(() => {
+    setRunCooldown(true);
+    if (cooldownTimerRef.current !== null) window.clearTimeout(cooldownTimerRef.current);
+    cooldownTimerRef.current = window.setTimeout(() => {
+      setRunCooldown(false);
+    }, 1500);
+  }, []);
+
   const handleRun = useCallback(async () => {
-    if (!problem) return;
+    if (!problem || inFlightActionRef.current || runCooldown) return;
+    inFlightActionRef.current = true;
+    lastActionRef.current = "run";
+    triggerRunCooldown();
     setExecError(null);
     setUiState("queued");
     setOutputOpen(true);
@@ -295,18 +314,22 @@ export default function CodingRoundPage() {
         questionId: problem.id,
         language,
         code,
+        sampleIndex: 0,
         customInput: useCustomInput ? customInput : undefined,
         idempotencyKey: `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       });
       startWatching(res.submissionId);
     } catch (e) {
+      inFlightActionRef.current = false;
       setExecError((e as Error).message);
       setUiState("error");
     }
-  }, [problem, examId, language, code, useCustomInput, customInput, startWatching]);
+  }, [problem, examId, language, code, useCustomInput, customInput, startWatching, runCooldown, triggerRunCooldown]);
 
   const handleSubmit = useCallback(async () => {
-    if (!problem) return;
+    if (!problem || inFlightActionRef.current) return;
+    inFlightActionRef.current = true;
+    lastActionRef.current = "submit";
     setExecError(null);
     setUiState("queued");
     setOutputOpen(true);
@@ -325,6 +348,7 @@ export default function CodingRoundPage() {
       });
       startWatching(res.submissionId);
     } catch (e) {
+      inFlightActionRef.current = false;
       setExecError((e as Error).message);
       setUiState("error");
     }
@@ -956,7 +980,7 @@ export default function CodingRoundPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
             <button
               type="button"
-              disabled={isBusy}
+              disabled={isBusy || runCooldown}
               onClick={() => void handleRun()}
               title="Run Sample Tests (Ctrl+')"
               style={{
@@ -970,8 +994,8 @@ export default function CodingRoundPage() {
                 color: "#ffffff",
                 fontWeight: 700,
                 fontSize: "13px",
-                cursor: isBusy ? "not-allowed" : "pointer",
-                opacity: isBusy ? 0.7 : 1,
+                cursor: isBusy || runCooldown ? "not-allowed" : "pointer",
+                opacity: isBusy || runCooldown ? 0.7 : 1,
                 boxShadow: "0 1px 3px rgba(1, 120, 70, 0.25)",
               }}
             >
@@ -1055,6 +1079,7 @@ export default function CodingRoundPage() {
                   uiState={uiState}
                   result={result}
                   errorMsg={execError}
+                  onRetry={() => void (lastActionRef.current === "submit" ? handleSubmit() : handleRun())}
                 />
               </div>
             )}

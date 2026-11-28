@@ -49,8 +49,14 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
 
         sub.status = "RUNNING"
         sub.verdict = "RUNNING"
-        sub.updated_at = datetime.now(timezone.utc)
+        now_utc = datetime.now(timezone.utc)
+        sub.updated_at = now_utc
         db.commit()
+
+        queue_wait_ms = 0
+        if sub.submitted_at:
+            sub_ts = sub.submitted_at if sub.submitted_at.tzinfo else sub.submitted_at.replace(tzinfo=timezone.utc)
+            queue_wait_ms = max(0, int((now_utc - sub_ts).total_seconds() * 1000))
 
         await coding_queue_manager.publish_result(submission_id, {
             "submissionId": submission_id,
@@ -69,14 +75,27 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
             executor=executor.name,
             language=sub.language,
             is_run_only=bool(sub.is_run_only),
+            queue_wait_ms=queue_wait_ms,
         )
-        cpu_limit = max(0.5, float(question.time_limit_ms or 2000) / 1000.0)
-        wall_limit = cpu_limit + 3.0
-        mem_limit_kb = max(16384, int(question.memory_limit_mb or 256) * 1024)
+        cpu_limit = min(2.0, max(0.5, float(question.time_limit_ms or 2000) / 1000.0))
+        wall_limit = min(5.0, cpu_limit + 3.0)
+        mem_limit_kb = min(262144, max(16384, int(question.memory_limit_mb or 256) * 1024))
 
         all_cases = db.query(CodingTestCase).filter(CodingTestCase.question_id == question.id).all()
         if sub.is_run_only:
-            cases_to_run = [tc for tc in all_cases if not tc.is_hidden]
+            sample_cases = [tc for tc in all_cases if not tc.is_hidden]
+            sample_idx = 0
+            if sub.error_message and sub.error_message.startswith("__SAMPLE_INDEX__:"):
+                try:
+                    sample_idx = int(sub.error_message[len("__SAMPLE_INDEX__:"):])
+                except ValueError:
+                    sample_idx = 0
+                sub.error_message = None
+            # Run executes ONLY ONE sample test case (never all hidden tests)
+            if sample_cases:
+                cases_to_run = [sample_cases[sample_idx]] if 0 <= sample_idx < len(sample_cases) else [sample_cases[0]]
+            else:
+                cases_to_run = []
             # If custom input was stored in error_message temporarily or no sample cases exist
             if sub.error_message and sub.error_message.startswith("__CUSTOM_INPUT__:"):
                 custom_in = sub.error_message[len("__CUSTOM_INPUT__:"):]
@@ -145,16 +164,15 @@ async def evaluate_coding_submission(ctx: Dict[str, Any], submission_id: int, ca
         overall_verdict = "ACCEPTED"
         public_error_msg = None
 
-        for tc in cases_to_run:
-            res = await executor.execute(
-                language=sub.language,
-                source_code=sub.source_code,
-                stdin=tc.input_data or "",
-                expected_output=tc.expected_output or "",
-                cpu_time_limit_s=cpu_limit,
-                wall_time_limit_s=wall_limit,
-                memory_limit_kb=mem_limit_kb,
-            )
+        exec_results = await executor.execute_many(
+            language=sub.language,
+            source_code=sub.source_code,
+            cases=[(tc.input_data or "", tc.expected_output or "") for tc in cases_to_run],
+            cpu_time_limit_s=cpu_limit,
+            wall_time_limit_s=wall_limit,
+            memory_limit_kb=mem_limit_kb,
+        )
+        for tc, res in zip(cases_to_run, exec_results):
             max_runtime = max(max_runtime, res.runtime_ms)
             max_memory = max(max_memory, res.memory_kb)
             is_pass = res.verdict == "ACCEPTED"

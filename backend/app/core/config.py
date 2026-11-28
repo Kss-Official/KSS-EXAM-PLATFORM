@@ -80,12 +80,13 @@ class Settings(BaseSettings):
     CODING_SANDBOX_DRIVER: str = "mock"  # "judge0" or "mock"
     REDIS_URL: str = "redis://localhost:6379/0"
     JUDGE0_URL: str = "http://localhost:2358"
+    JUDGE0_FALLBACK_URL: str = ""
     JUDGE0_AUTH_TOKEN: str = ""
     CODING_MAX_CODE_BYTES: int = 65536       # 64 KB
     CODING_MAX_INPUT_BYTES: int = 65536      # 64 KB
     CODING_MAX_QUEUE_DEPTH: int = 5000
     CODING_USER_RATE_LIMIT_PER_MIN: int = 12
-    CODING_USER_MAX_CONCURRENT: int = 2
+    CODING_USER_MAX_CONCURRENT: int = 1
     CODING_DRAFT_RATE_LIMIT_PER_MIN: int = 60
     CODING_SUBMIT_GRACE_SECONDS: int = 10
     CODING_PASTE_POLICY: str = "flag"  # "flag", "ignore", or "block"
