@@ -49,6 +49,7 @@ html, body {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -923,11 +924,12 @@ select:focus-visible {
 }
 
 /* ========================================================
-   WELCOME SCREEN
+   WELCOME SCREEN (SCREEN 0 - LANDING PAGE)
    ======================================================== */
 .welcome {
-  height: 100vh;
-  max-height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
   display: flex;
   flex-direction: column;
   background-color: #F8FCFA;
@@ -935,39 +937,49 @@ select:focus-visible {
   background-size: cover;
   background-position: center center;
   background-repeat: no-repeat;
-  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 .system-check-view {
   height: auto;
   min-height: 100vh;
+  min-height: 100dvh;
   max-height: none;
   overflow-y: auto;
 }
 
 .nav {
-  height: 56px;
   min-height: 56px;
-  padding: 0 clamp(20px, 4.5vw, 68px);
+  height: auto;
+  padding: 10px clamp(16px, 4.5vw, 68px);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   background: transparent;
   border-bottom: none;
   flex-shrink: 0;
 }
 
+.nav .brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
 .candidate-portal-logo {
-  height: 38px;
+  height: auto;
+  max-height: 38px;
   width: auto;
-  max-width: 240px;
+  max-width: min(240px, 100%);
   aspect-ratio: 1024 / 253;
   object-fit: contain;
   display: block;
 }
 
 .secure {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
   color: #014D32;
@@ -978,22 +990,30 @@ select:focus-visible {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.2px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .secure svg {
   color: #017846;
+  flex-shrink: 0;
 }
 
 .hero {
-  flex: 1;
-  width: min(1120px, calc(100% - 48px));
-  margin: auto;
-  padding: clamp(8px, 1.5vh, 20px) 0;
+  flex: 1 0 auto;
+  width: min(1100px, 100% - 32px);
+  margin: 0 auto;
+  margin-block: auto;
+  padding: clamp(12px, 2.5vh, 28px) 0;
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   align-items: center;
-  gap: clamp(24px, 4vw, 56px);
-  min-height: 0;
+  gap: clamp(20px, 4vw, 56px);
+}
+
+.intro {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .eyebrow {
@@ -1002,6 +1022,7 @@ select:focus-visible {
   font-weight: 800;
   letter-spacing: 1.6px;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .intro > .eyebrow {
@@ -1017,16 +1038,18 @@ select:focus-visible {
   height: 7px;
   border-radius: 50%;
   background: #017846;
+  flex-shrink: 0;
 }
 
 .intro h1 {
   font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: clamp(28px, 3.4vw, 44px);
+  font-size: clamp(26px, 5vw, 48px);
   line-height: 1.08;
   letter-spacing: -1.2px;
   color: #111827;
   margin: 6px 0 10px;
   font-weight: 800;
+  overflow-wrap: anywhere;
 }
 
 .intro h1 em {
@@ -1039,8 +1062,9 @@ select:focus-visible {
   max-width: 480px;
   color: #526579;
   line-height: 1.5;
-  font-size: 12.5px;
+  font-size: clamp(12.5px, 1.4vw, 14px);
   margin: 0 0 16px;
+  overflow-wrap: anywhere;
 }
 
 .intro-features {
@@ -1054,6 +1078,12 @@ select:focus-visible {
   display: flex;
   gap: 10px;
   align-items: flex-start;
+  min-width: 0;
+}
+
+.feature > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .feature > span {
@@ -1070,7 +1100,7 @@ select:focus-visible {
 
 .feature b {
   display: block;
-  font-size: 12.5px;
+  font-size: clamp(12.5px, 1.3vw, 13.5px);
   font-weight: 700;
   color: #111827;
   line-height: 1.25;
@@ -1080,7 +1110,7 @@ select:focus-visible {
   display: block;
   margin-top: 1px;
   color: #526579;
-  font-size: 11px;
+  font-size: clamp(11px, 1.1vw, 12px);
   line-height: 1.35;
 }
 
@@ -1096,14 +1126,18 @@ select:focus-visible {
   letter-spacing: 1.8px;
   color: #526579;
   text-transform: uppercase;
+  overflow-wrap: anywhere;
 }
 
 .login {
+  min-width: 0;
+  width: 100%;
   background: #ffffff;
   border: 1px solid #D9E6DF;
   border-radius: 16px;
   box-shadow: 0 12px 36px -6px rgba(17, 24, 39, 0.07), 0 4px 14px rgba(1, 120, 70, 0.04);
-  padding: clamp(16px, 2.2vh, 24px) clamp(20px, 2.6vw, 32px);
+  padding: clamp(16px, 4vw, 32px);
+  overflow-wrap: anywhere;
 }
 
 .cardicon {
@@ -1151,6 +1185,7 @@ select:focus-visible {
 .form-group {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .form-group label {
@@ -1168,13 +1203,15 @@ select:focus-visible {
 .login input, .login select, .dept-select {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 7px 11px;
-  font-size: 12.5px;
+  padding: 9px 12px;
+  font-size: 13px;
   background: #ffffff;
   color: #111827;
   outline: none;
   width: 100%;
-  height: 37px;
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -1227,17 +1264,23 @@ select:focus-visible {
   justify-content: center;
   gap: 8px;
   width: 100%;
+  min-height: 44px;
   background: #017846;
   color: #ffffff;
   border: none;
   border-radius: 8px;
-  padding: 9px 15px;
-  font-size: 12.5px;
+  padding: 10px 16px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
   box-shadow: 0 4px 12px rgba(1, 120, 70, 0.25);
   margin-top: 2px;
+}
+
+.login .primary,
+.login .secondary {
+  min-height: 44px;
 }
 
 .btn-primary-entry:hover:not(:disabled) {
@@ -1279,30 +1322,87 @@ select:focus-visible {
 }
 
 .welcomefoot {
-  height: 32px;
-  min-height: 32px;
+  min-height: 36px;
+  height: auto;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 0 clamp(16px, 4vw, 68px);
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 10px clamp(16px, 4vw, 68px);
   border-top: none;
   color: #526579;
-  font-size: 9.5px;
+  font-size: 10px;
   flex-shrink: 0;
   background: transparent;
+  overflow-wrap: anywhere;
 }
 
-@media (max-height: 560px), (max-width: 860px) {
-  .welcome {
-    height: auto;
-    min-height: 100vh;
-    max-height: none;
-    overflow-y: auto;
+@media (max-width: 1180px) {
+  .hero {
+    gap: clamp(18px, 3vw, 36px);
+  }
+}
+
+@media (max-width: 820px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px 0 24px;
+    gap: 20px;
+  }
+  .lead {
+    max-width: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .nav {
+    padding: 10px 14px;
+  }
+  .candidate-portal-logo {
+    max-width: 150px;
+  }
+  .secure {
+    padding: 4px 10px;
+    font-size: 10.5px;
+  }
+  .welcomefoot {
+    justify-content: center;
+    text-align: center;
+    padding: 10px 14px;
+  }
+}
+
+@media (max-height: 600px) {
+  .nav {
+    min-height: 46px;
+    padding-top: 6px;
+    padding-bottom: 6px;
   }
   .hero {
-    grid-template-columns: 1fr;
-    padding: 20px 0;
+    padding: 8px 0 14px;
+    gap: 16px;
+  }
+  .intro h1 {
+    font-size: clamp(22px, 3.6vw, 34px);
+    margin: 4px 0 6px;
+  }
+  .lead {
+    margin-bottom: 10px;
+  }
+  .intro-features {
+    gap: 7px;
+    margin-bottom: 10px;
+  }
+  .intro-divider {
+    margin: 8px 0 6px;
+  }
+  .login {
+    padding: 14px 18px;
+  }
+  .login form {
+    gap: 8px;
+    margin-top: 8px;
   }
 }
 
