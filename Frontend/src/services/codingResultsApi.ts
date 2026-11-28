@@ -124,3 +124,9 @@ export function toggleAdminCodingResultsPublished(examId: number, published: boo
 export function getAdminCodingCsvUrl(examId: number): string {
   return `${API_BASE_URL}/coding/admin/exams/${examId}/results/export.csv`;
 }
+
+export function reassignAdminCodingAttempt(
+  attemptId: number,
+): Promise<{ success: boolean; attemptId: number; message: string }> {
+  return reqJson(`/coding/admin/attempts/${attemptId}/reset`, true, { method: "POST" });
+}

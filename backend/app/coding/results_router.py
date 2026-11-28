@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core import get_db, require_super_admin
 from app.core.config import settings
-from app.models import AppUser, Candidate
+from app.models import AppUser, AuditLog, Candidate
 from app.models.coding import (
     CodingAttempt,
+    CodingDraft,
     CodingExam,
     CodingQuestion,
     CodingQuestionResult,
@@ -400,3 +401,49 @@ def get_coding_exam_question_analytics_admin(
         })
 
     return {"examId": int(exam.id), "examTitle": exam.title, "questions": stats}
+
+
+@results_router.post("/admin/attempts/{attempt_id}/reset")
+def reset_coding_attempt_admin(
+    attempt_id: int,
+    current_user: AppUser = Depends(require_super_admin),
+    db: Session = Depends(get_db),
+):
+    """
+    Resets/deletes a candidate's Round 2 coding attempt (submissions, drafts, question results)
+    so they can immediately log back in and retake the coding exam.
+    """
+    _require_enabled()
+    attempt = db.query(CodingAttempt).filter(CodingAttempt.id == attempt_id).first()
+    if not attempt:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Coding attempt #{attempt_id} was not found.",
+        )
+
+    cand_id = int(attempt.candidate_id)
+    exam_id = int(attempt.exam_id)
+
+    db.query(CodingQuestionResult).filter(CodingQuestionResult.attempt_id == attempt.id).delete()
+    db.query(CodingDraft).filter(CodingDraft.attempt_id == attempt.id).delete()
+    db.query(CodingSubmission).filter(CodingSubmission.attempt_id == attempt.id).delete()
+    db.delete(attempt)
+
+    db.add(
+        AuditLog(
+            action="RESET_CODING_ATTEMPT",
+            entity_type="CodingAttempt",
+            entity_id=str(attempt_id),
+            performed_by=current_user.email,
+            details=f"Admin {current_user.email} reset coding attempt #{attempt_id} for candidate #{cand_id} on coding exam #{exam_id}.",
+        )
+    )
+    db.commit()
+
+    return {
+        "success": True,
+        "attemptId": int(attempt_id),
+        "candidateId": cand_id,
+        "examId": exam_id,
+        "message": "Coding attempt reset successfully. The candidate can now log in and retake Round 2.",
+    }

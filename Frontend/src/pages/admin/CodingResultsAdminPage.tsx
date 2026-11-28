@@ -11,6 +11,7 @@ import {
   Globe,
   HardDrive,
   Lock,
+  RotateCcw,
   TrendingUp,
   Users,
   X,
@@ -22,8 +23,10 @@ import {
   getAdminCodingCandidateDetail,
   getAdminCodingCsvUrl,
   listAdminCodingResults,
+  reassignAdminCodingAttempt,
   toggleAdminCodingResultsPublished,
   type AdminCodingAnalyticsResponse,
+  type AdminCodingResultRow,
   type AdminCodingResultsListResponse,
 } from "../../services/codingResultsApi";
 
@@ -142,6 +145,8 @@ export default function CodingResultsAdminPage() {
   const [analytics, setAnalytics] = useState<AdminCodingAnalyticsResponse | null>(null);
   const [detail, setDetail] = useState<CandidateDetailPayload | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [attemptToReassign, setAttemptToReassign] = useState<AdminCodingResultRow | null>(null);
+  const [reassigning, setReassigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -186,6 +191,24 @@ export default function CodingResultsAdminPage() {
       setDetail(d);
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const handleConfirmReassign = async () => {
+    if (!attemptToReassign) return;
+    setReassigning(true);
+    setError(null);
+    try {
+      await reassignAdminCodingAttempt(attemptToReassign.attemptId);
+      if (detail?.attemptId === attemptToReassign.attemptId) {
+        setDetail(null);
+      }
+      setAttemptToReassign(null);
+      await loadAll();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReassigning(false);
     }
   };
 
@@ -480,14 +503,37 @@ export default function CodingResultsAdminPage() {
                           );
                         })}
                         <td style={{ textAlign: "right" }}>
-                          <button
-                            type="button"
-                            style={{ ...BTN_OUTLINE_GREEN, padding: "6px 12px", fontSize: "12px" }}
-                            disabled={loadingDetail}
-                            onClick={() => void handleViewDetail(row.candidateId)}
-                          >
-                            <Eye size={13} /> View Details
-                          </button>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", justifyContent: "flex-end" }}>
+                            <button
+                              type="button"
+                              style={{ ...BTN_OUTLINE_GREEN, padding: "6px 12px", fontSize: "12px" }}
+                              disabled={loadingDetail}
+                              onClick={() => void handleViewDetail(row.candidateId)}
+                            >
+                              <Eye size={13} /> View Details
+                            </button>
+                            <button
+                              type="button"
+                              title="Reset this candidate's Round 2 attempt so they can retake the coding exam"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                padding: "6px 12px",
+                                borderRadius: "8px",
+                                border: "1px solid #fecaca",
+                                background: "#fef2f2",
+                                color: "#b91c1c",
+                                fontWeight: 700,
+                                fontSize: "12px",
+                                cursor: "pointer",
+                                whiteSpace: "nowrap",
+                              }}
+                              onClick={() => setAttemptToReassign(row)}
+                            >
+                              <RotateCcw size={13} /> Reassign
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -737,6 +783,74 @@ export default function CodingResultsAdminPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reassign Confirmation Modal */}
+      {attemptToReassign && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1100,
+            padding: "16px",
+          }}
+        >
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "14px",
+              padding: "24px",
+              maxWidth: "460px",
+              width: "100%",
+              boxShadow: "0 20px 40px rgba(15, 23, 42, 0.18)",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+              <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: "#fef2f2", color: "#b91c1c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <RotateCcw size={18} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: "17px", fontWeight: 800, color: "#0f172a" }}>
+                Reassign Round 2 Coding Exam?
+              </h3>
+            </div>
+            <p style={{ margin: "0 0 10px", fontSize: "13.5px", color: "#334155", lineHeight: 1.5 }}>
+              Are you sure you want to reset the coding attempt for <strong>{attemptToReassign.candidateName}</strong> ({attemptToReassign.registrationNumber})?
+            </p>
+            <p style={{ margin: "0 0 20px", fontSize: "12.5px", color: "#64748b", lineHeight: 1.5 }}>
+              This will clear their Round 2 submissions, saved drafts, and score for this exam so they can immediately log back in and retake it.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <button
+                type="button"
+                style={BTN_NEUTRAL}
+                disabled={reassigning}
+                onClick={() => setAttemptToReassign(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={reassigning}
+                onClick={() => void handleConfirmReassign()}
+                style={{
+                  ...BTN_PRIMARY,
+                  background: "#dc2626",
+                  borderColor: "#dc2626",
+                  boxShadow: "0 1px 2px rgba(220, 38, 38, 0.25)",
+                  opacity: reassigning ? 0.65 : 1,
+                  cursor: reassigning ? "not-allowed" : "pointer",
+                }}
+              >
+                <RotateCcw size={14} /> {reassigning ? "Reassigning..." : "Yes, Reassign"}
+              </button>
             </div>
           </div>
         </div>
