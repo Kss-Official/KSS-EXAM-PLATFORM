@@ -1,1 +1,16 @@
-﻿import React from 'react';import{createRoot}from'react-dom/client';import App from './App';import './styles.css';createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>);
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './styles.css';
+import { reloadOnceForChunkError } from './utils/chunkRecovery';
+
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  reloadOnceForChunkError();
+});
+
+createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);

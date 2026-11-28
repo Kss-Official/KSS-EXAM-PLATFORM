@@ -1,5 +1,6 @@
-﻿import { Component, type ErrorInfo, type ReactNode } from "react";
+import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle, RotateCcw, Home } from "lucide-react";
+import { isChunkLoadError, reloadOnceForChunkError } from "../utils/chunkRecovery";
 
 interface Props {
   children: ReactNode;
@@ -7,6 +8,7 @@ interface Props {
 
 interface State {
   hasError: boolean;
+  isReloadingChunk: boolean;
   error: Error | null;
   errorInfo: ErrorInfo | null;
 }
@@ -16,22 +18,30 @@ export default class ErrorBoundary extends Component<Props, State> {
     super(props);
     this.state = {
       hasError: false,
+      isReloadingChunk: false,
       error: null,
       errorInfo: null
     };
   }
 
   static getDerivedStateFromError(error: Error): State {
+    const chunkErr = isChunkLoadError(error);
     return {
       hasError: true,
+      isReloadingChunk: chunkErr,
       error,
       errorInfo: null
     };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    if (isChunkLoadError(error) && reloadOnceForChunkError()) {
+      this.setState({ isReloadingChunk: true, error, errorInfo });
+      return;
+    }
     console.error("[ExamSecure ErrorBoundary Caught Error]:", error, errorInfo);
     this.setState({
+      isReloadingChunk: false,
       error,
       errorInfo
     });
@@ -52,6 +62,9 @@ export default class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    if (this.state.hasError && this.state.isReloadingChunk) {
+      return null;
+    }
     if (this.state.hasError) {
       return (
         <div style={{

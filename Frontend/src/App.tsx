@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { RouterProvider, useRouter } from "./router";
 import type { AdminDashboardResponse } from "./services/api";
 
@@ -6,27 +6,28 @@ import { getAdminDashboard, ApiError } from "./services/api";
 import AdminLayout from "./components/admin/AdminLayout";
 import AdminRouteGuard from "./components/admin/AdminRouteGuard";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { lazyWithRetry } from "./utils/chunkRecovery";
 
 import "./styles.css";
 import "./styles/admin.css";
 
 // Route-level code-splitting for high-speed initial loads
-const OverviewPage = lazy(() => import("./pages/admin/OverviewPage"));
-const ExamsPage = lazy(() => import("./pages/admin/ExamsPage"));
-const CreateExamPage = lazy(() => import("./pages/admin/CreateExamPage"));
-const QuestionBankPage = lazy(() => import("./pages/admin/QuestionBankPage"));
-const CandidatesPage = lazy(() => import("./pages/admin/CandidatesPage"));
-const ResultsPage = lazy(() => import("./pages/admin/ResultsPage"));
-const LiveMonitoringPage = lazy(() => import("./pages/admin/LiveMonitoringPage"));
-const DepartmentsPage = lazy(() => import("./pages/admin/DepartmentsPage"));
-const SettingsPage = lazy(() => import("./pages/admin/SettingsPage"));
-const AdminLoginPage = lazy(() => import("./pages/admin/AdminLoginPage"));
-const CandidatePortal = lazy(() => import("./pages/candidate/CandidatePortal"));
-const CodingRoundPage = lazy(() => import("./pages/candidate/CodingRoundPage"));
-const CodingLoginPage = lazy(() => import("./pages/candidate/CodingLoginPage"));
-const CodingResultsPage = lazy(() => import("./pages/candidate/CodingResultsPage"));
-const CodingResultsAdminPage = lazy(() => import("./pages/admin/CodingResultsAdminPage"));
-const CodingExamsAdminPage = lazy(() => import("./pages/admin/CodingExamsAdminPage"));
+const OverviewPage = lazyWithRetry(() => import("./pages/admin/OverviewPage"));
+const ExamsPage = lazyWithRetry(() => import("./pages/admin/ExamsPage"));
+const CreateExamPage = lazyWithRetry(() => import("./pages/admin/CreateExamPage"));
+const QuestionBankPage = lazyWithRetry(() => import("./pages/admin/QuestionBankPage"));
+const CandidatesPage = lazyWithRetry(() => import("./pages/admin/CandidatesPage"));
+const ResultsPage = lazyWithRetry(() => import("./pages/admin/ResultsPage"));
+const LiveMonitoringPage = lazyWithRetry(() => import("./pages/admin/LiveMonitoringPage"));
+const DepartmentsPage = lazyWithRetry(() => import("./pages/admin/DepartmentsPage"));
+const SettingsPage = lazyWithRetry(() => import("./pages/admin/SettingsPage"));
+const AdminLoginPage = lazyWithRetry(() => import("./pages/admin/AdminLoginPage"));
+const CandidatePortal = lazyWithRetry(() => import("./pages/candidate/CandidatePortal"));
+const CodingRoundPage = lazyWithRetry(() => import("./pages/candidate/CodingRoundPage"));
+const CodingLoginPage = lazyWithRetry(() => import("./pages/candidate/CodingLoginPage"));
+const CodingResultsPage = lazyWithRetry(() => import("./pages/candidate/CodingResultsPage"));
+const CodingResultsAdminPage = lazyWithRetry(() => import("./pages/admin/CodingResultsAdminPage"));
+const CodingExamsAdminPage = lazyWithRetry(() => import("./pages/admin/CodingExamsAdminPage"));
 const CODING_ROUND_ENABLED = import.meta.env.VITE_CODING_ROUND_ENABLED === "true";
 
 function PageLoading() {
